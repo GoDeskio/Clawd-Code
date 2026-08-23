@@ -73,4 +73,6 @@ def install_desktop_deps(
             last = exc
             if progress:
                 progress(f"npm install failed: {exc}")
-    raise RuntimeError(f"desktop dependency install failed after {retry} attempts: {last}")
+    if progress:
+        progress("Electron install skipped after retries — browser UI still works")
+    return "failed"

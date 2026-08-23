@@ -193,6 +193,42 @@ class TestDesktopRuntime(DesktopTestCase):
         events, _ = runtime.drain_events(job_id)
         done = [ev for ev in events if ev.get("type") == "done"][0]
         self.assertIn("/skills", done["text"])
+        self.assertIn("/new", done["text"])
+        runtime.provider.chat.assert_not_called()
+
+    def test_slash_new_creates_empty_session(self) -> None:
+        runtime = self._runtime()
+        runtime.session.conversation.add_user_message("keep this thread")
+        previous = runtime.save_session()
+        job_id = runtime.start_chat("/new")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job_id)[1]))
+        events, _ = runtime.drain_events(job_id)
+        done = [ev for ev in events if ev.get("type") == "done"][0]
+        self.assertEqual(done.get("messages"), [])
+        self.assertNotEqual(done["session"]["session_id"], previous["session_id"])
+        self.assertEqual(runtime.session.session_id, done["session"]["session_id"])
+        self.assertEqual(len(runtime.session.conversation.messages), 0)
+        self.assertEqual(runtime.session.token_usage["total_tokens"], 0)
+        listed_ids = {item["session_id"] for item in Session.list_sessions()}
+        self.assertIn(previous["session_id"], listed_ids)
+        runtime.provider.chat.assert_not_called()
+
+    def test_slash_clear_persists_empty_same_session(self) -> None:
+        runtime = self._runtime()
+        runtime.session.conversation.add_user_message("wipe me")
+        runtime.session.record_usage({"input_tokens": 4, "output_tokens": 2})
+        saved = runtime.save_session()
+        job_id = runtime.start_chat("/clear")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job_id)[1]))
+        events, _ = runtime.drain_events(job_id)
+        done = [ev for ev in events if ev.get("type") == "done"][0]
+        self.assertEqual(done.get("messages"), [])
+        self.assertEqual(done["session"]["session_id"], saved["session_id"])
+        self.assertEqual(len(runtime.session.conversation.messages), 0)
+        self.assertEqual(runtime.session.token_usage["total_tokens"], 0)
+        loaded = Session.load(saved["session_id"])
+        self.assertIsNotNone(loaded)
+        self.assertEqual(len(loaded.conversation.messages), 0)
         runtime.provider.chat.assert_not_called()
 
     def test_session_list_roundtrip(self) -> None:
@@ -243,7 +279,7 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("Skill", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.2.4")
+        self.assertEqual(runtime.status()["version"], "0.2.5")
         self.assertTrue(runtime.status()["standalone"])
 
     def test_multi_agent_workers_do_not_need_other_products(self) -> None:
@@ -418,7 +454,7 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.4", html)
+        self.assertIn("0.2.5", html)
         self.assertIn("session-menu", html)
         self.assertIn("app.js", html)
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from src.agent import Session
+from src.agent.session import empty_token_usage
 from src.command_system import (
     CommandRegistry,
     create_command_context,
@@ -632,6 +633,7 @@ class DesktopRuntime:
             {"name": "/", "description": "Show commands and skills"},
             {"name": "/help", "description": "Show help"},
             {"name": "/clear", "description": "Clear conversation"},
+            {"name": "/new", "description": "Start a brand-new empty session"},
             {"name": "/save", "description": "Save current session"},
             {"name": "/load", "description": "Load a session by id"},
             {"name": "/tools", "description": "List available tools"},
@@ -966,9 +968,29 @@ class DesktopRuntime:
         if cmd in {"help"}:
             self._finish(job, {"type": "done", "text": _HELP_TEXT, "kind": "command"})
             return True
-        if cmd in {"clear", "reset", "new"}:
+        if cmd in {"new"}:
+            created = self.new_session()
+            self._finish(job, {
+                "type": "done",
+                "text": "Started a new chat.",
+                "kind": "command",
+                "session": created,
+                "messages": [],
+            })
+            return True
+        if cmd in {"clear", "reset"}:
             self.session.conversation.clear()
-            self._finish(job, {"type": "done", "text": "Conversation cleared.", "kind": "command"})
+            self.session.token_usage = empty_token_usage()
+            if not self.session.custom_title:
+                self.session.title = "New chat"
+            self.save_session()
+            self._finish(job, {
+                "type": "done",
+                "text": "Conversation cleared.",
+                "kind": "command",
+                "session": self.session.to_summary(),
+                "messages": [],
+            })
             return True
         if cmd == "save":
             summary = self.save_session()
@@ -1082,7 +1104,8 @@ _HELP_TEXT = """**Jonathan Ai**
 
 - `/` — list commands and skills
 - `/help` — this help
-- `/clear` — clear the current conversation
+- `/clear` — clear the current conversation (same session, saved empty)
+- `/new` — start a brand-new empty session
 - `/save` — persist this session to `~/.clawd/sessions`
 - `/load <id>` — restore a saved session
 - `/tools` — list tools

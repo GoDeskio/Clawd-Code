@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-08-23
+
+### Fixed
+- `/new` now creates a brand-new empty session (new id, empty messages, reset token meter). `/clear` keeps the same session but persists the empty transcript so restart does not restore wiped messages
+- Windows Setup no longer merges `origin/main` into an existing feature-branch install; it overlays this checkout and fetches the current branch only
+- Electron/npm install is best-effort: a failed `npm install` no longer aborts venv + pip setup. The browser UI still opens
+- Anthropic custom-wrapped / MCP dynamic tools flatten to `{name, description, input_schema:{type:object, properties}}`. Stream retry without tools only runs when no text has been emitted yet
+
 ## [0.2.4] - 2026-08-23
 
 ### Fixed
@@ -195,6 +203,7 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.5]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.5
 [0.2.4]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.4
 [0.2.3]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.3
 [0.2.2]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.2

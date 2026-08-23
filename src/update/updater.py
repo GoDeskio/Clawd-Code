@@ -83,15 +83,21 @@ class Updater:
         if self.is_dirty() and not allow_dirty:
             raise RuntimeError("working tree has local changes; refusing to auto-update")
         remote = fetch_repo_status()
-        branch = str(remote.get("default_branch") or "main")
+        local_branch = current_branch(self.source_dir)
+        remote_default = str(remote.get("default_branch") or "main")
+        # Stay on a feature-branch install. Never check out or merge main into it.
+        if local_branch and local_branch not in {"HEAD"}:
+            branch = local_branch
+        else:
+            branch = remote_default
         sha = str(remote.get("sha") or "")
         fetch = _git(["fetch", "origin", branch], self.source_dir)
         if fetch.returncode != 0:
             raise RuntimeError(fetch.stderr.strip() or "git fetch failed")
-        checkout = _git(["checkout", branch], self.source_dir)
-        if checkout.returncode != 0:
-            # Stay on current branch if checkout fails; still try ff-only.
-            pass
+        if not local_branch or local_branch == "HEAD":
+            checkout = _git(["checkout", branch], self.source_dir)
+            if checkout.returncode != 0:
+                pass
         pull = _git(["merge", "--ff-only", f"origin/{branch}"], self.source_dir)
         if pull.returncode != 0:
             raise RuntimeError(pull.stderr.strip() or "fast-forward update failed")

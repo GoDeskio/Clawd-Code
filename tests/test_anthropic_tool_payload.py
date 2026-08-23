@@ -182,6 +182,22 @@ class TestAnthropicClassicToolPayload(unittest.TestCase):
         self.assertEqual(payload[0]["input_schema"]["type"], "object")
         self.assertIn("uri", payload[0]["input_schema"]["properties"])
 
+    def test_custom_wrapped_tool_is_classic_shape(self) -> None:
+        payload = prepare_anthropic_tools([
+            {
+                "type": "custom",
+                "custom": {
+                    "name": "Skill",
+                    "description": "wrapped",
+                    "input_schema": {"anyOf": [{"properties": {"skill": {"type": "string"}}}]},
+                },
+            }
+        ])
+        self.assertEqual(payload[0]["name"], "Skill")
+        self.assertEqual(set(payload[0].keys()), {"name", "description", "input_schema"})
+        self.assertEqual(payload[0]["input_schema"]["type"], "object")
+        self.assertIn("skill", payload[0]["input_schema"]["properties"])
+
 
 if __name__ == "__main__":
     unittest.main()

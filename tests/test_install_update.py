@@ -12,6 +12,7 @@ from unittest.mock import patch
 from src.install.constants import CANONICAL_HTTPS
 from src.install.python_env import detect_os, ensure_venv, find_system_python, venv_is_usable
 from src.install.record import read_install_record, write_install_record
+from src.install.deps import install_desktop_deps
 from src.install.source import (
     UntrustedSourceError,
     assert_allowed_source_url,
@@ -69,6 +70,32 @@ class TestMaterializeSource(unittest.TestCase):
             remotes = subprocess.run(["git", "remote", "-v"], cwd=tree, check=True, capture_output=True, text=True)
             self.assertIn("GoDeskio/Clawd-Code", remotes.stdout)
             self.assertNotIn("GPT-AGI", remotes.stdout)
+
+    def test_existing_feature_branch_is_not_merged_with_main(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "Jonathan" / "Jonathan-Ai"
+            dest.mkdir(parents=True)
+            (dest / "src").mkdir()
+            (dest / "src" / "cli.py").write_text("print('old')\n", encoding="utf-8")
+            subprocess.run(["git", "init"], cwd=dest, check=True, capture_output=True)
+            subprocess.run(["git", "remote", "add", "origin", CANONICAL_HTTPS], cwd=dest, check=True, capture_output=True)
+            subprocess.run(["git", "-c", "user.email=test@example.com", "-c", "user.name=test", "add", "src/cli.py"], cwd=dest, check=True, capture_output=True)
+            subprocess.run(["git", "-c", "user.email=test@example.com", "-c", "user.name=test", "commit", "-m", "init"], cwd=dest, check=True, capture_output=True)
+            subprocess.run(["git", "checkout", "-b", "cursor/desktop-agent-shell-e032"], cwd=dest, check=True, capture_output=True)
+            src = Path(tmp) / "checkout"
+            (src / "src").mkdir(parents=True)
+            (src / "src" / "cli.py").write_text("print('overlay')\n", encoding="utf-8")
+            calls: list[list[str]] = []
+
+            def record(args, *, cwd=None, check=True):
+                calls.append(list(args))
+                return subprocess.CompletedProcess(["git", *args], 0, "", "")
+
+            with patch("src.install.source._run_git", side_effect=record):
+                tree = materialize_source(dest, from_local=src)
+            self.assertEqual((tree / "src" / "cli.py").read_text(encoding="utf-8"), "print('overlay')\n")
+            merged = [" ".join(args) for args in calls if args and args[0] == "merge"]
+            self.assertFalse(any("origin/main" in item for item in merged), merged)
 
 
 class TestWizardAndVerify(unittest.TestCase):
@@ -242,6 +269,20 @@ class TestUpdater(unittest.TestCase):
             self.assertIn("Jonathan", data["source_dir"])
             self.assertNotIn("token", data)
             self.assertNotIn("api_key", data)
+
+    def test_electron_install_failure_is_optional(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "app"
+            desktop = source / "desktop"
+            desktop.mkdir(parents=True)
+            (desktop / "package.json").write_text("{}", encoding="utf-8")
+            notes: list[str] = []
+            with patch("shutil.which", return_value="/usr/bin/npm"), patch(
+                "src.install.deps._run", side_effect=RuntimeError("npm exploded")
+            ):
+                status = install_desktop_deps(source, retry=2, progress=notes.append)
+            self.assertEqual(status, "failed")
+            self.assertTrue(any("browser UI still works" in note for note in notes))
 
     def test_wizard_html_covers_git_and_agents(self) -> None:
         html = (Path(__file__).resolve().parents[1] / "src" / "install" / "web" / "index.html").read_text(encoding="utf-8")

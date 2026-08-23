@@ -171,16 +171,13 @@ static void git_upgrade(const wchar_t *dest) {
     wchar_t gitdir[MAX_PATH], cmd[2048];
     join(gitdir, dest, L".git");
     if (!exists(gitdir)) return;
-    append_log(L"Updating existing install from GoDeskio/Clawd-Code…");
+    /* Fetch only. Overlay from this Setup payload is the upgrade.
+       Do not merge origin/main into a feature-branch install. */
+    append_log(L"Fetching GoDeskio/Clawd-Code (current branch only; main is not merged)…");
     wsprintfW(cmd, L"cmd.exe /C git -C \"%s\" remote set-url origin https://github.com/GoDeskio/Clawd-Code.git", dest);
     run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, dest);
     wsprintfW(cmd, L"cmd.exe /C git -C \"%s\" fetch origin", dest);
     run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, dest);
-    wsprintfW(cmd, L"cmd.exe /C git -C \"%s\" merge --ff-only origin/main", dest);
-    if (!run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, dest)) {
-        wsprintfW(cmd, L"cmd.exe /C git -C \"%s\" merge --ff-only origin/master", dest);
-        run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, dest);
-    }
 }
 
 static DWORD WINAPI install_thread(LPVOID param) {
@@ -267,11 +264,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
         InitCommonControlsEx(&icc);
         CreateWindowW(L"STATIC", L"Jonathan Ai", WS_CHILD | WS_VISIBLE,
             24, 16, 400, 28, hwnd, NULL, NULL, NULL);
-        CreateWindowW(L"STATIC", L"Windows desktop installer  0.2.4", WS_CHILD | WS_VISIBLE,
+        CreateWindowW(L"STATIC", L"Windows desktop installer  0.2.5", WS_CHILD | WS_VISIBLE,
             24, 44, 400, 20, hwnd, NULL, NULL, NULL);
 
         g_welcome = CreateWindowW(L"STATIC",
-            L"This wizard installs or upgrades Jonathan Ai 0.2.4 in place.\r\n\r\n"
+            L"This wizard installs or upgrades Jonathan Ai 0.2.5 in place.\r\n\r\n"
             L"It reuses %USERPROFILE%\\Jonathan\\Jonathan-Ai (or an existing Clawd-Code folder).\r\n"
             L"A second run upgrades that same folder — it does not create a parallel install.\r\n\r\n"
             L"Shortcuts are rewritten to Jonathan-Ai\\JonathanAi.exe.\r\n"
@@ -369,7 +366,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1));
     if (!wc.hIcon) wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     RegisterClassW(&wc);
-    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.2.4",
+    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.2.5",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 640, 460, NULL, NULL, inst, NULL);
     ShowWindow(g_main, show);

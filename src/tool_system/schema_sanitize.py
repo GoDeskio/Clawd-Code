@@ -136,6 +136,11 @@ def sanitize_tool_payload(tool: Mapping[str, Any] | None) -> dict[str, Any] | No
     """Classic Anthropic tool: {name, description, input_schema:{type, properties, required?}}."""
     if not isinstance(tool, Mapping):
         return None
+    if isinstance(tool.get("custom"), Mapping):
+        nested = dict(tool["custom"])
+        merged = dict(tool)
+        merged.update(nested)
+        tool = merged
     name = str(tool.get("name") or tool.get("tool") or "").strip()
     if not name:
         return None

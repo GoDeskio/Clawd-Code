@@ -300,6 +300,7 @@ class AnthropicProvider(BaseProvider):
         )
         streamed_text = ""
         final_message = None
+        emitted: list[str] = []
 
         def _read_stream(req: dict[str, Any]) -> tuple[str, Any]:
             text_out = ""
@@ -309,6 +310,7 @@ class AnthropicProvider(BaseProvider):
                     if not text:
                         continue
                     text_out += text
+                    emitted.append(text)
                     if on_text_chunk is not None:
                         on_text_chunk(text)
                 try:
@@ -322,6 +324,14 @@ class AnthropicProvider(BaseProvider):
         try:
             streamed_text, final_message = _read_stream(request)
         except Exception as exc:
+            if emitted:
+                return ChatResponse(
+                    content="".join(emitted),
+                    model=model,
+                    usage={},
+                    finish_reason="stop",
+                    tool_uses=None,
+                )
             if not prepared:
                 raise
             retry = self._retry_without_tools(request, prepared, exc)

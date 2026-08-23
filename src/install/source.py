@@ -160,9 +160,12 @@ def materialize_source(
             else:
                 _run_git(["remote", "add", "origin", CANONICAL_HTTPS], cwd=dest, check=False)
             _run_git(["fetch", "origin"], cwd=dest, check=False)
-            branch = current_branch(dest)
-            target = f"origin/{branch}" if branch and branch != "HEAD" else "origin/main"
-            _run_git(["merge", "--ff-only", target], cwd=dest, check=False)
+            # Stay on the installed branch. Never fall back to merging origin/main
+            # into a feature-branch checkout (this PR branch must stay intact).
+            if from_local is None:
+                branch = current_branch(dest)
+                if branch and branch != "HEAD":
+                    _run_git(["merge", "--ff-only", f"origin/{branch}"], cwd=dest, check=False)
         if from_local is not None:
             src = Path(from_local).expanduser().resolve()
             if src != dest and (src / "src" / "cli.py").exists():

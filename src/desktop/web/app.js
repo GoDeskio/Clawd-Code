@@ -103,7 +103,7 @@ async function refreshStatus() {
   $("model-line").textContent = `${state.status.provider} · ${model}`;
   $("chat-title").textContent = state.status.session?.title || "New chat";
   if ($("app-version")) {
-    const ver = state.status.version || "0.2.4";
+    const ver = state.status.version || "0.2.5";
     $("app-version").textContent = `v${ver} · standalone`;
     document.title = `Jonathan Ai ${ver}`;
   }
@@ -568,11 +568,19 @@ function watchJob(jobId) {
       return;
     }
     if (event.type === "done") {
-      if (event.text && !(assistant && assistant.dataset.raw)) {
+      if (Array.isArray(event.messages)) {
+        renderTranscript(event.messages);
+        if (event.text) addBubble("system", event.text);
+      } else if (event.text && !(assistant && assistant.dataset.raw)) {
         addBubble(event.kind === "command" ? "system" : "assistant", event.text);
       }
-      if (event.session) renderUsage(event.session);
-      else if (event.usage) renderUsage({ token_usage: event.usage });
+      if (event.session) {
+        renderUsage(event.session);
+        refreshStatus();
+        refreshSessions();
+      } else if (event.usage) {
+        renderUsage({ token_usage: event.usage });
+      }
       if (native?.notify && event.kind !== "command") {
         native.notify("Jonathan Ai finished", (event.text || "Done").slice(0, 120));
       }
