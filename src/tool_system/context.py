@@ -28,6 +28,7 @@ class ToolContext:
     team: dict[str, Any] | None = None
     output_style_name: str | None = None
     output_style_dir: Path | None = None
+    session_id: str | None = None
 
     # When True, destructive/network tools ask for consent before running.
     # Desktop runtime enables this; the CLI REPL leaves it off so existing

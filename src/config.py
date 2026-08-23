@@ -312,10 +312,16 @@ def get_desktop_settings() -> dict[str, Any]:
     return {
         "workspace": desktop.get("workspace", ""),
         "notify_on_complete": bool(desktop.get("notify_on_complete", True)),
+        "current_session_id": desktop.get("current_session_id") or "",
     }
 
 
-def update_desktop_settings(*, workspace: Optional[str] = None, notify_on_complete: Optional[bool] = None) -> dict[str, Any]:
+def update_desktop_settings(
+    *,
+    workspace: Optional[str] = None,
+    notify_on_complete: Optional[bool] = None,
+    current_session_id: Optional[str] = None,
+) -> dict[str, Any]:
     config = load_config()
     desktop = config.get("desktop")
     if not isinstance(desktop, dict):
@@ -324,6 +330,8 @@ def update_desktop_settings(*, workspace: Optional[str] = None, notify_on_comple
         desktop["workspace"] = workspace
     if notify_on_complete is not None:
         desktop["notify_on_complete"] = bool(notify_on_complete)
+    if current_session_id is not None:
+        desktop["current_session_id"] = current_session_id
     config["desktop"] = desktop
     save_config(config)
     return get_desktop_settings()

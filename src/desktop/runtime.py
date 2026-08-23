@@ -15,6 +15,7 @@ from src.command_system import (
     execute_command_sync,
     register_builtin_commands,
 )
+from src.agent.memory import remember_turn
 from src.config import (
     get_default_provider,
     get_desktop_settings,
@@ -161,6 +162,7 @@ class DesktopRuntime:
         except Exception:
             pass
         self._try_init_provider()
+        self._restore_session()
         if self.install_record:
             self._update_thread = threading.Thread(target=self._auto_update_on_launch, daemon=True, name="clawd-update")
             self._update_thread.start()
@@ -171,7 +173,48 @@ class DesktopRuntime:
         ctx.permission_handler = self._handle_permission_request
         ctx.ask_user = self._ask_user_questions
         ctx.mcp_clients = enabled_mcp_clients()
+        ctx.session_id = getattr(self, "session", None).session_id if getattr(self, "session", None) else None
         return ctx
+
+    def _bind_session(self, session: Session) -> None:
+        self.session = session
+        self.session.workspace = self.session.workspace or str(self.workspace)
+        self.command_context.conversation = self.session.conversation
+        self.tool_context.session_id = self.session.session_id
+        try:
+            update_desktop_settings(current_session_id=self.session.session_id)
+        except Exception:
+            pass
+
+    def _restore_session(self) -> None:
+        settings = get_desktop_settings()
+        candidates = [settings.get("current_session_id") or ""]
+        listed = Session.list_sessions()
+        if listed:
+            candidates.append(listed[0].get("session_id") or "")
+        seen: set[str] = set()
+        for session_id in candidates:
+            if not session_id or session_id in seen:
+                continue
+            seen.add(session_id)
+            loaded = Session.load(session_id)
+            if loaded is None:
+                continue
+            if loaded.workspace:
+                try:
+                    workspace = Path(loaded.workspace).expanduser().resolve()
+                    if workspace.exists() and workspace.is_dir():
+                        self.workspace = workspace
+                        grants = set(self.tool_context.session_grants)
+                        self.tool_context = self._make_context()
+                        self.tool_context.session_grants = grants
+                except Exception:
+                    pass
+            self._bind_session(loaded)
+            return
+        self.session.workspace = str(self.workspace)
+        self.session.save()
+        self._bind_session(self.session)
 
     def _refresh_mcp(self) -> None:
         self.tool_context.mcp_clients = enabled_mcp_clients()
@@ -514,28 +557,46 @@ class DesktopRuntime:
         return Session.list_sessions()
 
     def new_session(self) -> dict[str, Any]:
+        previous_id = self.session.session_id
+        try:
+            self.save_session()
+        except Exception:
+            pass
         model = getattr(self.provider, "model", None) or self.session.model
-        self.session = Session.create(self.provider_name, model, workspace=str(self.workspace))
-        self.command_context.conversation = self.session.conversation
-        return self.session.to_summary()
+        created = Session.create(self.provider_name, model, workspace=str(self.workspace))
+        created.save()
+        self._bind_session(created)
+        if created.session_id == previous_id:
+            raise RuntimeError("New chat reused the previous session id")
+        return {
+            **created.to_summary(),
+            "messages": [],
+            "previous_session_id": previous_id,
+        }
 
     def load_session(self, session_id: str) -> dict[str, Any]:
         loaded = Session.load(session_id)
         if loaded is None:
             raise ValueError(f"session not found: {session_id}")
-        self.session = loaded
         if loaded.workspace:
             try:
                 self.set_workspace(loaded.workspace)
             except ValueError:
                 pass
-        self.command_context.conversation = self.session.conversation
-        return self.session.to_summary()
+        self._bind_session(loaded)
+        return {**loaded.to_summary(), "messages": loaded.export_messages()}
 
     def save_session(self) -> dict[str, Any]:
         self.session.workspace = str(self.workspace)
         self.session.save()
+        self._bind_session(self.session)
         return self.session.to_summary()
+
+    def export_current_messages(self) -> dict[str, Any]:
+        return {
+            "session": self.session.to_summary(),
+            "messages": self.session.export_messages(),
+        }
 
     def rename_session(self, session_id: str | None, title: str) -> dict[str, Any]:
         target_id = str(session_id or self.session.session_id or "").strip()
@@ -812,6 +873,15 @@ class DesktopRuntime:
             usage = self.session.record_usage(result.usage)
             if self.session.conversation.messages:
                 self.session.save()
+            try:
+                remember_turn(
+                    session_id=self.session.session_id,
+                    title=self.session.display_title(),
+                    user_text=combined,
+                    assistant_text=result.response_text or "",
+                )
+            except Exception:
+                pass
             self._finish(job, {
                 "type": "done",
                 "text": result.response_text,

@@ -37,15 +37,15 @@
 | Slash Commands | ✅ | 已支持 `/help`、`/clear`、`/save`、`/load`、`/multiline`、`/exit` |
 | 多 Provider 抽象 | ✅ | 已支持 Anthropic / OpenAI / GLM / Minimax / Hugging Face / Local LLM |
 | Provider 配置管理 | ✅ | 支持默认 Provider、Base URL、默认模型配置 |
-| 会话持久化 | ✅ | 支持保存/加载本地会话；桌面左侧可重命名，标题随会话持久化 |
-| 独立桌面 Agent | ✅ | v0.2.1：只需一把 API key 或本地 LLM；未连接的 MCP/其他 Agent 不进入请求；Anthropic schema 400 会去掉 tools 重试 |
+| 会话持久化 | ✅ | 支持保存/加载本地会话；重启后侧栏仍在；New Chat 新建空线程；桌面左侧可重命名 |
+| 独立桌面 Agent | ✅ | v0.2.2：会话持久化；New Chat 空线程；跨会话记忆 `~/.clawd/memory`；Anthropic schema 400 会去掉 tools 重试 |
 | 工具 schema 清洗 | ✅ | 发给 Anthropic/OpenAI 的每个工具都带 `input_schema.type` |
 | 会话消息管理 | ✅ | 支持会话历史维护与序列化 |
 | 错误恢复 / 重新登录 | 🟡 | 已有基础认证错误处理与重新配置流程 |
 | Token / Cost 跟踪 | ✅ | 桌面每个聊天窗口显示 input/output/running total，随会话持久化；仅信息展示，不是配额墙 |
 | GitHub / GitLab | ✅ | 本机 token 或设备登录；clone/pull/push、建仓、PR/MR；默认不推 default branch |
 | MCP / 其他 Agent | ✅ | 设置中添加/列出/启用 MCP 与 OpenAI 兼容 agent URL；Cursor/Codex/local hook |
-| 上下文构建 | 🟡 | 已有 `context_system` 基础版，支持 workspace / git / `CLAUDE.md` 注入，仍缺 README 摘要、memory、compact |
+| 上下文构建 | ✅ | workspace / git / `CLAUDE.md`；跨会话记忆 `~/.clawd/memory`（facts + 其他对话标题/摘要，不含全文） |
 | Claude Code Agent Loop | ✅ | 已实现 agent_loop.py，支持工具调用循环 |
 | `/resume` 会话恢复体验 | 🚫 | 暂无独立恢复流程与 UI |
 | `/compact` 对话压缩 | 🚫 | 暂无自动/手动压缩能力 |

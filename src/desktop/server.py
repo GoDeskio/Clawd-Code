@@ -174,6 +174,8 @@ class DesktopServer:
                 str(body.get("session_id") or body.get("id") or ""),
                 str(body.get("title") or ""),
             )
+        if path == "/api/sessions/messages" and method == "GET":
+            return 200, runtime.export_current_messages()
         if path == "/api/skills" and method == "GET":
             return 200, {"skills": runtime.list_skills()}
         if path == "/api/commands" and method == "GET":

@@ -49,6 +49,16 @@ function addBubble(role, text, extraClass) {
   return node;
 }
 
+function renderTranscript(messages) {
+  $("transcript").innerHTML = "";
+  for (const msg of messages || []) {
+    const role = msg.role || "assistant";
+    const text = typeof msg.content === "string" ? msg.content : "";
+    if (!text.trim()) continue;
+    addBubble(role, text);
+  }
+}
+
 function addToolCard(event) {
   const node = document.createElement("article");
   node.className = "bubble tool-card";
@@ -93,7 +103,7 @@ async function refreshStatus() {
   $("model-line").textContent = `${state.status.provider} · ${model}`;
   $("chat-title").textContent = state.status.session?.title || "New chat";
   if ($("app-version")) {
-    const ver = state.status.version || "0.2.1";
+    const ver = state.status.version || "0.2.2";
     $("app-version").textContent = `v${ver} · standalone`;
     document.title = `Jonathan Ai ${ver}`;
   }
@@ -243,11 +253,11 @@ async function refreshSessions() {
     }
     btn.addEventListener("click", async () => {
       if (state.renamingId === session.session_id) return;
-      await api("/api/sessions/load", { method: "POST", body: JSON.stringify({ session_id: session.session_id }) });
-      $("transcript").innerHTML = "";
-      addBubble("system", `Loaded session ${session.session_id}`);
+      const loaded = await api("/api/sessions/load", { method: "POST", body: JSON.stringify({ session_id: session.session_id }) });
+      renderTranscript(loaded.messages || []);
       await refreshStatus();
       await refreshSessions();
+      $("prompt").focus();
     });
     btn.addEventListener("dblclick", (event) => {
       event.preventDefault();
@@ -614,11 +624,13 @@ function bindUi() {
     else $("slash-palette").classList.add("hidden");
   });
   $("new-chat").addEventListener("click", async () => {
-    await api("/api/sessions", { method: "POST" });
-    $("transcript").innerHTML = "";
-    addBubble("system", "New chat. Pick a workspace and send a message.");
+    const created = await api("/api/sessions", { method: "POST" });
+    renderTranscript(created.messages || []);
     await refreshStatus();
     await refreshSessions();
+    $("chat-title").textContent = created.title || "New chat";
+    $("prompt").value = "";
+    $("prompt").focus();
   });
   $("session-menu-rename").addEventListener("click", () => {
     const session = state.sessions.find((item) => item.session_id === state.menuSessionId);
@@ -1039,7 +1051,13 @@ async function boot() {
   await prepareSetup();
   await refreshSessions();
   await refreshCommands();
-  addBubble("system", "Jonathan Ai is the agent. Chat with one API key or a local model — other MCP/Cursor/Codex connections are optional. Destructive and network tools will ask before they run.");
+  try {
+    const current = await api("/api/sessions/messages");
+    renderTranscript(current.messages || []);
+  } catch (_err) {
+    $("transcript").innerHTML = "";
+  }
+  addBubble("system", "Jonathan Ai is the agent. Chats persist on this machine. New chat starts empty. Shared memory is local only.");
   try {
     const update = await api("/api/update/check", { method: "POST", body: "{}" });
     renderUpdate(update);

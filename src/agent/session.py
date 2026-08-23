@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -32,6 +33,17 @@ def session_dir() -> Path:
     path = Path.home() / ".clawd" / "sessions"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _message_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    parts: list[str] = []
+    for block in content or []:
+        text = getattr(block, "text", None)
+        if isinstance(text, str) and text.strip():
+            parts.append(text)
+    return "\n".join(parts)
 
 
 def _title_from_conversation(conversation: Conversation) -> str:
@@ -97,6 +109,20 @@ class Session:
     def record_usage(self, usage: dict | None) -> dict:
         self.token_usage = merge_token_usage(self.token_usage, usage)
         return dict(self.token_usage)
+
+    def export_messages(self) -> list[dict]:
+        """User-visible messages for the desktop transcript (no tool dumps)."""
+        rows: list[dict] = []
+        for msg in self.conversation.messages:
+            if getattr(msg, "_is_internal", False):
+                continue
+            text = _message_text(msg.content)
+            if not text.strip():
+                continue
+            if msg.role not in {"user", "assistant", "system"}:
+                continue
+            rows.append({"role": msg.role, "content": text, "timestamp": msg.timestamp})
+        return rows
 
     def save(self):
         """Save session to disk."""
@@ -181,7 +207,7 @@ class Session:
     @classmethod
     def create(cls, provider: str, model: str, workspace: str = "") -> 'Session':
         """Create a new session."""
-        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:8]
         return cls(
             session_id=session_id,
             provider=provider,

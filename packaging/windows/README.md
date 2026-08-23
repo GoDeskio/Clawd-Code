@@ -1,6 +1,6 @@
 # Jonathan Ai for Windows
 
-**Version 0.2.1** — Jonathan Ai is itself the AI agent. After install, chat works with one API key or a local LLM. MCP, Cursor, and Codex are optional and not required. Rename conversations from the left sidebar (double-click or right-click). The version appears in the installer title and the app header.
+**Version 0.2.2** — Jonathan Ai is itself the AI agent. After install, chat works with one API key or a local LLM. Conversations persist across restarts; New Chat is always empty. Shared memory stays in `%USERPROFILE%\.clawd\memory`. MCP, Cursor, and Codex are optional. Rename conversations from the left sidebar (double-click or right-click). The version appears in the installer title and the app header.
 
 Desktop path:
 

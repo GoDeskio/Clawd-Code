@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-08-23
+
+### Added
+- Persistent desktop conversations: sessions restore on restart; sidebar lists all chats
+- New Chat always creates a unique empty session (new id, empty messages, reset token meter)
+- Shared agent memory under `~/.clawd/memory` (facts + compact conversation index) injected as a short brief each turn
+
 ## [0.2.1] - 2026-08-23
 
 ### Fixed
@@ -172,6 +179,7 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.2]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.2
 [0.2.1]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.1
 [0.2.0]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.0
 [0.1.0]: https://github.com/GPT-AGI/Clawd-Code/releases/tag/v0.1.0

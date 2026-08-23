@@ -174,9 +174,15 @@ def _build_effective_system_prompt(style_prompt: str, tool_context: ToolContext)
         )
     except Exception:
         context_prompt = ""
-    if not context_prompt.strip():
-        return style_prompt
-    return f"{style_prompt}\n\n{context_prompt}"
+    memory_prompt = ""
+    try:
+        from src.agent.memory import build_memory_brief
+
+        memory_prompt = build_memory_brief(exclude_session_id=getattr(tool_context, "session_id", None))
+    except Exception:
+        memory_prompt = ""
+    parts = [style_prompt, context_prompt, memory_prompt]
+    return "\n\n".join(part for part in parts if str(part or "").strip())
 
 
 def summarize_tool_use(name: str, tool_input: dict[str, Any]) -> str:

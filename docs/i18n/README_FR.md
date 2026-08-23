@@ -53,7 +53,7 @@
 - ✅ **Convivial** — Configuration simple, REPL interactif, documentation complète
 - ✅ **Continuellement amélioré** — Gestion des erreurs améliorée, tests, documentation
 
-**Version 0.2.1 — Jonathan Ai.** L'application de bureau est l'agent. Un modèle local ou une clé API suffit pour chatter. MCP, Cursor et Codex sont optionnels. Renommez les conversations dans la barre latérale. Les schémas d'outils sont envoyés au format classique Anthropic (`input_schema.type`). Un 400 schema relance la même requête sans tools.
+**Version 0.2.2 — Jonathan Ai.** L'application de bureau est l'agent. Les conversations persistent sur disque ; New Chat ouvre un fil vide. La mémoire partagée (`~/.clawd/memory`) relie les faits entre les chats. MCP, Cursor et Codex sont optionnels. Renommez les conversations dans la barre latérale. Les schémas d'outils sont envoyés au format classique Anthropic (`input_schema.type`). Un 400 schema relance la même requête sans tools.
 
 **🚀 Essayez-le maintenant ! Forkez-le, modifiez-le, rendez-le vôtre ! Les pull requests sont les bienvenues !**
 

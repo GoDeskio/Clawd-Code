@@ -100,7 +100,7 @@ function createWindow() {
     height: 840,
     minWidth: 880,
     minHeight: 600,
-    title: "Jonathan Ai 0.2.1",
+    title: "Jonathan Ai 0.2.2",
     backgroundColor: "#0b0c0f",
     autoHideMenuBar: true,
     icon: icon || undefined,
