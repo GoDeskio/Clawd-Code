@@ -103,7 +103,7 @@ async function refreshStatus() {
   $("model-line").textContent = `${state.status.provider} · ${model}`;
   $("chat-title").textContent = state.status.session?.title || "New chat";
   if ($("app-version")) {
-    const ver = state.status.version || "0.2.3";
+    const ver = state.status.version || "0.2.4";
     $("app-version").textContent = `v${ver} · standalone`;
     document.title = `Jonathan Ai ${ver}`;
   }
@@ -551,6 +551,17 @@ function watchJob(jobId) {
       addToolCard(event);
       return;
     }
+    if (event.type === "workers_started") {
+      addBubble("system", "Planning isolated workers. Chats stay separate; they share memory only.");
+      return;
+    }
+    if (event.type === "worker") {
+      addToolCard({
+        tool_name: event.title || event.worker_id || "worker",
+        summary: event.answer || event.prompt || "",
+      });
+      return;
+    }
     if (event.type === "permission_request") {
       showPermission(event);
       if (native?.notify) native.notify("Jonathan Ai needs permission", event.message || event.tool_name);
@@ -581,7 +592,7 @@ function watchJob(jobId) {
   };
 }
 
-async function sendMessage() {
+async function sendMessage(path = "/api/chat") {
   const text = $("prompt").value;
   if (!text.trim() && !state.attachments.length) return;
   addBubble("user", text || "(attachments)");
@@ -589,7 +600,7 @@ async function sendMessage() {
   $("slash-palette").classList.add("hidden");
   setBusy(true);
   try {
-    const data = await api("/api/chat", {
+    const data = await api(path, {
       method: "POST",
       body: JSON.stringify({
         text,
@@ -611,7 +622,8 @@ async function sendMessage() {
 }
 
 function bindUi() {
-  $("send").addEventListener("click", sendMessage);
+  $("send").addEventListener("click", () => sendMessage("/api/chat"));
+  $("workers")?.addEventListener("click", () => sendMessage("/api/multi-agent"));
   $("prompt").addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();

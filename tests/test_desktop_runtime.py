@@ -243,8 +243,26 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("Skill", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.2.3")
+        self.assertEqual(runtime.status()["version"], "0.2.4")
         self.assertTrue(runtime.status()["standalone"])
+
+    def test_multi_agent_workers_do_not_need_other_products(self) -> None:
+        runtime = self._runtime()
+        runtime.provider.chat.return_value = ChatResponse(
+            content="worker note",
+            model="test-model",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            finish_reason="stop",
+        )
+        job = runtime.start_multi_agent("Research the mascot then summarize it")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1]))
+        events, done = runtime.drain_events(job)
+        self.assertTrue(done)
+        self.assertTrue(any(ev.get("type") == "workers_started" for ev in events))
+        self.assertTrue(any(ev.get("type") == "worker" for ev in events))
+        self.assertTrue(any(ev.get("type") == "done" for ev in events))
+        for call in runtime.provider.chat.call_args_list:
+            self.assertFalse(call.kwargs.get("tools"))
 
     def test_new_chat_is_empty_and_keeps_previous(self) -> None:
         runtime = self._runtime()
@@ -400,7 +418,7 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.3", html)
+        self.assertIn("0.2.4", html)
         self.assertIn("session-menu", html)
         self.assertIn("app.js", html)
 

@@ -120,6 +120,68 @@ class TestAnthropicClassicToolPayload(unittest.TestCase):
         exc = Exception("Error code: 400 - tools.17.custom.input_schema.type: Field required")
         self.assertTrue(is_input_schema_type_error(exc))
 
+    def _stream(self, text: str = "ok"):
+        mock_stream = MagicMock()
+        mock_stream.__enter__.return_value = mock_stream
+        mock_stream.__exit__.return_value = False
+        mock_stream.text_stream = iter([text])
+        mock_stream.get_final_message.return_value = _ok_response()
+        return mock_stream
+
+    def test_chat_stream_response_retries_without_tools(self) -> None:
+        class Stream400(Exception):
+            status_code = 400
+            body = '{"type":"error","error":{"type":"invalid_request_error","message":"tools.17.custom.input_schema.type: Field required"}}'
+
+        tools = serialize_tools_for_provider(
+            build_default_registry(include_user_tools=False),
+            include_optional_connectors=False,
+        )
+        with patch("src.providers.anthropic_provider.anthropic.Anthropic") as mock_anthropic:
+            mock_client = MagicMock()
+            mock_client.messages.stream.side_effect = [Stream400("Error code: 400"), self._stream("streamed ok")]
+            mock_anthropic.return_value = mock_client
+            provider = AnthropicProvider(api_key="test_key")
+            chunks: list[str] = []
+            response = provider.chat_stream_response(
+                [ChatMessage(role="user", content="hello")],
+                tools=tools,
+                on_text_chunk=chunks.append,
+            )
+            self.assertEqual(response.content, "ok")
+            self.assertEqual("".join(chunks), "streamed ok")
+            self.assertEqual(mock_client.messages.stream.call_count, 2)
+            first = mock_client.messages.stream.call_args_list[0].kwargs
+            second = mock_client.messages.stream.call_args_list[1].kwargs
+            self.assertIn("tools", first)
+            self.assertNotIn("tools", second)
+            for item in first["tools"]:
+                self.assertEqual(set(item.keys()), {"name", "description", "input_schema"})
+                self.assertEqual(item["input_schema"].get("type"), "object")
+
+    def test_chat_stream_retries_without_tools(self) -> None:
+        class Stream400(Exception):
+            status_code = 400
+            body = {"error": {"message": "tools.17.custom.input_schema.type: Field required"}}
+
+        tools = [{"name": "Skill", "description": "x", "input_schema": {"anyOf": [{"properties": {}}]}}]
+        with patch("src.providers.anthropic_provider.anthropic.Anthropic") as mock_anthropic:
+            mock_client = MagicMock()
+            mock_client.messages.stream.side_effect = [Stream400("Error code: 400"), self._stream("plain")]
+            mock_anthropic.return_value = mock_client
+            provider = AnthropicProvider(api_key="test_key")
+            text = "".join(provider.chat_stream([ChatMessage(role="user", content="hi")], tools=tools))
+            self.assertEqual(text, "plain")
+            self.assertNotIn("tools", mock_client.messages.stream.call_args_list[1].kwargs)
+
+    def test_dynamic_mcp_tool_is_classic_shape(self) -> None:
+        payload = prepare_anthropic_tools([
+            {"name": "mcp__fs__read", "description": "dyn", "parameters": {"anyOf": [{"properties": {"uri": {"type": "string"}}}]}},
+        ])
+        self.assertEqual(payload[0]["name"], "mcp__fs__read")
+        self.assertEqual(payload[0]["input_schema"]["type"], "object")
+        self.assertIn("uri", payload[0]["input_schema"]["properties"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -136,12 +136,12 @@ def sanitize_tool_payload(tool: Mapping[str, Any] | None) -> dict[str, Any] | No
     """Classic Anthropic tool: {name, description, input_schema:{type, properties, required?}}."""
     if not isinstance(tool, Mapping):
         return None
-    name = str(tool.get("name") or "").strip()
+    name = str(tool.get("name") or tool.get("tool") or "").strip()
     if not name:
         return None
-    schema = classic_input_schema(tool.get("input_schema"))
+    schema = classic_input_schema(tool.get("input_schema") or tool.get("parameters"))
     if schema is None or schema.get("type") != "object":
-        return None
+        schema = {"type": "object", "properties": {}}
     return {
         "name": name,
         "description": str(tool.get("description") or ""),
@@ -177,20 +177,50 @@ def describe_tool_at_index(tools: Any, index: int = 17) -> str:
     return f"index {index} name={name!r} input_schema.type={schema_type!r} schema_keys={list(schema.keys()) if isinstance(schema, Mapping) else None}"
 
 
+def exception_blob(exc: BaseException) -> str:
+    """Flatten SDK / HTTP exception details so stream 400s are detectable."""
+    chunks: list[str] = [str(exc), repr(exc)]
+    for attr in ("message", "body", "status_code", "code", "type", "param", "request_id"):
+        if hasattr(exc, attr):
+            chunks.append(f"{attr}={getattr(exc, attr)!r}")
+    response = getattr(exc, "response", None)
+    if response is not None:
+        for attr in ("text", "content", "reason", "status_code"):
+            if hasattr(response, attr):
+                chunks.append(str(getattr(response, attr)))
+    if exc.__cause__ is not None:
+        chunks.append(exception_blob(exc.__cause__))
+    if exc.__context__ is not None and exc.__context__ is not exc.__cause__:
+        chunks.append(exception_blob(exc.__context__))
+    return "\n".join(chunks)
+
+
 def is_input_schema_type_error(exc: BaseException) -> bool:
     """True for Anthropic 400: tools.N.custom.input_schema.type: Field required."""
-    text = str(exc)
-    lowered = text.lower()
-    if "input_schema.type" in text:
+    blob = exception_blob(exc)
+    lowered = blob.lower()
+    if "input_schema.type" in blob or "custom.input_schema" in lowered:
+        return True
+    if "tools." in lowered and "input_schema" in lowered:
+        return True
+    status = getattr(exc, "status_code", None)
+    if status is None and ("error code: 400" in lowered or "status_code=400" in lowered):
+        status = 400
+    if status == 400 and ("tools" in lowered) and (
+        "schema" in lowered or "field required" in lowered or "invalid_request" in lowered
+    ):
         return True
     body = getattr(exc, "body", None)
+    if isinstance(body, str):
+        if "input_schema" in body and ("type" in body or "field required" in body.lower()):
+            return True
     if isinstance(body, Mapping):
         error = body.get("error") if isinstance(body.get("error"), Mapping) else body
         message = str(error.get("message") or "")
         err_type = str(error.get("type") or "")
-        if "input_schema.type" in message:
+        if "input_schema.type" in message or "input_schema" in message:
             return True
-        if err_type == "invalid_request_error" and "input_schema" in message and "type" in message:
+        if err_type == "invalid_request_error" and "tools" in message:
             return True
     if "invalid_request_error" in lowered and "input_schema" in lowered and "field required" in lowered:
         return True

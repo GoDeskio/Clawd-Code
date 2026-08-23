@@ -72,39 +72,15 @@ class AnthropicProvider(BaseProvider):
             payload["system"] = system
         if tools:
             payload["tools"] = tools
-        payload.update(extra)
+        safe_extra = {
+            key: value
+            for key, value in (extra or {}).items()
+            if key not in {"tools", "model", "max_tokens", "messages", "system"}
+        }
+        payload.update(safe_extra)
         return payload
 
-    def _call_create(
-        self,
-        client: Any,
-        *,
-        model: str,
-        max_tokens: int,
-        messages: list[Any],
-        tools: list[dict[str, Any]] | None,
-        system: Any,
-        extra: dict[str, Any],
-    ) -> Any:
-        prepared = self._classic_tools(tools) if tools else []
-        request = self._request_kwargs(
-            model=model,
-            max_tokens=max_tokens,
-            messages=messages,
-            tools=prepared or None,
-            system=system,
-            extra=extra,
-        )
-        try:
-            return client.messages.create(**request)
-        except Exception as exc:
-            if prepared and is_input_schema_type_error(exc):
-                log_rejected_tool_index(prepared, exc)
-                request.pop("tools", None)
-                return client.messages.create(**request)
-            raise
-
-    def _stream_request(
+    def _prepare_request(
         self,
         *,
         model: str,
@@ -124,6 +100,62 @@ class AnthropicProvider(BaseProvider):
             extra=extra,
         )
         return request, prepared
+
+    def _retry_without_tools(self, request: dict[str, Any], prepared: list[dict[str, Any]], exc: BaseException) -> dict[str, Any]:
+        log_rejected_tool_index(prepared, exc)
+        retry = dict(request)
+        retry.pop("tools", None)
+        return retry
+
+    def _call_create(
+        self,
+        client: Any,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: list[Any],
+        tools: list[dict[str, Any]] | None,
+        system: Any,
+        extra: dict[str, Any],
+    ) -> Any:
+        request, prepared = self._prepare_request(
+            model=model,
+            max_tokens=max_tokens,
+            messages=messages,
+            tools=tools,
+            system=system,
+            extra=extra,
+        )
+        try:
+            return client.messages.create(**request)
+        except Exception as exc:
+            if prepared and is_input_schema_type_error(exc):
+                return client.messages.create(**self._retry_without_tools(request, prepared, exc))
+            if prepared:
+                try:
+                    return client.messages.create(**self._retry_without_tools(request, prepared, exc))
+                except Exception:
+                    raise exc
+            raise
+
+    def _stream_request(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: list[Any],
+        tools: list[dict[str, Any]] | None,
+        system: Any,
+        extra: dict[str, Any],
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        return self._prepare_request(
+            model=model,
+            max_tokens=max_tokens,
+            messages=messages,
+            tools=tools,
+            system=system,
+            extra=extra,
+        )
 
     def _build_chat_response(self, response: Any) -> ChatResponse:
         """Convert Anthropic SDK response into the shared ChatResponse shape."""
@@ -223,18 +255,23 @@ class AnthropicProvider(BaseProvider):
             extra=extra,
         )
         yielded = False
+        active = request
         try:
-            with client.messages.stream(**request) as stream:
+            with client.messages.stream(**active) as stream:
                 for text in stream.text_stream:
                     yielded = True
                     yield text
             return
         except Exception as exc:
-            if yielded or not (prepared and is_input_schema_type_error(exc)):
+            if yielded:
                 raise
-            log_rejected_tool_index(prepared, exc)
-            request.pop("tools", None)
-        with client.messages.stream(**request) as stream:
+            if not prepared:
+                raise
+            if not is_input_schema_type_error(exc):
+                # Prefer a no-tools answer over failing the first streamed message.
+                pass
+            active = self._retry_without_tools(request, prepared, exc)
+        with client.messages.stream(**active) as stream:
             for text in stream.text_stream:
                 yield text
 
@@ -276,18 +313,19 @@ class AnthropicProvider(BaseProvider):
                         on_text_chunk(text)
                 try:
                     final = stream.get_final_message()
-                except Exception:
+                except Exception as final_exc:
+                    if is_input_schema_type_error(final_exc):
+                        raise
                     final = None
             return text_out, final
 
         try:
             streamed_text, final_message = _read_stream(request)
         except Exception as exc:
-            if not (prepared and is_input_schema_type_error(exc)):
+            if not prepared:
                 raise
-            log_rejected_tool_index(prepared, exc)
-            request.pop("tools", None)
-            streamed_text, final_message = _read_stream(request)
+            retry = self._retry_without_tools(request, prepared, exc)
+            streamed_text, final_message = _read_stream(retry)
 
         if final_message is not None:
             return self._build_chat_response(final_message)

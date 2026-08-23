@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-08-23
+
+### Fixed
+- Desktop streaming (`chat_stream_response` / `chat_stream`) now sanitizes every tool to the classic Anthropic shape and retries the same turn with tools omitted on `tools.N.custom.input_schema.type` 400s, so the first message still answers
+- Agent loop retries without tools if the stream path still raises that 400
+
+### Added
+- Internal multi-agent planner/workers (parallel isolated chats, shared memory only). No Cursor/Codex/MCP required. Desktop **Workers** button plus `SpawnWorkers` tool
+
 ## [0.2.3] - 2026-08-23
 
 ### Fixed
@@ -186,6 +195,7 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.4]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.4
 [0.2.3]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.3
 [0.2.2]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.2
 [0.2.1]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.1

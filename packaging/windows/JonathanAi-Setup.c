@@ -267,11 +267,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
         InitCommonControlsEx(&icc);
         CreateWindowW(L"STATIC", L"Jonathan Ai", WS_CHILD | WS_VISIBLE,
             24, 16, 400, 28, hwnd, NULL, NULL, NULL);
-        CreateWindowW(L"STATIC", L"Windows desktop installer  0.2.3", WS_CHILD | WS_VISIBLE,
+        CreateWindowW(L"STATIC", L"Windows desktop installer  0.2.4", WS_CHILD | WS_VISIBLE,
             24, 44, 400, 20, hwnd, NULL, NULL, NULL);
 
         g_welcome = CreateWindowW(L"STATIC",
-            L"This wizard installs or upgrades Jonathan Ai 0.2.3 in place.\r\n\r\n"
+            L"This wizard installs or upgrades Jonathan Ai 0.2.4 in place.\r\n\r\n"
             L"It reuses %USERPROFILE%\\Jonathan\\Jonathan-Ai (or an existing Clawd-Code folder).\r\n"
             L"A second run upgrades that same folder — it does not create a parallel install.\r\n\r\n"
             L"Shortcuts are rewritten to Jonathan-Ai\\JonathanAi.exe.\r\n"
@@ -369,7 +369,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1));
     if (!wc.hIcon) wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     RegisterClassW(&wc);
-    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.2.3",
+    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.2.4",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 640, 460, NULL, NULL, inst, NULL);
     ShowWindow(g_main, show);

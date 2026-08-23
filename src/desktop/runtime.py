@@ -174,6 +174,7 @@ class DesktopRuntime:
         ctx.ask_user = self._ask_user_questions
         ctx.mcp_clients = enabled_mcp_clients()
         ctx.session_id = getattr(self, "session", None).session_id if getattr(self, "session", None) else None
+        ctx.provider = getattr(self, "provider", None)
         return ctx
 
     def _bind_session(self, session: Session) -> None:
@@ -237,6 +238,7 @@ class DesktopRuntime:
         if self.session.provider != self.provider_name or self.session.model == "unconfigured":
             self.session.provider = self.provider_name
             self.session.model = self.provider.model
+        self.tool_context.provider = self.provider
 
     def needs_setup(self) -> bool:
         return not has_configured_provider()
@@ -681,6 +683,56 @@ class DesktopRuntime:
         )
         thread.start()
         return job.job_id
+
+    def start_multi_agent(self, text: str) -> str:
+        job = ChatJob(job_id=uuid.uuid4().hex)
+        with self._lock:
+            self._jobs[job.job_id] = job
+        thread = threading.Thread(
+            target=self._run_multi_agent_job,
+            args=(job, text),
+            daemon=True,
+            name=f"clawd-workers-{job.job_id[:8]}",
+        )
+        thread.start()
+        return job.job_id
+
+    def _run_multi_agent_job(self, job: ChatJob, text: str) -> None:
+        from src.agent.multi_agent import run_internal_workers
+
+        try:
+            if self.provider is None:
+                self._finish(job, {
+                    "type": "error",
+                    "error": "Connect a provider in settings (Hugging Face, Local LLM, or a cloud key).",
+                    "needs_setup": self.needs_setup(),
+                })
+                return
+            goal = (text or "").strip()
+            if not goal:
+                self._finish(job, {"type": "error", "error": "Message is empty."})
+                return
+            self.session.conversation.add_user_message(goal)
+            self._emit(job, {"type": "user", "text": goal})
+            self._emit(job, {"type": "workers_started", "goal": goal})
+            result = run_internal_workers(
+                provider=self.provider,
+                goal=goal,
+                parent_session_id=self.session.session_id,
+            )
+            for worker in result.get("workers") or []:
+                self._emit(job, {"type": "worker", **worker})
+            answer = str(result.get("answer") or result.get("combined") or "")
+            self.session.conversation.add_assistant_message(answer)
+            self.session.save()
+            self._finish(job, {
+                "type": "done",
+                "text": answer,
+                "workers": result.get("workers") or [],
+                "session": self.session.to_summary(),
+            })
+        except Exception as exc:
+            self._finish(job, {"type": "error", "error": str(exc)})
 
     def drain_events(self, job_id: str, after: int = 0) -> tuple[list[dict[str, Any]], bool]:
         job = self._require_job(job_id)

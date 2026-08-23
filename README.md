@@ -6,7 +6,7 @@
 
 **A local desktop and CLI agent, built as a Python reimplementation of Claude Code**
 
-**Version 0.2.3** — Jonathan Ai is itself the AI agent. Chats persist on disk and survive restart. New Chat starts a blank thread. Shared memory (`~/.clawd/memory`) lets facts from one chat inform another. MCP, Cursor, and Codex are optional. A first Anthropic chat retries without tools if a schema 400 still appears. The Windows launcher finds `%USERPROFILE%\Jonathan\Jonathan-Ai` even if the shortcut still points at the parent folder.
+**Version 0.2.4** — Jonathan Ai is itself the AI agent. Chats persist on disk and survive restart. New Chat starts a blank thread. Shared memory (`~/.clawd/memory`) lets facts from one chat inform another. Internal workers can plan a goal in parallel without Cursor, Codex, or MCP. A first Anthropic chat — including desktop streaming — retries without tools if a schema 400 still appears. The Windows launcher finds `%USERPROFILE%\Jonathan\Jonathan-Ai`.
 
 *From TypeScript Source → Rebuilt in Python with ❤️*
 
@@ -193,7 +193,7 @@ clawd desktop      # Start the desktop host
 
 The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session.
 
-**Chat on first run with only a local model or one API key.** After install, open Jonathan Ai, pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM, and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are not required and are omitted from the provider request until you connect one. Tokens stay on this machine. The product version is **0.2.3** (see the `VERSION` file, UI header, and Windows installer).
+**Chat on first run with only a local model or one API key.** After install, open Jonathan Ai, pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM, and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are not required and are omitted from the provider request until you connect one. Tokens stay on this machine. The product version is **0.2.4** (see the `VERSION` file, UI header, and Windows installer).
 
 **Windows (real desktop app):**
 
@@ -387,7 +387,7 @@ python -m src.desktop --port 8765
 
 This binds `http://127.0.0.1:8765/` only, serves the chat UI, and opens a browser. Use `--no-browser` in CI.
 
-The dashboard is a glassmorphism prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), frosted chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.2.3** and the token meter (informational only). Conversations persist in the sidebar; New Chat is always empty. Shared memory is local only (`~/.clawd/memory`). Jonathan Ai is the agent — no second AI connection is required.
+The dashboard is a glassmorphism prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), frosted chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.2.4** and the token meter (informational only). Conversations persist in the sidebar; New Chat is always empty. Shared memory is local only (`~/.clawd/memory`). Jonathan Ai is the agent — no second AI connection is required.
 
 **Option B — Electron desktop shell (tray, notifications, folder picker)**
 
@@ -413,8 +413,8 @@ Desktop extras on top of the CLI:
 - Chat with streaming tokens, visible tool activity, slash commands/skills, **persistent session list**, **rename chats**, provider/model settings
 - **New Chat** always opens a brand-new empty conversation (new id, empty transcript, reset token meter). Previous chats stay in the sidebar and survive restart.
 - Shared agent memory in `~/.clawd/memory` (facts + compact titles/summaries of other chats). Threads stay isolated; the model only sees a short brief, not full dumps.
-- Standalone agent: send message → stream reply → show tools → new chat → rename chat → informational token meter. No required Cursor/Codex/MCP connection.
-- Anthropic 400 fix (0.2.1): tools are sent in the classic `{name, description, input_schema:{type:object, properties}}` shape only. Nested object schemas get `type`. MCP resource tools (`ListMcpResourcesTool` / `ReadMcpResourceTool`) are omitted unless connected. If Anthropic still returns `input_schema.type: Field required`, the same turn retries with `tools` omitted so the user still gets a reply.
+- Standalone agent: send message → stream reply → show tools → new chat → rename chat → informational token meter. **Workers** plans a goal into isolated internal workers (shared memory only). No required Cursor/Codex/MCP connection.
+- Anthropic 400 fix (0.2.4): desktop streaming (`chat_stream_response`) and `chat()` send only `{name, description, input_schema:{type:object, properties}}`, including MCP/dynamic tools. If Anthropic still returns `tools.N.custom.input_schema.type: Field required`, the same turn retries with tools omitted so the first message still answers.
 - Workspace/folder picker (Electron dialog, or a path prompt in the browser)
 - Approve / deny / always-allow-this-session permission prompts
 - System tray + notifications for long jobs (Electron)
@@ -620,7 +620,7 @@ If you find this useful, please **star** ⭐ the repo!
 
 **本地桌面与 CLI Agent，基于真实 Claude Code 源码的 Python 重实现**
 
-**版本 0.2.3** — Jonathan Ai 本身就是 AI Agent。会话会持久化；New Chat 总是空线程。跨会话记忆只存在本机 `~/.clawd/memory`。MCP / Cursor / Codex 均为可选。若 Anthropic 仍因工具 schema 返回 400，同一轮会去掉 tools 重试。Windows 启动器会在 `%USERPROFILE%\Jonathan\Jonathan-Ai` 找到 venv；若提示找不到 Electron/venv，请再运行 Setup 原地升级。
+**版本 0.2.4** — Jonathan Ai 本身就是 AI Agent。会话会持久化；New Chat 总是空线程。跨会话记忆只存在本机 `~/.clawd/memory`。MCP / Cursor / Codex 均为可选。若 Anthropic 仍因工具 schema 返回 400，同一轮会去掉 tools 重试。Windows 启动器会在 `%USERPROFILE%\Jonathan\Jonathan-Ai` 找到 venv；若提示找不到 Electron/venv，请再运行 Setup 原地升级。
 
 *从 TypeScript 源码 → 用 Python 重建 ❤️*
 
@@ -879,7 +879,7 @@ Windows：双击 `packaging/windows/bin/JonathanAi-Setup.exe`，向导点 Next /
 ./install.sh --yes
 # 默认源码目录：~/Jonathan/Jonathan-Ai
 # 只从 https://github.com/GoDeskio/Clawd-Code 安装与更新
-# 版本 0.2.3：会话持久化；New Chat 为空线程；跨会话记忆在 ~/.clawd/memory；Setup 原地升级 Jonathan-Ai
+# 版本 0.2.4：会话持久化；New Chat 为空线程；跨会话记忆在 ~/.clawd/memory；Setup 原地升级 Jonathan-Ai
 # 安装后可在向导或桌面设置中连接 Hugging Face / 本地 LLM / GitHub / GitLab / MCP，无需重装
 # Token 只保存在 ~/.clawd/config.json，不会写入安装包或 git
 # 聊天窗口的 token 计数只做展示，不是付费墙
@@ -901,7 +901,7 @@ python -m src.cli desktop          # Python host + 浏览器 UI
 cd desktop && npm install && npm start   # Electron 壳
 ```
 
-密钥不会写入 Git。桌面端复用现有 agent loop、工具、skills 与会话。Jonathan Ai 本身就是 Agent：发送消息、流式回复、显示工具、新建/重命名会话、信息性 token 计数、provider 设置。不需要第二个 AI 连接。头部显示版本 **0.2.3**。会话会留在侧栏，New Chat 总是新的空对话。若桌面快捷方式仍指向上级 Jonathan 文件夹，请再运行 Setup。
+密钥不会写入 Git。桌面端复用现有 agent loop、工具、skills 与会话。Jonathan Ai 本身就是 Agent：发送消息、流式回复、显示工具、新建/重命名会话、信息性 token 计数、provider 设置。不需要第二个 AI 连接。头部显示版本 **0.2.4**。内部 Workers 可并行拆任务，不需要其它 Agent。桌面流式请求若遇 Anthropic schema 400 会去掉 tools 重试。会话会留在侧栏，New Chat 总是新的空对话。若桌面快捷方式仍指向上级 Jonathan 文件夹，请再运行 Setup。
 
 ***
 

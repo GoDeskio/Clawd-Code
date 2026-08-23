@@ -187,6 +187,9 @@ class DesktopServer:
         if path == "/api/chat" and method == "POST":
             job_id = runtime.start_chat(str(body.get("text") or ""), attachments=body.get("attachments"))
             return 200, {"job_id": job_id}
+        if path == "/api/multi-agent" and method == "POST":
+            job_id = runtime.start_multi_agent(str(body.get("text") or body.get("goal") or ""))
+            return 200, {"job_id": job_id}
         if path == "/api/jobs/events" and method == "GET":
             job_id = (query.get("job_id") or [""])[0]
             after = int((query.get("after") or ["0"])[0] or 0)

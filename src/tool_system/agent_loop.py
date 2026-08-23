@@ -158,12 +158,37 @@ def _call_provider_for_turn(
             return response, True
         except NotImplementedError:
             pass
-        except Exception:
-            # Preserve existing stable behavior if streaming is unsupported or fails.
-            pass
+        except Exception as exc:
+            from .schema_sanitize import is_input_schema_type_error, log_rejected_tool_index
 
-    response = provider.chat(api_messages, **call_kwargs)
-    return response, False
+            tools = call_kwargs.get("tools")
+            if tools and is_input_schema_type_error(exc):
+                log_rejected_tool_index(tools, exc)
+                fallback = {key: value for key, value in call_kwargs.items() if key != "tools"}
+                try:
+                    response = provider.chat_stream_response(
+                        api_messages,
+                        on_text_chunk=on_text_chunk,
+                        **fallback,
+                    )
+                    if isinstance(response, ChatResponse):
+                        return response, True
+                except Exception:
+                    pass
+
+    try:
+        response = provider.chat(api_messages, **call_kwargs)
+        return response, False
+    except Exception as exc:
+        from .schema_sanitize import is_input_schema_type_error, log_rejected_tool_index
+
+        tools = call_kwargs.get("tools")
+        if tools and is_input_schema_type_error(exc):
+            log_rejected_tool_index(tools, exc)
+            fallback = {key: value for key, value in call_kwargs.items() if key != "tools"}
+            response = provider.chat(api_messages, **fallback)
+            return response, False
+        raise
 
 
 def _build_effective_system_prompt(style_prompt: str, tool_context: ToolContext) -> str:
