@@ -37,7 +37,9 @@
 | Slash Commands | ✅ | 已支持 `/help`、`/clear`、`/save`、`/load`、`/multiline`、`/exit` |
 | 多 Provider 抽象 | ✅ | 已支持 Anthropic / OpenAI / GLM / Minimax / Hugging Face / Local LLM |
 | Provider 配置管理 | ✅ | 支持默认 Provider、Base URL、默认模型配置 |
-| 会话持久化 | ✅ | 支持保存/加载本地会话 |
+| 会话持久化 | ✅ | 支持保存/加载本地会话；桌面左侧可重命名，标题随会话持久化 |
+| 独立桌面 Agent | ✅ | v0.2.0：只需一把 API key 或本地 LLM；未连接的 MCP/其他 Agent 不进入请求 |
+| 工具 schema 清洗 | ✅ | 发给 Anthropic/OpenAI 的每个工具都带 `input_schema.type` |
 | 会话消息管理 | ✅ | 支持会话历史维护与序列化 |
 | 错误恢复 / 重新登录 | 🟡 | 已有基础认证错误处理与重新配置流程 |
 | Token / Cost 跟踪 | ✅ | 桌面每个聊天窗口显示 input/output/running total，随会话持久化；仅信息展示，不是配额墙 |

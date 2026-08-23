@@ -55,6 +55,7 @@ class Session:
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
     workspace: str = ""
     title: str = "New chat"
+    custom_title: bool = False
     token_usage: dict = field(default_factory=empty_token_usage)
 
     def preview_title(self) -> str:
@@ -63,10 +64,27 @@ class Session:
             return derived
         return self.title or "New chat"
 
+    def display_title(self) -> str:
+        if self.custom_title and str(self.title or "").strip():
+            return str(self.title).strip()
+        return self.preview_title()
+
+    def rename(self, title: str) -> str:
+        cleaned = " ".join(str(title or "").split())
+        if not cleaned:
+            raise ValueError("title cannot be empty")
+        if len(cleaned) > 120:
+            cleaned = cleaned[:117] + "..."
+        self.title = cleaned
+        self.custom_title = True
+        self.save()
+        return self.title
+
     def to_summary(self) -> dict:
         return {
             "session_id": self.session_id,
-            "title": self.preview_title(),
+            "title": self.display_title(),
+            "custom_title": self.custom_title,
             "provider": self.provider,
             "model": self.model,
             "workspace": self.workspace,
@@ -84,7 +102,8 @@ class Session:
         """Save session to disk."""
         target_dir = session_dir()
         session_file = target_dir / f"{self.session_id}.json"
-        self.title = self.preview_title()
+        if not self.custom_title:
+            self.title = self.preview_title()
         self.updated_at = datetime.now().isoformat()
 
         session_data = {
@@ -96,6 +115,7 @@ class Session:
             "updated_at": self.updated_at,
             "workspace": self.workspace,
             "title": self.title,
+            "custom_title": self.custom_title,
             "token_usage": merge_token_usage(self.token_usage, None),
         }
 
@@ -123,6 +143,7 @@ class Session:
             updated_at=data.get("updated_at", ""),
             workspace=data.get("workspace", ""),
             title=data.get("title") or _title_from_conversation(conversation),
+            custom_title=bool(data.get("custom_title")),
             token_usage=merge_token_usage(data.get("token_usage"), None),
         )
 
@@ -136,10 +157,16 @@ class Session:
             except (OSError, json.JSONDecodeError):
                 continue
             conversation = Conversation.from_dict(data.get("conversation") or {})
-            title = data.get("title") or _title_from_conversation(conversation)
+            custom_title = bool(data.get("custom_title"))
+            stored = str(data.get("title") or "").strip()
+            if custom_title and stored:
+                title = stored
+            else:
+                title = stored or _title_from_conversation(conversation)
             items.append({
                 "session_id": data.get("session_id", path.stem),
                 "title": title,
+                "custom_title": custom_title,
                 "provider": data.get("provider", ""),
                 "model": data.get("model", ""),
                 "workspace": data.get("workspace", ""),

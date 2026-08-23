@@ -17,6 +17,7 @@ except ModuleNotFoundError:  # pragma: no cover
     anthropic = _MissingAnthropic()
 
 from .base import BaseProvider, ChatResponse, MessageInput, TextChunkCallback
+from src.tool_system.schema_sanitize import sanitize_tools_for_api
 
 
 class AnthropicProvider(BaseProvider):
@@ -103,7 +104,7 @@ class AnthropicProvider(BaseProvider):
         client = self._ensure_client()
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            extra_kwargs["tools"] = tools
+            extra_kwargs["tools"] = sanitize_tools_for_api(tools)
 
         response = client.messages.create(
             model=model,
@@ -142,7 +143,7 @@ class AnthropicProvider(BaseProvider):
         client = self._ensure_client()
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            extra_kwargs["tools"] = tools
+            extra_kwargs["tools"] = sanitize_tools_for_api(tools)
 
         with client.messages.stream(
             model=model,
@@ -170,7 +171,7 @@ class AnthropicProvider(BaseProvider):
         client = self._ensure_client()
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            extra_kwargs["tools"] = tools
+            extra_kwargs["tools"] = sanitize_tools_for_api(tools)
 
         streamed_text = ""
         with client.messages.stream(

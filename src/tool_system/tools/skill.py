@@ -18,23 +18,13 @@ class SkillTool:
             name="Skill",
             description="Execute a prompt-based SKILL.md skill or a legacy Python skill module.",
             input_schema={
-                "anyOf": [
-                    {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "properties": {
-                            "skill": {"type": "string"},
-                            "args": {"type": "string"},
-                        },
-                        "required": ["skill"],
-                    },
-                    {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "properties": {"name": {"type": "string"}, "input": {"type": "object"}},
-                        "required": ["name"],
-                    },
-                ]
+                "type": "object",
+                "properties": {
+                    "skill": {"type": "string", "description": "SKILL.md name"},
+                    "args": {"type": "string", "description": "Arguments for a markdown skill"},
+                    "name": {"type": "string", "description": "Legacy Python skill module name"},
+                    "input": {"type": "object", "description": "Input for a legacy Python skill"},
+                },
             },
             is_destructive=False,
             max_result_size_chars=100_000,

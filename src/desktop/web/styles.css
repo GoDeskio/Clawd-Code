@@ -95,6 +95,7 @@ button { cursor: pointer; }
 }
 .path { font-size: 12px; word-break: break-all; margin: 6px 0 10px; }
 .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.sidebar-hint { margin: 0 0 4px; font-size: 12px; }
 .session-list { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .session-item {
   text-align: left;
@@ -102,8 +103,38 @@ button { cursor: pointer; }
   border: 1px solid transparent;
   padding: 10px;
   border-radius: 12px;
+  width: 100%;
 }
-.session-item strong { display: block; }
+.session-item strong, .session-item .session-title { display: block; }
+.session-item input.session-rename {
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+}
+.context-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 140px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(22, 23, 28, 0.94);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+}
+.context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.context-menu button:hover { background: rgba(255, 255, 255, 0.08); }
 .session-item.active, .session-item:hover {
   background: rgba(244, 247, 255, 0.08);
   border-color: var(--line);

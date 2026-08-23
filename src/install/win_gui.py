@@ -6,6 +6,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from src.version import get_version
+
 from .constants import CANONICAL_HTTPS, PRODUCT_NAME
 from .launch import launch_jonathan_ai
 from .source import default_source_dir
@@ -35,7 +37,7 @@ def run_windows_wizard(*, source_dir: str | None = None, from_local: str | None 
     clone = {"v": False}
 
     root = tk.Tk()
-    root.title(f"Install {PRODUCT_NAME}")
+    root.title(f"Install {PRODUCT_NAME} {get_version()}")
     root.geometry("620x460")
     root.configure(bg="#121214")
     try:
@@ -67,7 +69,7 @@ def run_windows_wizard(*, source_dir: str | None = None, from_local: str | None 
     welcome = tk.Frame(body, bg="#1a1b1e")
     tk.Label(
         welcome,
-        text=f"This wizard installs {PRODUCT_NAME} on this computer.\n\n"
+        text=f"This wizard installs {PRODUCT_NAME} {get_version()} on this computer.\n\n"
         "It copies GoDeskio/Clawd-Code into your Jonathan folder, creates the app, "
         "and puts Jonathan Ai on the Desktop and Start Menu.\n\n"
         "Tokens stay on this machine. Nothing is written into the installer artifact.",

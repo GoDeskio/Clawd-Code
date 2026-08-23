@@ -65,6 +65,7 @@ from src.connectors.store import (
 from src.install.record import read_install_record, resolve_source_dir
 from src.install.source import default_source_dir
 from src.update import Updater
+from src.version import get_version
 
 from .attachments import Attachment, attachments_from_payload, render_attachments
 
@@ -202,6 +203,9 @@ class DesktopRuntime:
         return {
             "ready": not self.needs_setup(),
             "needs_setup": self.needs_setup(),
+            "version": get_version(),
+            "product": "Jonathan Ai",
+            "standalone": True,
             "workspace": str(self.workspace),
             "provider": self.provider_name,
             "model": getattr(self.provider, "model", None) or self.session.model,
@@ -532,6 +536,20 @@ class DesktopRuntime:
         self.session.workspace = str(self.workspace)
         self.session.save()
         return self.session.to_summary()
+
+    def rename_session(self, session_id: str | None, title: str) -> dict[str, Any]:
+        target_id = str(session_id or self.session.session_id or "").strip()
+        if not target_id:
+            raise ValueError("session_id is required")
+        if target_id == self.session.session_id:
+            self.session.workspace = str(self.workspace)
+            self.session.rename(title)
+            return self.session.to_summary()
+        loaded = Session.load(target_id)
+        if loaded is None:
+            raise ValueError(f"session not found: {target_id}")
+        loaded.rename(title)
+        return loaded.to_summary()
 
     def list_skills(self) -> list[dict[str, Any]]:
         skills = list(get_all_skills(project_root=self.workspace))

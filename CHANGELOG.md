@@ -5,9 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-08-23
 
 ### Added
+- `VERSION` file (starts at 0.2.0), shown in the desktop header, Windows installer, and README
+- Conversation rename in the left sidebar (inline double-click / context menu); title is persisted with the session
+- Standalone desktop chat: Jonathan Ai is the agent. MCP / ExternalAgent / Cursor / Codex tools are omitted from the provider payload until something is connected
+- Tool schema sanitizer: every tool sent to Anthropic/OpenAI has `input_schema.type: object` (repairs or drops invalid schemas)
+
+### Fixed
+- Anthropic 400 `tools.17.custom.input_schema.type: Field required` — SkillTool (default registry index 17) previously sent `anyOf` without a top-level `type`
+
+### Added (earlier unreleased)
 - Windows desktop path: JonathanAi-Setup.exe wizard (Next/Install/Finish), JonathanAi.exe app, Desktop and Start Menu shortcuts named Jonathan Ai, robot sketch branding, glassmorphism dashboard
 - First-class GitHub and GitLab connectors: token or device/OAuth login, clone/pull/push, create repo/project, PR/MR, list remotes. Default GitHub owner is GoDeskio. Default branches are not pushed unless the operator names them.
 - MCP server and OpenAI-compatible agent connectors (add/list/enable/test/invoke) plus Cursor/Codex/local hook files and inbound localhost hook
@@ -156,4 +165,5 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.0]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.0
 [0.1.0]: https://github.com/GPT-AGI/Clawd-Code/releases/tag/v0.1.0

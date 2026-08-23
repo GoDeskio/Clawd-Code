@@ -1,4 +1,5 @@
 include README.md
+include VERSION
 include LICENSE
 include CLAUDE.md
 include MVP_PLAN.md

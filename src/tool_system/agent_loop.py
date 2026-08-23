@@ -264,14 +264,15 @@ def run_agent_loop(
     Returns:
         AgentLoopResult with final text response, usage info, and turn count
     """
-    # Convert tools to schemas (Anthropic format)
-    tool_schemas = []
-    for spec in tool_registry.list_specs():
-        tool_schemas.append({
-            "name": spec.name,
-            "description": spec.description,
-            "input_schema": spec.input_schema,
-        })
+    # Convert tools to schemas (Anthropic format). Sanitize every schema so a
+    # missing input_schema.type cannot 400 the provider. Omit ExternalAgent/MCP
+    # unless the user connected one — Jonathan Ai chats standalone.
+    from .schema_sanitize import serialize_tools_for_provider
+
+    tool_schemas = serialize_tools_for_provider(
+        tool_registry,
+        tool_context=tool_context,
+    )
 
     # For OpenAI/GLM, keep separate message list in OpenAI format
     openai_messages: list[dict[str, Any]] = []

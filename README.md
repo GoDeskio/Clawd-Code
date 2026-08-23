@@ -6,6 +6,8 @@
 
 **A local desktop and CLI agent, built as a Python reimplementation of Claude Code**
 
+**Version 0.2.0** — Jonathan Ai is itself the AI agent. Chat works standalone with one API key or a local LLM. MCP, Cursor, and Codex are optional.
+
 *From TypeScript Source → Rebuilt in Python with ❤️*
 
 ***
@@ -149,6 +151,9 @@ clawd desktop      # Start the desktop host
 | Multi-Provider | ✅ | Anthropic, OpenAI, GLM, Minimax, Hugging Face, Local LLM |
 | Session Persistence | ✅ | Save/load sessions locally |
 | Token usage meter | ✅ | Per-chat input/output/total in the desktop header — informational only, never a gate |
+| Conversation rename | ✅ | Double-click or right-click a chat in the left sidebar; the title is saved with the session |
+| Standalone first-run | ✅ | Provider key or local LLM is enough. Other agents are omitted from the API payload until connected |
+| Tool schema sanitizer | ✅ | Every tool sent to Anthropic/OpenAI has `input_schema.type` (fixes Anthropic 400 `tools.N.custom.input_schema.type`) |
 | Agent Loop | ✅ | Tool calling loop implementation |
 | Skill System | ✅ | SKILL.md-based slash-command skills with args + tool limits |
 | Context Building | 🟡 | Initial prompt injection for workspace, git, and CLAUDE.md; desktop workspace picker feeds the same builder |
@@ -186,7 +191,9 @@ clawd desktop      # Start the desktop host
 
 ### Install the desktop agent (one command)
 
-The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session. After install it can connect Hugging Face, a local LLM, GitHub, GitLab, MCP servers, and other OpenAI-compatible agents — tokens stay on this machine.
+The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session.
+
+**Chat on first run with only a local model or one API key.** After install, open Jonathan Ai, pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM, and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are not required and are omitted from the provider request until you connect one. Tokens stay on this machine. The product version is **0.2.0** (see the `VERSION` file, UI header, and Windows installer).
 
 **Windows (real desktop app):**
 
@@ -378,7 +385,7 @@ python -m src.desktop --port 8765
 
 This binds `http://127.0.0.1:8765/` only, serves the chat UI, and opens a browser. Use `--no-browser` in CI.
 
-The dashboard is a glassmorphism prompt UI: conversations on the left (title + last activity), frosted chat cards, and a monochrome + eye-glow palette matching the robot sketch. The token meter in the header is informational only.
+The dashboard is a glassmorphism prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), frosted chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.2.0** and the token meter (informational only). Jonathan Ai is the agent — no second AI connection is required.
 
 **Option B — Electron desktop shell (tray, notifications, folder picker)**
 
@@ -401,7 +408,9 @@ python -m src.cli update --apply  # fetch + apply + restart if you relaunch
 
 Desktop extras on top of the CLI:
 
-- Chat with streaming tokens, visible tool activity, slash commands/skills, session list, provider/model settings
+- Chat with streaming tokens, visible tool activity, slash commands/skills, session list, **rename chats**, provider/model settings
+- Standalone agent: send message → stream reply → show tools → new chat → rename chat → informational token meter. No required Cursor/Codex/MCP connection.
+- Anthropic 400 fix: every tool schema is sanitized so `input_schema.type` is always `"object"` before the request.
 - Workspace/folder picker (Electron dialog, or a path prompt in the browser)
 - Approve / deny / always-allow-this-session permission prompts
 - System tray + notifications for long jobs (Electron)
@@ -607,6 +616,8 @@ If you find this useful, please **star** ⭐ the repo!
 
 **本地桌面与 CLI Agent，基于真实 Claude Code 源码的 Python 重实现**
 
+**版本 0.2.0** — Jonathan Ai 本身就是 AI Agent。只需一把 API key 或本地模型即可聊天。MCP / Cursor / Codex 均为可选。
+
 *从 TypeScript 源码 → 用 Python 重建 ❤️*
 
 ***
@@ -753,6 +764,9 @@ clawd desktop      # 启动桌面 host
 | 多提供商支持 | ✅ | 支持 Anthropic、OpenAI、GLM、Minimax、Hugging Face、本地 LLM |
 | 会话持久化 | ✅ | 本地保存/加载会话 |
 | Token 用量 | ✅ | 每个聊天窗口显示 input/output/合计，仅信息展示，不是配额 |
+| 会话重命名 | ✅ | 左侧会话列表双击或右键重命名，标题随会话持久化 |
+| 独立首启 | ✅ | 只需 provider key 或本地 LLM；未连接的其他 Agent 不会进入 API 请求 |
+| 工具 schema 清洗 | ✅ | 发给 Anthropic/OpenAI 的每个工具都带 `input_schema.type`（修复 400） |
 | Agent Loop | ✅ | 工具调用循环实现 |
 | Skill 系统 | ✅ | 基于 SKILL.md 的 /skill 技能：参数替换 + 工具限制 |
 | 上下文构建 | 🟡 | 已接入 workspace、git、CLAUDE.md 的基础上下文注入，桌面端工作区选择器复用同一套 builder |
@@ -861,9 +875,11 @@ Windows：双击 `packaging/windows/bin/JonathanAi-Setup.exe`，向导点 Next /
 ./install.sh --yes
 # 默认源码目录：~/Jonathan/Jonathan-Ai
 # 只从 https://github.com/GoDeskio/Clawd-Code 安装与更新
+# 版本 0.2.0：只需一把 API key 或本地模型即可开始聊天，无需连接其他 Agent
 # 安装后可在向导或桌面设置中连接 Hugging Face / 本地 LLM / GitHub / GitLab / MCP，无需重装
 # Token 只保存在 ~/.clawd/config.json，不会写入安装包或 git
 # 聊天窗口的 token 计数只做展示，不是付费墙
+# 左侧会话可重命名；工具 schema 会补上 type，避免 Anthropic 400
 ```
 
 ### 运行 CLI
@@ -881,7 +897,7 @@ python -m src.cli desktop          # Python host + 浏览器 UI
 cd desktop && npm install && npm start   # Electron 壳
 ```
 
-密钥不会写入 Git。桌面端复用现有 agent loop、工具、skills 与会话。
+密钥不会写入 Git。桌面端复用现有 agent loop、工具、skills 与会话。Jonathan Ai 本身就是 Agent：发送消息、流式回复、显示工具、新建/重命名会话、信息性 token 计数、provider 设置。不需要第二个 AI 连接。头部显示版本 **0.2.0**。
 
 ***
 

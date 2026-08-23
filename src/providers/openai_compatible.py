@@ -11,29 +11,27 @@ from abc import abstractmethod
 from typing import Any, Generator, Optional
 
 from .base import BaseProvider, ChatResponse, MessageInput, TextChunkCallback
+from src.tool_system.schema_sanitize import sanitize_input_schema, sanitize_tools_for_api
 
 
 def _convert_to_openai_tool_schema(anthropic_tool: dict[str, Any]) -> dict[str, Any] | None:
     """Convert Anthropic tool schema to OpenAI/GLM/Minimax function format.
 
-    Returns None if the schema is invalid (missing type, type is None, or other issues).
+    Repairs missing input_schema.type before conversion so Skill and similar
+    tools are sent instead of silently dropped.
     """
-    input_schema = anthropic_tool.get("input_schema")
-    if not input_schema or not isinstance(input_schema, dict):
+    repaired = sanitize_input_schema(anthropic_tool.get("input_schema"))
+    if repaired is None:
         return None
-    schema_type = input_schema.get("type")
-    if schema_type is None or schema_type == "None":
+    name = str(anthropic_tool.get("name") or "").strip()
+    if not name:
         return None
-    # Some providers (Azure) require type=object to have properties
-    if schema_type == "object" and "properties" not in input_schema and "anyOf" not in input_schema and "oneOf" not in input_schema:
-        # Try to add an empty properties dict if none provided
-        input_schema = {**input_schema, "properties": {}}
     return {
         "type": "function",
         "function": {
-            "name": anthropic_tool["name"],
+            "name": name,
             "description": anthropic_tool.get("description", ""),
-            "parameters": input_schema,
+            "parameters": repaired,
         },
     }
 
@@ -113,7 +111,7 @@ class OpenAICompatibleProvider(BaseProvider):
         # Convert tools to OpenAI format
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            converted = [_convert_to_openai_tool_schema(t) for t in tools]
+            converted = [_convert_to_openai_tool_schema(t) for t in sanitize_tools_for_api(tools)]
             extra_kwargs["tools"] = [t for t in converted if t is not None]
 
         # Make API call
@@ -183,7 +181,7 @@ class OpenAICompatibleProvider(BaseProvider):
         # Convert tools to OpenAI format
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            converted = [_convert_to_openai_tool_schema(t) for t in tools]
+            converted = [_convert_to_openai_tool_schema(t) for t in sanitize_tools_for_api(tools)]
             extra_kwargs["tools"] = [t for t in converted if t is not None]
 
         # Stream API call
@@ -212,7 +210,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            converted = [_convert_to_openai_tool_schema(t) for t in tools]
+            converted = [_convert_to_openai_tool_schema(t) for t in sanitize_tools_for_api(tools)]
             extra_kwargs["tools"] = [t for t in converted if t is not None]
 
         stream = self.client.chat.completions.create(

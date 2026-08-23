@@ -169,6 +169,11 @@ class DesktopServer:
             return 200, runtime.save_session()
         if path == "/api/sessions/load" and method == "POST":
             return 200, runtime.load_session(str(body.get("session_id") or ""))
+        if path == "/api/sessions/rename" and method == "POST":
+            return 200, runtime.rename_session(
+                str(body.get("session_id") or body.get("id") or ""),
+                str(body.get("title") or ""),
+            )
         if path == "/api/skills" and method == "GET":
             return 200, {"skills": runtime.list_skills()}
         if path == "/api/commands" and method == "GET":

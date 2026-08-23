@@ -15,7 +15,7 @@
         <img src="/robot.png" alt="Jonathan Ai robot" width="48" height="48" />
         <div>
           <strong>Jonathan Ai</strong>
-          <span class="muted">Desktop agent</span>
+          <span class="muted" id="app-version">v0.2.0 · standalone</span>
         </div>
       </div>
       <button id="new-chat" class="primary">New chat</button>
@@ -33,7 +33,11 @@
         <p id="git-line" class="muted"></p>
       </div>
       <div class="section-title">Conversations</div>
+      <p class="muted sidebar-hint">Double-click or right-click to rename. Titles stay with the session.</p>
       <nav id="session-list" class="session-list" aria-label="Conversation list"></nav>
+      <div id="session-menu" class="context-menu hidden" role="menu">
+        <button id="session-menu-rename" type="button" role="menuitem">Rename</button>
+      </div>
       <div class="sidebar-foot">
         <button id="open-connectors" class="ghost">Git &amp; agents</button>
         <button id="open-settings" class="ghost">Provider &amp; model</button>
@@ -89,7 +93,7 @@
   <div id="setup-modal" class="modal hidden">
     <div class="dialog wide">
       <h2>First-run setup</h2>
-      <p class="muted">Keys stay only in <code>~/.clawd/config.json</code> (mode 0600). They are never written into git or the installer.</p>
+      <p class="muted">Jonathan Ai is the agent. Chat works with one API key or a local LLM — MCP, Cursor, and Codex are optional and not required. Keys stay only in <code>~/.clawd/config.json</code> (mode 0600). They are never written into git or the installer.</p>
       <label>Provider
         <select id="setup-provider"></select>
       </label>
@@ -169,7 +173,7 @@
   <div id="connectors-modal" class="modal hidden">
     <div class="dialog wide">
       <h2>Git &amp; other agents</h2>
-      <p class="muted">Tokens stay in <code>~/.clawd/config.json</code>. Jonathan Ai never pushes <code>main</code>/<code>master</code> unless you name that branch. Default GitHub owner is <code>GoDeskio</code>.</p>
+      <p class="muted">Optional. Jonathan Ai chats on its own. Connect MCP or another agent only if you already run one. Tokens stay in <code>~/.clawd/config.json</code>. Jonathan Ai never pushes <code>main</code>/<code>master</code> unless you name that branch. Default GitHub owner is <code>GoDeskio</code>.</p>
 
       <h3>GitHub</h3>
       <p id="gh-status" class="muted">Not connected</p>

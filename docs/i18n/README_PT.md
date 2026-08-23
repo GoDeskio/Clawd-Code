@@ -53,6 +53,8 @@
 - ✅ **Amigável ao Usuário** — Configuração fácil, REPL interativo, documentação abrangente
 - ✅ **Continuamente Melhorado** — Tratamento de erros aprimorado, testes, documentação
 
+**Versão 0.2.0 — Jonathan Ai.** O app desktop é o próprio agente. Um modelo local ou uma chave de API basta para conversar. MCP, Cursor e Codex são opcionais. Renomeie conversas na barra lateral. Os schemas de ferramentas são sanitizados (`input_schema.type`) para evitar o 400 da Anthropic.
+
 **🚀 Experimente agora! Faça fork, modifique, torne seu! Pull requests são bem-vindos!**
 
 ***

@@ -180,11 +180,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
         InitCommonControlsEx(&icc);
         CreateWindowW(L"STATIC", L"Jonathan Ai", WS_CHILD | WS_VISIBLE,
             24, 16, 400, 28, hwnd, NULL, NULL, NULL);
-        CreateWindowW(L"STATIC", L"Windows desktop installer", WS_CHILD | WS_VISIBLE,
+        CreateWindowW(L"STATIC", L"Windows desktop installer  0.2.0", WS_CHILD | WS_VISIBLE,
             24, 44, 400, 20, hwnd, NULL, NULL, NULL);
 
         g_welcome = CreateWindowW(L"STATIC",
-            L"This wizard installs Jonathan Ai.\r\n\r\n"
+            L"This wizard installs Jonathan Ai 0.2.0.\r\n\r\n"
             L"On Finish the app window opens and a Jonathan Ai icon is placed on the Desktop and Start Menu.\r\n\r\n"
             L"Source and updates: https://github.com/GoDeskio/Clawd-Code\r\n"
             L"Tokens stay on this computer. They are never written into the installer.",
@@ -283,7 +283,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1));
     if (!wc.hIcon) wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     RegisterClassW(&wc);
-    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai",
+    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.2.0",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 640, 460, NULL, NULL, inst, NULL);
     ShowWindow(g_main, show);

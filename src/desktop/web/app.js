@@ -7,6 +7,8 @@ const state = {
   pendingPermission: null,
   sending: false,
   currentJob: null,
+  menuSessionId: null,
+  renamingId: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -90,6 +92,11 @@ async function refreshStatus() {
   const model = state.status.model || "unconfigured";
   $("model-line").textContent = `${state.status.provider} · ${model}`;
   $("chat-title").textContent = state.status.session?.title || "New chat";
+  if ($("app-version")) {
+    const ver = state.status.version || "0.2.0";
+    $("app-version").textContent = `v${ver} · standalone`;
+    document.title = `Jonathan Ai ${ver}`;
+  }
   renderUsage(state.status.session);
   const git = state.status.git || {};
   if ($("git-line")) {
@@ -147,6 +154,46 @@ function renderUpdate(update) {
   }
 }
 
+function hideSessionMenu() {
+  const menu = $("session-menu");
+  if (menu) menu.classList.add("hidden");
+  state.menuSessionId = null;
+}
+
+function showSessionMenu(event, sessionId) {
+  const menu = $("session-menu");
+  if (!menu) return;
+  state.menuSessionId = sessionId;
+  menu.classList.remove("hidden");
+  const pad = 8;
+  const left = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - pad);
+  const top = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - pad);
+  menu.style.left = `${Math.max(pad, left)}px`;
+  menu.style.top = `${Math.max(pad, top)}px`;
+}
+
+async function commitRename(sessionId, title) {
+  const cleaned = String(title || "").trim();
+  if (!cleaned) {
+    state.renamingId = null;
+    await refreshSessions();
+    return;
+  }
+  await api("/api/sessions/rename", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId, title: cleaned }),
+  });
+  state.renamingId = null;
+  await refreshStatus();
+  await refreshSessions();
+}
+
+function startInlineRename(session) {
+  state.renamingId = session.session_id;
+  hideSessionMenu();
+  refreshSessions();
+}
+
 async function refreshSessions() {
   const data = await api("/api/sessions");
   state.sessions = data.sessions || [];
@@ -155,15 +202,61 @@ async function refreshSessions() {
   list.innerHTML = "";
   for (const session of state.sessions) {
     const btn = document.createElement("button");
+    btn.type = "button";
     btn.className = `session-item${session.session_id === current ? " active" : ""}`;
+    btn.dataset.sessionId = session.session_id;
     const tokens = session.token_usage?.total_tokens || 0;
-    btn.innerHTML = `<strong>${session.title || session.session_id}</strong><div class="muted">${formatActivity(session.updated_at)} · ${tokens} tok</div>`;
+    const title = session.title || session.session_id;
+    if (state.renamingId === session.session_id) {
+      btn.innerHTML = `<input class="session-rename" type="text" maxlength="120" value="" /><div class="muted">${formatActivity(session.updated_at)} · ${tokens} tok</div>`;
+      const input = btn.querySelector("input");
+      input.value = title;
+      input.addEventListener("click", (event) => event.stopPropagation());
+      input.addEventListener("keydown", async (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          await commitRename(session.session_id, input.value);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          state.renamingId = null;
+          await refreshSessions();
+        }
+      });
+      input.addEventListener("blur", () => {
+        if (state.renamingId === session.session_id) {
+          commitRename(session.session_id, input.value);
+        }
+      });
+      queueMicrotask(() => {
+        input.focus();
+        input.select();
+      });
+    } else {
+      const heading = document.createElement("strong");
+      heading.className = "session-title";
+      heading.textContent = title;
+      const meta = document.createElement("div");
+      meta.className = "muted";
+      meta.textContent = `${formatActivity(session.updated_at)} · ${tokens} tok`;
+      btn.appendChild(heading);
+      btn.appendChild(meta);
+    }
     btn.addEventListener("click", async () => {
+      if (state.renamingId === session.session_id) return;
       await api("/api/sessions/load", { method: "POST", body: JSON.stringify({ session_id: session.session_id }) });
       $("transcript").innerHTML = "";
       addBubble("system", `Loaded session ${session.session_id}`);
       await refreshStatus();
       await refreshSessions();
+    });
+    btn.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      startInlineRename(session);
+    });
+    btn.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      showSessionMenu(event, session.session_id);
     });
     list.appendChild(btn);
   }
@@ -526,6 +619,14 @@ function bindUi() {
     addBubble("system", "New chat. Pick a workspace and send a message.");
     await refreshStatus();
     await refreshSessions();
+  });
+  $("session-menu-rename").addEventListener("click", () => {
+    const session = state.sessions.find((item) => item.session_id === state.menuSessionId);
+    hideSessionMenu();
+    if (session) startInlineRename(session);
+  });
+  document.addEventListener("click", (event) => {
+    if (!$("session-menu")?.contains(event.target)) hideSessionMenu();
   });
   $("save-session").addEventListener("click", async () => {
     const summary = await api("/api/sessions/save", { method: "POST" });
@@ -938,7 +1039,7 @@ async function boot() {
   await prepareSetup();
   await refreshSessions();
   await refreshCommands();
-  addBubble("system", "Jonathan Ai is using the existing Python agent loop. Destructive and network tools will ask before they run.");
+  addBubble("system", "Jonathan Ai is the agent. Chat with one API key or a local model — other MCP/Cursor/Codex connections are optional. Destructive and network tools will ask before they run.");
   try {
     const update = await api("/api/update/check", { method: "POST", body: "{}" });
     renderUpdate(update);

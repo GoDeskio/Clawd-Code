@@ -13,6 +13,8 @@ import time
 from typing import Any
 from urllib.request import Request, urlopen
 
+from src.version import get_version
+
 from .store import read_connectors
 
 
@@ -44,7 +46,7 @@ class McpProcessClient:
         self._rpc("initialize", {
             "protocolVersion": "2024-11-05",
             "capabilities": {},
-            "clientInfo": {"name": "jonathan-ai", "version": "0.1.0"},
+            "clientInfo": {"name": "jonathan-ai", "version": get_version()},
         })
         self._notify("notifications/initialized", {})
         return self._proc

@@ -43,12 +43,15 @@ class DesktopTestCase(unittest.TestCase):
         self.workspace.mkdir()
         self.home_patch = patch("src.config.Path.home", return_value=self.home)
         self.session_home = patch("src.agent.session.Path.home", return_value=self.home)
+        self.hooks_home = patch("src.connectors.hooks.Path.home", return_value=self.home)
         self.home_patch.start()
         self.session_home.start()
+        self.hooks_home.start()
 
     def tearDown(self) -> None:
         self.home_patch.stop()
         self.session_home.stop()
+        self.hooks_home.stop()
         self.tmp.cleanup()
 
 
@@ -197,6 +200,49 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertEqual(listed[0]["session_id"], summary["session_id"])
         self.assertIn("first question", listed[0]["title"])
 
+    def test_rename_session_persists(self) -> None:
+        runtime = self._runtime()
+        runtime.session.conversation.add_user_message("this would have been the auto title")
+        runtime.save_session()
+        renamed = runtime.rename_session(runtime.session.session_id, "My project notes")
+        self.assertEqual(renamed["title"], "My project notes")
+        self.assertTrue(renamed["custom_title"])
+        loaded = Session.load(runtime.session.session_id)
+        self.assertEqual(loaded.title, "My project notes")
+        self.assertTrue(loaded.custom_title)
+        self.assertEqual(Session.list_sessions()[0]["title"], "My project notes")
+        runtime.session.conversation.add_user_message("later message should not overwrite title")
+        runtime.save_session()
+        self.assertEqual(runtime.session.display_title(), "My project notes")
+
+    def test_standalone_chat_omits_other_agents_and_sends_typed_schemas(self) -> None:
+        runtime = self._runtime()
+        runtime.provider.chat.return_value = ChatResponse(
+            content="hello from standalone jonathan",
+            model="test-model",
+            usage={"input_tokens": 3, "output_tokens": 2},
+            finish_reason="stop",
+        )
+        job_id = runtime.start_chat("hi, no other agent is connected")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job_id)[1]))
+        events, done = runtime.drain_events(job_id)
+        self.assertTrue(done)
+        self.assertTrue(any(ev.get("type") == "done" for ev in events))
+        self.assertFalse(any(ev.get("needs_setup") for ev in events))
+        self.assertTrue(runtime.provider.chat.called)
+        kwargs = runtime.provider.chat.call_args.kwargs
+        tools = kwargs.get("tools") or []
+        names = [tool["name"] for tool in tools]
+        self.assertNotIn("ExternalAgent", names)
+        self.assertNotIn("MCP", names)
+        self.assertNotIn("ListMcpResources", names)
+        self.assertNotIn("ReadMcpResource", names)
+        self.assertIn("Skill", names)
+        for tool in tools:
+            self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
+        self.assertEqual(runtime.status()["version"], "0.2.0")
+        self.assertTrue(runtime.status()["standalone"])
+
     def test_token_usage_persists_and_resets_on_new_chat(self) -> None:
         runtime = self._runtime()
         runtime.session.record_usage({"input_tokens": 11, "output_tokens": 7})
@@ -305,7 +351,25 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
+        self.assertIn("0.2.0", html)
+        self.assertIn("session-menu", html)
         self.assertIn("app.js", html)
+
+    def test_rename_api(self) -> None:
+        runtime = self._runtime()
+        runtime.save_session()
+        server = DesktopServer(runtime, host="127.0.0.1", port=0)
+        server.start()
+        self.addCleanup(server.stop)
+        req = urllib.request.Request(
+            f"{server.url}api/sessions/rename",
+            data=json.dumps({"session_id": runtime.session.session_id, "title": "Renamed from API"}).encode(),
+            headers={"Content-Type": "application/json", "X-Clawd-Token": server.token},
+            method="POST",
+        )
+        payload = json.loads(urllib.request.urlopen(req, timeout=2).read())
+        self.assertEqual(payload["title"], "Renamed from API")
+        self.assertTrue(payload["custom_title"])
 
 
 if __name__ == "__main__":

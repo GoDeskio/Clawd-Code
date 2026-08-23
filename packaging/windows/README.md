@@ -1,5 +1,7 @@
 # Jonathan Ai for Windows
 
+**Version 0.2.0** — Jonathan Ai is itself the AI agent. After install, chat works with one API key or a local LLM. MCP, Cursor, and Codex are optional and not required. Rename conversations from the left sidebar (double-click or right-click). The version appears in the installer title and the app header.
+
 Desktop path:
 
 **JonathanAi-Setup.exe → visible wizard (Next / Install / Finish) → Jonathan Ai window + Desktop icon**
@@ -33,4 +35,6 @@ powershell -File packaging\windows\build-windows.ps1
 
 Inno Setup (`JonathanAi.iss`) produces a classic Setup wizard that also writes Desktop/Start Menu shortcuts and launches the app on Finish.
 
-No API tokens are baked into these artifacts. Tokens stay in `%USERPROFILE%\.clawd\config.json`.
+No API tokens are baked into these artifacts. Tokens stay in `%USERPROFILE%\.clawd\config.json`. There is no token paywall. The on-screen token count is informational only.
+
+First chat: open **Jonathan Ai**, choose a provider (or a local model), send a message. You do not need another agent connected. Tool schemas are sanitized so Anthropic/OpenAI requests always include `input_schema.type` (v0.2.0 fix for `tools.N.custom.input_schema.type`).
