@@ -1,0 +1,15 @@
+{
+  "name": "clawd-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native desktop shell for Clawd Code. The Python agent remains the brain.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^36.0.0"
+  }
+}

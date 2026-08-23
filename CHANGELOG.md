@@ -8,8 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Desktop app: localhost Python host + chat UI, optional Electron shell
+- Interactive permission prompts for gated desktop tools (Bash, Write, Edit, Web)
+- Session listing, first-run login UI, workspace picker, file/clipboard attach
 - Initial context injection pipeline for workspace snapshot, git status, and `CLAUDE.md`
-- Tests covering the new context system integration
+- Tests covering the new context system integration and desktop host wiring
 
 ### Changed
 - Skill frontmatter parsing now supports inline list syntax such as `arguments: [path]`

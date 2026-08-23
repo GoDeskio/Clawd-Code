@@ -28,6 +28,7 @@ Examples:
   clawd login              Configure API keys
   clawd config             Show current configuration
   clawd --stream           Start REPL with live response rendering
+  clawd desktop            Start the desktop host (browser UI)
   clawd                    Start interactive REPL
 """
     )
@@ -56,6 +57,13 @@ Examples:
     # config subcommand
     config_parser = subparsers.add_parser('config', help='Show current configuration')
 
+    desktop_parser = subparsers.add_parser('desktop', help='Start the desktop host / UI backend')
+    desktop_parser.add_argument('--host', default='127.0.0.1', help='Bind host (localhost only)')
+    desktop_parser.add_argument('--port', type=int, default=8765, help='Bind port')
+    desktop_parser.add_argument('--workspace', default=None, help='Initial workspace directory')
+    desktop_parser.add_argument('--token', default=None, help='API token for the local UI')
+    desktop_parser.add_argument('--no-browser', action='store_true', help='Do not open a browser window')
+
     args = parser.parse_args()
 
     # Handle --version
@@ -73,6 +81,15 @@ Examples:
         return handle_login()
     elif args.command == 'config':
         return show_config()
+    elif args.command == 'desktop':
+        from src.desktop.server import run_desktop
+        return run_desktop(
+            host=args.host,
+            port=args.port,
+            workspace=args.workspace,
+            open_browser=not args.no_browser,
+            token=args.token,
+        )
 
     # Default: start REPL
     return start_repl(stream=args.stream)

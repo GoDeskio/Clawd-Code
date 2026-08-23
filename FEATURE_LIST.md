@@ -32,7 +32,7 @@
 
 | 能力 | 状态 | 当前情况 |
 |------|------|----------|
-| CLI 启动入口 | ✅ | 已支持 `clawd`、`login`、`config`、`--version` |
+| CLI 启动入口 | ✅ | 已支持 `clawd`、`login`、`config`、`desktop`、`--version` |
 | 交互式 REPL | ✅ | 支持交互式输出、历史记录、Tab 补全、多行输入 |
 | Slash Commands | ✅ | 已支持 `/help`、`/clear`、`/save`、`/load`、`/multiline`、`/exit` |
 | 多 Provider 抽象 | ✅ | 已支持 Anthropic / OpenAI / GLM |
@@ -47,7 +47,8 @@
 | `/compact` 对话压缩 | 🚫 | 暂无自动/手动压缩能力 |
 | `/doctor` 诊断系统 | 🚫 | 暂无环境、配置、权限、依赖诊断命令 |
 | Hook 系统 | 🚫 | 暂无 pre/post tool use hooks |
-| 权限系统 | 🟡 | 已有 permissions.py 框架，尚未完全集成 |
+| 权限系统 | ✅ | 路径沙箱 + 文档写入询问 + 桌面端对 Bash/Write/Edit/Web 的交互批准 |
+| 桌面应用 | ✅ | Electron/浏览器壳 + 本地 Python host，复用现有 agent loop |
 
 ---
 
@@ -115,7 +116,8 @@
 | Output Styles | ✅ | 已实现输出样式加载系统 |
 | Session Persistence | ✅ | 已有会话保存/加载能力 |
 | Context Engine | 🟡 | 已接入基础上下文构建链路，支持 workspace、git、`CLAUDE.md` prompt 注入 |
-| Permission Engine | 🟡 | 已有框架，未完全集成到工具执行流程 |
+| Permission Engine | ✅ | 已接入工具 dispatch；桌面端可批准/拒绝/会话授权 |
+| Desktop Host | ✅ | `src/desktop` localhost HTTP/SSE + Electron 壳 |
 | Compaction Engine | 🚫 | 未形成对话压缩与 token 管理能力 |
 | Hook Runtime | 🚫 | 未接入设置驱动的 hook 执行机制 |
 | MCP Runtime | 🟡 | 已有 MCP 工具，未形成完整 MCP 协议层 |
@@ -132,6 +134,7 @@
 | Provider 测试 | ✅ | `test_providers.py` (113 行) |
 | 输出样式测试 | ✅ | `test_output_styles.py` (64 行) |
 | 配置测试 | ✅ | `test_config.py` |
+| 桌面 host / 权限接线 | ✅ | `test_desktop_runtime.py` |
 
 
 ## 路线图

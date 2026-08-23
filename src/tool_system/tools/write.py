@@ -7,6 +7,7 @@ from typing import Any
 from ..context import ToolContext
 from ..errors import ToolInputError, ToolPermissionError
 from ..permission_handler import PermissionResult
+from ..permissions import maybe_ask_for_gated_tool
 from ..protocol import ToolResult
 from ..diff_utils import unified_diff_hunks
 from ..registry import ToolSpec
@@ -49,7 +50,12 @@ class FileWriteTool:
                 message="Writing documentation files is blocked unless allow_docs is enabled",
                 suggestion="Enable allow_docs to write .md files",
             )
-        return PermissionResult.allow()
+        return maybe_ask_for_gated_tool(
+            context,
+            "Write",
+            f"Write file: {path}",
+            "Allow Write for the rest of this session",
+        )
 
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
         file_path = tool_input["file_path"]

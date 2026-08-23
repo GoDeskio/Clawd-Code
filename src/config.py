@@ -182,3 +182,69 @@ def get_default_provider() -> str:
     """
     config = load_config()
     return config.get("default_provider", "anthropic")
+
+
+def has_configured_provider() -> bool:
+    """Return True if at least one provider has a non-empty API key."""
+    config = load_config()
+    for provider_config in config.get("providers", {}).values():
+        if isinstance(provider_config, dict) and str(provider_config.get("api_key") or "").strip():
+            return True
+    return False
+
+
+def public_config() -> dict[str, Any]:
+    """Return configuration safe to send to a desktop UI (keys masked)."""
+    config = load_config()
+    providers: dict[str, Any] = {}
+    for name, provider_config in config.get("providers", {}).items():
+        if not isinstance(provider_config, dict):
+            continue
+        api_key = str(provider_config.get("api_key") or "")
+        if not api_key:
+            masked = ""
+        elif len(api_key) > 12:
+            masked = f"{api_key[:4]}…{api_key[-4:]}"
+        else:
+            masked = "••••"
+        providers[name] = {
+            "configured": bool(api_key),
+            "api_key_masked": masked,
+            "base_url": provider_config.get("base_url", ""),
+            "default_model": provider_config.get("default_model", ""),
+        }
+    desktop = config.get("desktop") if isinstance(config.get("desktop"), dict) else {}
+    return {
+        "default_provider": config.get("default_provider", "anthropic"),
+        "providers": providers,
+        "configured": has_configured_provider(),
+        "desktop": {
+            "workspace": desktop.get("workspace", ""),
+            "notify_on_complete": bool(desktop.get("notify_on_complete", True)),
+        },
+    }
+
+
+def get_desktop_settings() -> dict[str, Any]:
+    config = load_config()
+    desktop = config.get("desktop")
+    if not isinstance(desktop, dict):
+        desktop = {}
+    return {
+        "workspace": desktop.get("workspace", ""),
+        "notify_on_complete": bool(desktop.get("notify_on_complete", True)),
+    }
+
+
+def update_desktop_settings(*, workspace: Optional[str] = None, notify_on_complete: Optional[bool] = None) -> dict[str, Any]:
+    config = load_config()
+    desktop = config.get("desktop")
+    if not isinstance(desktop, dict):
+        desktop = {}
+    if workspace is not None:
+        desktop["workspace"] = workspace
+    if notify_on_complete is not None:
+        desktop["notify_on_complete"] = bool(notify_on_complete)
+    config["desktop"] = desktop
+    save_config(config)
+    return get_desktop_settings()

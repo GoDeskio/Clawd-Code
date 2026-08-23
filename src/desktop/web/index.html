@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clawd Code</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="/icon.svg" alt="" width="28" height="28" />
+        <div>
+          <strong>Clawd Code</strong>
+          <span class="muted">Desktop agent</span>
+        </div>
+      </div>
+      <button id="new-chat" class="primary">New chat</button>
+      <div class="workspace-card">
+        <div class="label">Workspace</div>
+        <div id="workspace-path" class="path" title="">—</div>
+        <div class="row">
+          <button id="pick-workspace" class="ghost">Choose folder</button>
+        </div>
+      </div>
+      <div class="section-title">Sessions</div>
+      <nav id="session-list" class="session-list"></nav>
+      <div class="sidebar-foot">
+        <button id="open-settings" class="ghost">Provider &amp; model</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="chat-title">New chat</h1>
+          <p id="model-line" class="muted">Not configured</p>
+        </div>
+        <div class="top-actions">
+          <button id="save-session" class="ghost">Save</button>
+        </div>
+      </header>
+
+      <section id="transcript" class="transcript" aria-live="polite"></section>
+
+      <div id="permission-banner" class="permission hidden">
+        <div>
+          <strong id="perm-title">Permission required</strong>
+          <p id="perm-message" class="muted"></p>
+        </div>
+        <div class="row">
+          <button id="perm-deny" class="ghost">Deny</button>
+          <button id="perm-always" class="ghost">Always this session</button>
+          <button id="perm-allow" class="primary">Allow</button>
+        </div>
+      </div>
+
+      <footer class="composer">
+        <div id="drop-hint" class="drop-hint hidden">Drop files to attach</div>
+        <div id="attachments" class="chips"></div>
+        <div id="slash-palette" class="palette hidden"></div>
+        <textarea id="prompt" rows="3" placeholder="Message Clawd, or type / for commands and skills"></textarea>
+        <div class="composer-row">
+          <div class="row">
+            <button id="attach-files" class="ghost" title="Attach files">Attach</button>
+            <button id="attach-clipboard" class="ghost" title="Attach current clipboard text">Clipboard</button>
+            <button id="attach-screenshot" class="ghost hidden" title="Capture the current screen">Screenshot</button>
+            <input id="file-input" type="file" multiple hidden />
+          </div>
+          <button id="send" class="primary">Send</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <div id="setup-modal" class="modal hidden">
+    <div class="dialog">
+      <h2>First-run setup</h2>
+      <p class="muted">Keys are stored only in <code>~/.clawd/config.json</code> with owner-only permissions. They are never written into this repo.</p>
+      <label>Provider
+        <select id="setup-provider"></select>
+      </label>
+      <label>API key
+        <input id="setup-key" type="password" autocomplete="off" />
+      </label>
+      <label>Base URL
+        <input id="setup-url" type="url" />
+      </label>
+      <label>Default model
+        <input id="setup-model" type="text" />
+      </label>
+      <div class="row end">
+        <button id="setup-save" class="primary">Save and continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal hidden">
+    <div class="dialog">
+      <h2>Provider &amp; model</h2>
+      <label>Active provider
+        <select id="settings-provider"></select>
+      </label>
+      <label>Model
+        <input id="settings-model" type="text" />
+      </label>
+      <p class="muted">To replace a key, use first-run setup again or <code>python -m src.cli login</code>.</p>
+      <div class="row end">
+        <button id="settings-close" class="ghost">Close</button>
+        <button id="settings-save" class="primary">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

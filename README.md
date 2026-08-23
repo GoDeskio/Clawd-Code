@@ -126,6 +126,7 @@ clawd              # Start REPL
 clawd login        # Configure API
 clawd --version    # Check version
 clawd config       # View settings
+clawd desktop      # Start the desktop host
 ```
 
 ***
@@ -149,8 +150,9 @@ clawd config       # View settings
 | Session Persistence | ✅ | Save/load sessions locally |
 | Agent Loop | ✅ | Tool calling loop implementation |
 | Skill System | ✅ | SKILL.md-based slash-command skills with args + tool limits |
-| Context Building | 🟡 | Initial prompt injection for workspace, git, and CLAUDE.md; deeper project understanding still needed |
-| Permission System | 🟡 | Framework exists, needs integration |
+| Context Building | 🟡 | Initial prompt injection for workspace, git, and CLAUDE.md; desktop workspace picker feeds the same builder |
+| Permission System | ✅ | Path sandbox plus interactive approve/deny for destructive and network tools |
+| Desktop App | ✅ | Electron/browser shell over the existing Python agent loop |
 
 ### Tool System (30+ Tools Implemented)
 
@@ -171,7 +173,7 @@ clawd config       # View settings
 - ✅ **Phase 0**: Installable, runnable CLI
 - ✅ **Phase 1**: Core Claude Code MVP experience
 - ✅ **Phase 2**: Real tool calling loop
-- 🟡 **Phase 3**: Context, permissions, recovery (in progress)
+- 🟡 **Phase 3**: Context, permissions, recovery (permissions + desktop host landed; deeper context still in progress)
 - ⏳ **Phase 4**: MCP, plugins, extensibility
 - ⏳ **Phase 5**: Python-native differentiators
 
@@ -234,14 +236,52 @@ The configuration file is saved in in `~/.clawd/config.json`. Example structure:
 }
 ```
 
-### Run
+### Run the original CLI
 
 ```bash
 python -m src.cli          # Start REPL
 python -m src.cli --help   # Show help
+python -m src.cli login    # First-run API setup (keys stay in ~/.clawd/config.json)
 ```
 
-**That's it!** Start chatting with AI in 3 steps.
+**That's it!** Start chatting from the terminal in 3 steps.
+
+### Run the desktop app
+
+The desktop app is a native/cross-platform shell around **this repo's existing agent runtime**. It does not rewrite the tool loop, skills, providers, or sessions.
+
+**Option A — Python host + browser UI (Linux CI/dev, no Node required)**
+
+```bash
+python -m src.cli desktop
+# or:
+python -m src.desktop --port 8765
+```
+
+This binds `http://127.0.0.1:8765/` only, serves the chat UI, and opens a browser. Use `--no-browser` in CI.
+
+**Option B — Electron desktop shell (tray, notifications, folder picker)**
+
+```bash
+cd desktop
+npm install
+npm start
+```
+
+Electron starts the Python sidecar (`python -m src.cli desktop --no-browser`) and opens a window. Linux, macOS, and Windows are supported; Linux is the CI/dev path.
+
+First launch shows a login/config flow. API keys are written only to `~/.clawd/config.json` with mode `0600`. They are never committed.
+
+Desktop extras on top of the CLI:
+
+- Chat with streaming tokens, visible tool activity, slash commands/skills, session list, provider/model settings
+- Workspace/folder picker (Electron dialog, or a path prompt in the browser)
+- Approve / deny / always-allow-this-session permission prompts
+- System tray + notifications for long jobs (Electron)
+- Attach / drop files, user-clicked clipboard attach, optional user-clicked screenshot
+- Copy-friendly rendered markdown
+
+Clipboard and screen access are **user-initiated only**. There is no background capture, keylogging, or secret scraping.
 
 ***
 
@@ -339,11 +379,13 @@ Example:
 ```text
 Clawd-Code/
 ├── src/
-│   ├── cli.py           # CLI entry
+│   ├── cli.py           # CLI entry (`clawd`, `login`, `config`, `desktop`)
+│   ├── desktop/         # Localhost host, runtime, and web UI
 │   ├── providers/       # LLM providers
 │   ├── repl/            # Interactive REPL
 │   ├── skills/          # SKILL.md loading and creation
 │   └── tool_system/     # Tool registry, loop, validation
+├── desktop/             # Electron shell (tray, dialogs, notifications)
 ├── tests/               # Core test suite
 ├── .clawd/
 │   └── skills/          # Project-local custom skills
@@ -558,6 +600,7 @@ clawd              # 启动 REPL
 clawd login        # 配置 API
 clawd --version    # 检查版本
 clawd config       # 查看设置
+clawd desktop      # 启动桌面 host
 ```
 
 ***
@@ -581,8 +624,9 @@ clawd config       # 查看设置
 | 会话持久化 | ✅ | 本地保存/加载会话 |
 | Agent Loop | ✅ | 工具调用循环实现 |
 | Skill 系统 | ✅ | 基于 SKILL.md 的 /skill 技能：参数替换 + 工具限制 |
-| 上下文构建 | 🟡 | 已接入 workspace、git、CLAUDE.md 的基础上下文注入，仍需补强项目级理解 |
-| 权限系统 | 🟡 | 框架已存在，需要集成 |
+| 上下文构建 | 🟡 | 已接入 workspace、git、CLAUDE.md 的基础上下文注入，桌面端工作区选择器复用同一套 builder |
+| 权限系统 | ✅ | 路径沙箱 + 破坏性/网络工具的交互批准 |
+| 桌面应用 | ✅ | Electron/浏览器壳，复用现有 Python agent loop |
 
 ### 工具系统（已实现 30+ 工具）
 
@@ -666,14 +710,22 @@ python -m src.cli login
 }
 ```
 
-### 运行
+### 运行 CLI
 
 ```bash
 python -m src.cli          # 启动 REPL
 python -m src.cli --help   # 显示帮助
+python -m src.cli login    # 配置 API（密钥只保存在 ~/.clawd/config.json）
 ```
 
-**就这样！** 3 步开始与 AI 对话。
+### 运行桌面应用
+
+```bash
+python -m src.cli desktop          # Python host + 浏览器 UI
+cd desktop && npm install && npm start   # Electron 壳
+```
+
+密钥不会写入 Git。桌面端复用现有 agent loop、工具、skills 与会话。
 
 ***
 
@@ -771,10 +823,12 @@ arguments: [path]
 Clawd-Code/
 ├── src/
 │   ├── cli.py           # CLI 入口
+│   ├── desktop/         # 桌面 host 与 Web UI
 │   ├── providers/       # LLM 提供商
 │   ├── repl/            # 交互式 REPL
 │   ├── skills/          # SKILL.md 加载与创建
 │   └── tool_system/     # 工具注册、循环与校验
+├── desktop/             # Electron 壳
 ├── tests/               # 核心测试套件
 ├── .clawd/
 │   └── skills/          # 项目级自定义技能

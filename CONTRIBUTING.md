@@ -74,6 +74,7 @@ python -m pytest tests/ -q
 Clawd-Code/
 ├── src/                    # Source code
 │   ├── providers/         # LLM provider implementations
+│   ├── desktop/           # Desktop host, runtime, and web UI
 │   ├── repl/              # Interactive REPL
 │   ├── agent/             # Session management
 │   ├── skills/            # SKILL.md loading and creation

@@ -80,5 +80,14 @@ sessions/
 .transcripts/
 .port_sessions/
 
+# Desktop / Electron
+node_modules/
+desktop/dist/
+desktop/out/
+npm-debug.log*
+
+# Local desktop captures (user-initiated screenshots)
+.clawd/captures/
+
 # Claude Code personal settings
 CLAUDE.local.md

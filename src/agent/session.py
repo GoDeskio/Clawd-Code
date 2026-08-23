@@ -11,6 +11,23 @@ from dataclasses import dataclass, field
 from .conversation import Conversation
 
 
+def session_dir() -> Path:
+    """Return the local session directory (~/.clawd/sessions)."""
+    path = Path.home() / ".clawd" / "sessions"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _title_from_conversation(conversation: Conversation) -> str:
+    for msg in conversation.messages:
+        if msg.role != "user":
+            continue
+        if isinstance(msg.content, str) and msg.content.strip():
+            text = msg.content.strip().splitlines()[0]
+            return text if len(text) <= 72 else text[:69] + "..."
+    return "New chat"
+
+
 @dataclass
 class Session:
     """Session manager with persistence."""
@@ -20,13 +37,33 @@ class Session:
     conversation: Conversation = field(default_factory=Conversation)
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    workspace: str = ""
+    title: str = "New chat"
+
+    def preview_title(self) -> str:
+        derived = _title_from_conversation(self.conversation)
+        if derived != "New chat":
+            return derived
+        return self.title or "New chat"
+
+    def to_summary(self) -> dict:
+        return {
+            "session_id": self.session_id,
+            "title": self.preview_title(),
+            "provider": self.provider,
+            "model": self.model,
+            "workspace": self.workspace,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "message_count": len(self.conversation.messages),
+        }
 
     def save(self):
         """Save session to disk."""
-        session_dir = Path.home() / ".clawd" / "sessions"
-        session_dir.mkdir(parents=True, exist_ok=True)
-
-        session_file = session_dir / f"{self.session_id}.json"
+        target_dir = session_dir()
+        session_file = target_dir / f"{self.session_id}.json"
+        self.title = self.preview_title()
+        self.updated_at = datetime.now().isoformat()
 
         session_data = {
             "session_id": self.session_id,
@@ -34,18 +71,18 @@ class Session:
             "model": self.model,
             "conversation": self.conversation.to_dict(),
             "created_at": self.created_at,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": self.updated_at,
+            "workspace": self.workspace,
+            "title": self.title,
         }
 
         with open(session_file, 'w') as f:
             json.dump(session_data, f, indent=2)
 
-        self.updated_at = datetime.now().isoformat()
-
     @classmethod
     def load(cls, session_id: str) -> Optional['Session']:
         """Load session from disk."""
-        session_file = Path.home() / ".clawd" / "sessions" / f"{session_id}.json"
+        session_file = session_dir() / f"{session_id}.json"
 
         if not session_file.exists():
             return None
@@ -53,21 +90,49 @@ class Session:
         with open(session_file, 'r') as f:
             data = json.load(f)
 
+        conversation = Conversation.from_dict(data.get("conversation") or {})
         return cls(
             session_id=data["session_id"],
             provider=data["provider"],
             model=data["model"],
-            conversation=Conversation.from_dict(data["conversation"]),
-            created_at=data["created_at"],
-            updated_at=data["updated_at"]
+            conversation=conversation,
+            created_at=data.get("created_at", ""),
+            updated_at=data.get("updated_at", ""),
+            workspace=data.get("workspace", ""),
+            title=data.get("title") or _title_from_conversation(conversation),
         )
 
     @classmethod
-    def create(cls, provider: str, model: str) -> 'Session':
+    def list_sessions(cls) -> list[dict]:
+        """List locally saved sessions, newest first."""
+        items: list[dict] = []
+        for path in session_dir().glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            conversation = Conversation.from_dict(data.get("conversation") or {})
+            title = data.get("title") or _title_from_conversation(conversation)
+            items.append({
+                "session_id": data.get("session_id", path.stem),
+                "title": title,
+                "provider": data.get("provider", ""),
+                "model": data.get("model", ""),
+                "workspace": data.get("workspace", ""),
+                "created_at": data.get("created_at", ""),
+                "updated_at": data.get("updated_at", ""),
+                "message_count": len(conversation.messages),
+            })
+        items.sort(key=lambda row: row.get("updated_at") or row.get("created_at") or "", reverse=True)
+        return items
+
+    @classmethod
+    def create(cls, provider: str, model: str, workspace: str = "") -> 'Session':
         """Create a new session."""
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         return cls(
             session_id=session_id,
             provider=provider,
-            model=model
+            model=model,
+            workspace=workspace,
         )

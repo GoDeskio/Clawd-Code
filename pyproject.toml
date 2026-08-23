@@ -42,6 +42,7 @@ dev = [
 
 [project.scripts]
 clawd = "src.cli:main"
+clawd-desktop = "src.desktop.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/GPT-AGI/Clawd-Codex"

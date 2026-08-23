@@ -4,3 +4,7 @@ include CLAUDE.md
 include MVP_PLAN.md
 recursive-include src *.py
 recursive-include src *.json
+recursive-include src/desktop/web *
+include desktop/package.json
+include desktop/main.js
+include desktop/preload.js

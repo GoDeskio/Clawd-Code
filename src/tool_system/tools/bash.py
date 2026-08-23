@@ -8,6 +8,8 @@ from typing import Any
 
 from ..context import ToolContext
 from ..errors import ToolInputError, ToolPermissionError
+from ..permission_handler import PermissionResult
+from ..permissions import maybe_ask_for_gated_tool
 from ..protocol import ToolResult
 from ..registry import ToolSpec
 
@@ -60,6 +62,20 @@ class BashTool:
             },
             is_destructive=True,
             max_result_size_chars=50_000,
+        )
+
+    def check_permissions(
+        self, tool_input: dict[str, Any], context: ToolContext
+    ) -> PermissionResult:
+        command = tool_input.get("command", "")
+        preview = command.strip().replace("\n", " ") if isinstance(command, str) else ""
+        if len(preview) > 120:
+            preview = preview[:117] + "..."
+        return maybe_ask_for_gated_tool(
+            context,
+            "Bash",
+            f"Run shell command: {preview or '(empty)'}",
+            "Allow Bash for the rest of this session",
         )
 
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
