@@ -5,14 +5,19 @@ from __future__ import annotations
 from typing import TypedDict
 
 from .base import BaseProvider, ChatMessage, ChatResponse
+from .huggingface_connect import DEFAULT_HF_MODELS, HF_ROUTER
 
 
 # Provider metadata for login/UI
-class ProviderInfo(TypedDict):
+class ProviderInfo(TypedDict, total=False):
     label: str
     default_base_url: str
     default_model: str
     available_models: list[str]
+    requires_key: bool
+    kind: str
+    token_label: str
+    help: str
 
 
 PROVIDER_INFO: dict[str, ProviderInfo] = {
@@ -20,6 +25,10 @@ PROVIDER_INFO: dict[str, ProviderInfo] = {
         "label": "Anthropic Claude",
         "default_base_url": "https://api.anthropic.com",
         "default_model": "claude-sonnet-4-6",
+        "requires_key": True,
+        "kind": "cloud",
+        "token_label": "API key",
+        "help": "Cloud provider. Key stays in ~/.clawd/config.json.",
         "available_models": [
             # Claude 4 series (latest)
             "claude-sonnet-4-6",
@@ -48,6 +57,10 @@ PROVIDER_INFO: dict[str, ProviderInfo] = {
         "label": "OpenAI GPT",
         "default_base_url": "https://api.openai.com/v1",
         "default_model": "gpt-5.4",
+        "requires_key": True,
+        "kind": "cloud",
+        "token_label": "API key",
+        "help": "Cloud provider. Key stays in ~/.clawd/config.json.",
         "available_models": [
             # GPT-5.4 series (latest flagship)
             "gpt-5.4",
@@ -73,6 +86,10 @@ PROVIDER_INFO: dict[str, ProviderInfo] = {
         "label": "Zhipu GLM (z.ai)",
         "default_base_url": "https://open.bigmodel.cn/api/paas/v4",
         "default_model": "zai/glm-5",
+        "requires_key": True,
+        "kind": "cloud",
+        "token_label": "API key",
+        "help": "Cloud provider. Key stays in ~/.clawd/config.json.",
         "available_models": [
             # GLM-5 series (latest, requires zai/ prefix)
             "zai/glm-5",
@@ -93,6 +110,10 @@ PROVIDER_INFO: dict[str, ProviderInfo] = {
         "label": "Minimax AI",
         "default_base_url": "https://api.minimaxi.com/anthropic",
         "default_model": "MiniMax-M2.7",
+        "requires_key": True,
+        "kind": "cloud",
+        "token_label": "API key",
+        "help": "Cloud provider. Key stays in ~/.clawd/config.json.",
         "available_models": [
             # M2 series (latest)
             "MiniMax-M2.7",
@@ -105,6 +126,26 @@ PROVIDER_INFO: dict[str, ProviderInfo] = {
             "MiniMax-M2.1-highspeed",
             "MiniMax-M2",
         ],
+    },
+    "huggingface": {
+        "label": "Hugging Face",
+        "default_base_url": HF_ROUTER,
+        "default_model": DEFAULT_HF_MODELS[0],
+        "requires_key": True,
+        "kind": "huggingface",
+        "token_label": "Hugging Face token",
+        "help": "Hub + Inference. Create a token at https://huggingface.co/settings/tokens. Test the connection, then pick a Hub model. Token stays on this machine — never in git.",
+        "available_models": list(DEFAULT_HF_MODELS),
+    },
+    "local": {
+        "label": "Local LLM",
+        "default_base_url": "http://127.0.0.1:11434/v1",
+        "default_model": "",
+        "requires_key": False,
+        "kind": "local",
+        "token_label": "Optional API key",
+        "help": "Any OpenAI-compatible local server: Ollama (default http://127.0.0.1:11434), LM Studio, vLLM, llama.cpp, Hugging Face TGI, or a custom loopback/LAN URL. Jonathan Ai will not expose it on the WAN.",
+        "available_models": [],
     },
 }
 
@@ -134,6 +175,14 @@ def get_provider_class(provider_name: str):
         from .minimax_provider import MinimaxProvider
 
         return MinimaxProvider
+    if provider_name == "huggingface":
+        from .huggingface_provider import HuggingFaceProvider
+
+        return HuggingFaceProvider
+    if provider_name == "local":
+        from .local_provider import LocalLLMProvider
+
+        return LocalLLMProvider
     raise ValueError(f"Unknown provider: {provider_name}")
 
 

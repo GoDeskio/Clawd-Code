@@ -27,6 +27,7 @@ dependencies = [
     "anthropic",
     "openai",
     "zhipuai",
+    "huggingface_hub>=0.24.0",
     "python-dotenv",
     "rich",
     "prompt-toolkit",

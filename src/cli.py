@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 from rich.console import Console
-from rich.prompt import Prompt
 from rich.table import Table
 
 
@@ -182,52 +181,9 @@ def handle_login():
     # Show available providers and their defaults
     _show_provider_defaults_table()
 
-    # Select provider
-    from src.providers import PROVIDER_INFO
-    provider_names = list(PROVIDER_INFO.keys())
+    from src.providers.connect_flow import prompt_provider_connection
 
-    provider = Prompt.ask(
-        "Select LLM provider",
-        choices=provider_names,
-        default="anthropic"
-    )
-
-    info = PROVIDER_INFO[provider]
-
-    # Input API Key
-    api_key = Prompt.ask(
-        f"Enter {provider.upper()} API Key",
-        password=True
-    )
-
-    if not api_key:
-        console.print("\n[red]Error: API Key cannot be empty[/red]")
-        return 1
-
-    # Optional: Base URL (show default)
-    console.print(f"\n[dim]Default:[/dim] {info['default_base_url']}")
-    base_url = Prompt.ask(
-        f"{provider.upper()} Base URL",
-        default=info["default_base_url"]
-    )
-
-    # Optional: Default Model (show available options)
-    console.print(f"\n[dim]Available models:[/dim] {', '.join(info['available_models'])}")
-    console.print(f"[dim]Default:[/dim] [bold]{info['default_model']}[/bold]")
-    default_model = Prompt.ask(
-        f"{provider.upper()} Default Model",
-        default=info["default_model"]
-    )
-
-    # Save configuration
-    from src.config import set_api_key, set_default_provider
-
-    set_api_key(provider, api_key=api_key, base_url=base_url, default_model=default_model)
-    set_default_provider(provider)
-
-    console.print(f"\n[green]✓ {provider.upper()} API Key saved successfully![/green]")
-    console.print(f"[green]✓ Default provider set to: {provider}[/green]\n")
-    return 0
+    return prompt_provider_connection(console, default="anthropic")
 
 
 def show_config():

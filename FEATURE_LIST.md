@@ -35,7 +35,7 @@
 | CLI 启动入口 | ✅ | 已支持 `clawd`、`login`、`config`、`desktop`、`--version` |
 | 交互式 REPL | ✅ | 支持交互式输出、历史记录、Tab 补全、多行输入 |
 | Slash Commands | ✅ | 已支持 `/help`、`/clear`、`/save`、`/load`、`/multiline`、`/exit` |
-| 多 Provider 抽象 | ✅ | 已支持 Anthropic / OpenAI / GLM |
+| 多 Provider 抽象 | ✅ | 已支持 Anthropic / OpenAI / GLM / Minimax / Hugging Face / Local LLM |
 | Provider 配置管理 | ✅ | 支持默认 Provider、Base URL、默认模型配置 |
 | 会话持久化 | ✅ | 支持保存/加载本地会话 |
 | 会话消息管理 | ✅ | 支持会话历史维护与序列化 |

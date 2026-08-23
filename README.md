@@ -247,13 +247,15 @@ python -m src.cli login
 
 This flow will:
 
-1. ask you to choose a provider: anthropic / openai / glm
-2. ask for that provider's API key
+1. ask you to choose a provider: anthropic / openai / glm / minimax / **huggingface** / **local**
+2. ask for that provider's API key or Hugging Face token (Local LLM keys are optional)
 3. optionally save a custom base URL
 4. optionally save a default model
 5. set the selected provider as default
 
-The configuration file is saved in in `~/.clawd/config.json`. Example structure:
+Switching providers later does **not** require a reinstall — use Jonathan Ai settings or `python -m src.cli login` again.
+
+The configuration file is saved in `~/.clawd/config.json` (mode `0600`). Tokens never go into git or the installer artifact. Example structure:
 
 ```json
 {
@@ -273,10 +275,47 @@ The configuration file is saved in in `~/.clawd/config.json`. Example structure:
       "api_key": "base64-encoded-key",
       "base_url": "https://open.bigmodel.cn/api/paas/v4",
       "default_model": "glm-4.5"
+    },
+    "huggingface": {
+      "api_key": "base64-encoded-hf-token",
+      "base_url": "https://router.huggingface.co/v1",
+      "default_model": "Qwen/Qwen2.5-7B-Instruct"
+    },
+    "local": {
+      "api_key": "",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "default_model": "llama3.2"
     }
   }
 }
 ```
+
+#### Hugging Face (Hub + Inference)
+
+1. Create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) (read access is enough for most inference models).
+2. In Jonathan Ai first-run setup or **Provider & model**, choose **Hugging Face**.
+3. Paste the token. It is stored only in `~/.clawd/config.json`.
+4. Click **Test Hugging Face** — Jonathan Ai calls `whoami` and reports the account name.
+5. Click **Load Hub models** to list inference-ready text-generation models, or type an `org/name` id (for example `Qwen/Qwen2.5-7B-Instruct`).
+6. Optional: **Download / cache** writes the Hub repo to `~/.clawd/hf-cache` on this machine (no upload).
+7. Save. Chat uses the HF Inference router (`https://router.huggingface.co/v1`). Jonathan Ai does **not** call Hugging Face unless you selected this provider or clicked test / list / download.
+
+The install wizard has the same token field after the tree is installed. Unattended `./install.sh --yes` still writes empty placeholders only.
+
+#### Local / self-hosted LLMs
+
+Treat any OpenAI-compatible server as the **Local LLM** provider:
+
+| Server | Default URL |
+| --- | --- |
+| Ollama | `http://127.0.0.1:11434/v1` |
+| LM Studio | `http://127.0.0.1:1234/v1` |
+| vLLM | `http://127.0.0.1:8000/v1` |
+| llama.cpp server | `http://127.0.0.1:8080/v1` |
+| Hugging Face TGI (self-hosted) | `http://127.0.0.1:3000/v1` |
+| Custom | loopback or LAN URL + optional API key |
+
+On first run and in settings, **Scan local ports** probes those addresses, lists available models, and lets you pick a default. Custom URLs that resolve to the public internet are rejected. Local endpoints are never bound or advertised on the WAN by Jonathan Ai.
 
 ### Run the original CLI
 
@@ -731,11 +770,15 @@ python -m src.cli login
 
 这个流程会：
 
-1. 让你选择 provider：anthropic / openai / glm
-2. 让你输入该 provider 的 API key
+1. 让你选择 provider：anthropic / openai / glm / minimax / **huggingface** / **local**
+2. 让你输入 API key 或 Hugging Face token（本地 LLM 的 key 可选）
 3. 可选：保存自定义 base URL
 4. 可选：保存默认 model
-5. 将该 provider 设为默认
+5. 将该 provider 设为默认（切换 provider 无需重装）
+
+Hugging Face：在 https://huggingface.co/settings/tokens 创建 token，于桌面设置中点 **Test Hugging Face** 验证，再选择 Hub 模型。Token 只保存在 `~/.clawd/config.json`。
+
+本地 LLM：扫描 Ollama (`http://127.0.0.1:11434`)、LM Studio、vLLM、llama.cpp、TGI 或自定义局域网地址，仅允许回环/局域网，不会暴露到公网。
 
 配置文件会保存在 `~/.clawd/config.json`。示例结构：
 
@@ -768,6 +811,7 @@ python -m src.cli login
 ./install.sh --yes
 # 默认源码目录：~/Jonathan/Jonathan-Ai
 # 只从 https://github.com/GoDeskio/Clawd-Code 安装与更新
+# 安装后可在向导或桌面设置中连接 Hugging Face / 本地 LLM，无需重装
 ```
 
 ### 运行 CLI

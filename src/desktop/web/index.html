@@ -78,21 +78,38 @@
   </div>
 
   <div id="setup-modal" class="modal hidden">
-    <div class="dialog">
+    <div class="dialog wide">
       <h2>First-run setup</h2>
-      <p class="muted">Keys are stored only in <code>~/.clawd/config.json</code> with owner-only permissions. They are never written into this repo.</p>
+      <p class="muted">Keys stay only in <code>~/.clawd/config.json</code> (mode 0600). They are never written into git or the installer.</p>
       <label>Provider
         <select id="setup-provider"></select>
       </label>
-      <label>API key
+      <p id="setup-help" class="muted"></p>
+      <label id="setup-key-wrap"> <span id="setup-key-label">API key</span>
         <input id="setup-key" type="password" autocomplete="off" />
       </label>
       <label>Base URL
         <input id="setup-url" type="url" />
       </label>
       <label>Default model
-        <input id="setup-model" type="text" />
+        <input id="setup-model" type="text" list="setup-model-list" />
+        <datalist id="setup-model-list"></datalist>
       </label>
+      <div id="setup-hf" class="connector hidden">
+        <div class="row">
+          <button id="setup-hf-test" class="ghost" type="button">Test Hugging Face</button>
+          <button id="setup-hf-models" class="ghost" type="button">Load Hub models</button>
+          <button id="setup-hf-cache" class="ghost" type="button">Download / cache</button>
+        </div>
+        <p id="setup-hf-status" class="muted"></p>
+      </div>
+      <div id="setup-local" class="connector hidden">
+        <div class="row">
+          <button id="setup-local-scan" class="ghost" type="button">Scan local ports</button>
+          <button id="setup-local-models" class="ghost" type="button">List models</button>
+        </div>
+        <div id="setup-local-results" class="scan-list"></div>
+      </div>
       <div class="row end">
         <button id="setup-save" class="primary">Save and continue</button>
       </div>
@@ -100,16 +117,39 @@
   </div>
 
   <div id="settings-modal" class="modal hidden">
-    <div class="dialog">
+    <div class="dialog wide">
       <h2>Provider &amp; model</h2>
+      <p class="muted">Hugging Face and Local LLM sit beside Anthropic, OpenAI, GLM, and Minimax. Switching providers does not require a reinstall.</p>
       <label>Active provider
         <select id="settings-provider"></select>
       </label>
-      <label>Model
-        <input id="settings-model" type="text" />
+      <p id="settings-help" class="muted"></p>
+      <label id="settings-key-wrap"> <span id="settings-key-label">API key</span>
+        <input id="settings-key" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" />
       </label>
+      <label>Base URL
+        <input id="settings-url" type="url" />
+      </label>
+      <label>Model
+        <input id="settings-model" type="text" list="settings-model-list" />
+        <datalist id="settings-model-list"></datalist>
+      </label>
+      <div id="settings-hf" class="connector hidden">
+        <div class="row">
+          <button id="settings-hf-test" class="ghost" type="button">Test Hugging Face</button>
+          <button id="settings-hf-models" class="ghost" type="button">Load Hub models</button>
+          <button id="settings-hf-cache" class="ghost" type="button">Download / cache</button>
+        </div>
+        <p id="settings-hf-status" class="muted"></p>
+      </div>
+      <div id="settings-local" class="connector hidden">
+        <div class="row">
+          <button id="settings-local-scan" class="ghost" type="button">Scan local ports</button>
+          <button id="settings-local-models" class="ghost" type="button">List models</button>
+        </div>
+        <div id="settings-local-results" class="scan-list"></div>
+      </div>
       <p class="muted">Source and updates: <code>https://github.com/GoDeskio/Clawd-Code</code>. Default local tree: <code>~/Jonathan/Jonathan-Ai</code>.</p>
-      <p class="muted">To replace a key, use first-run setup again or <code>python -m src.cli login</code>.</p>
       <div class="row end">
         <button id="settings-close" class="ghost">Close</button>
         <button id="settings-save" class="primary">Apply</button>

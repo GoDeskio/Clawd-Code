@@ -103,6 +103,36 @@ def run_ui(args: argparse.Namespace) -> int:
                 )
                 self._send(200, json.dumps({"job_id": job_id}).encode(), "application/json")
                 return
+            if path == "/api/connectors/hf/test":
+                from src.providers.huggingface_connect import verify_huggingface_token
+
+                try:
+                    result = verify_huggingface_token(str(body.get("api_key") or body.get("token") or ""))
+                    self._send(200, json.dumps(result).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
+            if path == "/api/connectors/local/scan":
+                from src.providers.local_endpoints import scan_local_endpoints
+
+                result = {"endpoints": scan_local_endpoints()}
+                self._send(200, json.dumps(result).encode(), "application/json")
+                return
+            if path == "/api/connect":
+                try:
+                    from src.providers.connect_flow import save_provider_connection
+
+                    provider = str(body.get("provider") or "")
+                    save_provider_connection(
+                        provider,
+                        api_key=str(body.get("api_key") or ""),
+                        base_url=body.get("base_url"),
+                        default_model=body.get("default_model") or None,
+                    )
+                    self._send(200, json.dumps({"ok": True, "provider": provider}).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
             self._send(404, b"not found", "text/plain")
 
     httpd = ThreadingHTTPServer((host, port), Handler)

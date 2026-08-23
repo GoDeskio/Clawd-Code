@@ -250,6 +250,8 @@ class TestDesktopServer(DesktopTestCase):
         self.addCleanup(server.stop)
         html = urllib.request.urlopen(server.url, timeout=2).read().decode()
         self.assertIn("Jonathan Ai", html)
+        self.assertIn("Hugging Face", html)
+        self.assertIn("Local LLM", html)
         self.assertIn("app.js", html)
 
 

@@ -20,10 +20,23 @@ from src.config import (
     get_desktop_settings,
     get_provider_config,
     has_configured_provider,
+    is_provider_ready,
+    provider_requires_key,
     public_config,
     set_api_key,
     set_default_provider,
     update_desktop_settings,
+)
+from src.providers.huggingface_connect import (
+    cache_huggingface_model,
+    list_huggingface_models,
+    verify_huggingface_token,
+)
+from src.providers.local_endpoints import (
+    assert_local_or_lan_url,
+    list_local_models,
+    normalize_openai_base,
+    scan_local_endpoints,
 )
 from src.cost_tracker import CostTracker
 from src.history import HistoryLog
@@ -114,29 +127,26 @@ class DesktopRuntime:
         return ctx
 
     def _try_init_provider(self) -> None:
-        if not has_configured_provider():
-            self.provider = None
-            return
         try:
             config = get_provider_config(self.provider_name)
         except ValueError:
             self.provider = None
             return
-        if not config.get("api_key"):
+        if not is_provider_ready(self.provider_name, config):
             self.provider = None
             return
         provider_class = get_provider_class(self.provider_name)
         self.provider = provider_class(
-            api_key=config["api_key"],
+            api_key=config.get("api_key") or "local",
             base_url=config.get("base_url"),
-            model=config.get("default_model"),
+            model=config.get("default_model") or None,
         )
         if self.session.provider != self.provider_name or self.session.model == "unconfigured":
             self.session.provider = self.provider_name
             self.session.model = self.provider.model
 
     def needs_setup(self) -> bool:
-        return self.provider is None
+        return not has_configured_provider()
 
     def status(self) -> dict[str, Any]:
         cfg = public_config()
@@ -196,7 +206,11 @@ class DesktopRuntime:
                 "label": info["label"],
                 "default_base_url": info["default_base_url"],
                 "default_model": info["default_model"],
-                "available_models": list(info["available_models"]),
+                "available_models": list(info.get("available_models") or []),
+                "requires_key": bool(info.get("requires_key", True)),
+                "kind": info.get("kind") or "cloud",
+                "token_label": info.get("token_label") or "API key",
+                "help": info.get("help") or "",
             }
             for name, info in PROVIDER_INFO.items()
         }
@@ -211,13 +225,19 @@ class DesktopRuntime:
     ) -> dict[str, Any]:
         if provider not in PROVIDER_INFO:
             raise ValueError(f"Unknown provider: {provider}")
-        if not str(api_key or "").strip():
-            raise ValueError("API key cannot be empty")
         info = PROVIDER_INFO[provider]
+        key = str(api_key or "").strip()
+        if provider_requires_key(provider) and not key:
+            raise ValueError(f"{info.get('token_label') or 'API key'} cannot be empty")
+        url = base_url or info["default_base_url"]
+        if info.get("kind") == "local":
+            url = normalize_openai_base(url)
+            if not str(default_model or "").strip():
+                raise ValueError("Pick a local model before connecting")
         set_api_key(
             provider,
-            api_key=api_key.strip(),
-            base_url=base_url or info["default_base_url"],
+            api_key=key,
+            base_url=url,
             default_model=default_model or info["default_model"],
         )
         set_default_provider(provider)
@@ -243,6 +263,26 @@ class DesktopRuntime:
             self.session.provider = provider
             self.session.model = self.provider.model
         return self.status()
+
+    def test_huggingface(self, token: str) -> dict[str, Any]:
+        return verify_huggingface_token(token)
+
+    def list_huggingface(self, token: str, search: str = "") -> dict[str, Any]:
+        models = list_huggingface_models(token, search=search)
+        return {"models": models, "router": "https://router.huggingface.co/v1"}
+
+    def cache_huggingface(self, repo_id: str, token: str) -> dict[str, Any]:
+        return cache_huggingface_model(repo_id, token)
+
+    def scan_local(self, extra_url: str | None = None) -> dict[str, Any]:
+        extras = [extra_url] if extra_url else None
+        if extra_url:
+            assert_local_or_lan_url(extra_url)
+        return {"endpoints": scan_local_endpoints(extras)}
+
+    def list_local(self, base_url: str, api_key: str | None = None) -> dict[str, Any]:
+        url = normalize_openai_base(base_url)
+        return {"base_url": url, "models": list_local_models(url, api_key)}
 
     def set_workspace(self, path: str | Path) -> dict[str, Any]:
         workspace = Path(path).expanduser().resolve()
@@ -482,11 +522,11 @@ class DesktopRuntime:
     def _run_chat_job(self, job: ChatJob, text: str, attachments: list[Attachment]) -> None:
         try:
             self._emit(job, {"type": "job_started", "text": text})
-            if self.needs_setup():
+            if self.provider is None:
                 self._finish(job, {
                     "type": "error",
-                    "error": "Setup required. Add a provider API key before chatting.",
-                    "needs_setup": True,
+                    "error": "Connect a provider in settings (Hugging Face, Local LLM, or a cloud key).",
+                    "needs_setup": self.needs_setup(),
                 })
                 return
 

@@ -74,6 +74,22 @@ class DesktopServer:
             )
         if path == "/api/provider" and method == "POST":
             return 200, runtime.set_provider(str(body.get("provider") or ""), model=body.get("model"))
+        if path == "/api/connectors/hf/test" and method == "POST":
+            return 200, runtime.test_huggingface(str(body.get("api_key") or body.get("token") or ""))
+        if path == "/api/connectors/hf/models" and method == "POST":
+            return 200, runtime.list_huggingface(
+                str(body.get("api_key") or body.get("token") or ""),
+                search=str(body.get("search") or ""),
+            )
+        if path == "/api/connectors/hf/cache" and method == "POST":
+            return 200, runtime.cache_huggingface(
+                str(body.get("repo_id") or body.get("model") or ""),
+                str(body.get("api_key") or body.get("token") or ""),
+            )
+        if path == "/api/connectors/local/scan" and method == "POST":
+            return 200, runtime.scan_local(body.get("base_url") or body.get("url"))
+        if path == "/api/connectors/local/models" and method == "POST":
+            return 200, runtime.list_local(str(body.get("base_url") or ""), api_key=body.get("api_key"))
         if path == "/api/workspace" and method == "POST":
             return 200, runtime.set_workspace(str(body.get("path") or ""))
         if path == "/api/sessions" and method == "GET":

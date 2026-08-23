@@ -154,19 +154,66 @@ function fillProviders(select, catalog, selected) {
   }
 }
 
+function fillModelList(listId, models) {
+  const list = $(listId);
+  if (!list) return;
+  list.innerHTML = "";
+  for (const name of models || []) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    list.appendChild(opt);
+  }
+}
+
+function bindConnectorForm(prefix, catalog) {
+  const providerEl = $(`${prefix}-provider`);
+  const apply = () => {
+    const info = catalog[providerEl.value] || {};
+    const help = $(`${prefix}-help`);
+    if (help) help.textContent = info.help || "";
+    const keyLabel = $(`${prefix}-key-label`);
+    if (keyLabel) keyLabel.textContent = info.token_label || "API key";
+    const keyWrap = $(`${prefix}-key-wrap`);
+    if (keyWrap) keyWrap.classList.toggle("hidden", false);
+    const urlEl = $(`${prefix}-url`);
+    const modelEl = $(`${prefix}-model`);
+    if (urlEl && (!urlEl.value || urlEl.dataset.kind !== info.kind)) urlEl.value = info.default_base_url || "";
+    if (urlEl) urlEl.dataset.kind = info.kind || "";
+    if (modelEl && !modelEl.value) modelEl.value = info.default_model || "";
+    fillModelList(`${prefix}-model-list`, info.available_models || []);
+    const hf = $(`${prefix}-hf`);
+    const local = $(`${prefix}-local`);
+    if (hf) hf.classList.toggle("hidden", info.kind !== "huggingface");
+    if (local) local.classList.toggle("hidden", info.kind !== "local");
+  };
+  providerEl.onchange = apply;
+  apply();
+}
+
+function renderScanResults(box, endpoints, onPick) {
+  box.innerHTML = "";
+  for (const item of endpoints || []) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `scan-item${item.reachable ? "" : " muted"}`;
+    const models = (item.models || []).slice(0, 6).join(", ") || (item.reachable ? "reachable" : (item.error || "offline"));
+    btn.innerHTML = `<strong>${item.label}</strong><div class="muted">${item.base_url}<br>${models}</div>`;
+    btn.disabled = !item.reachable;
+    btn.addEventListener("click", () => onPick(item));
+    box.appendChild(btn);
+  }
+}
+
 async function prepareSetup() {
   const catalog = await api("/api/providers");
+  state.catalog = catalog;
   fillProviders($("setup-provider"), catalog, state.status?.provider || "anthropic");
   fillProviders($("settings-provider"), catalog, state.status?.provider || "anthropic");
-  const applyDefaults = (providerEl, urlEl, modelEl) => {
-    const info = catalog[providerEl.value];
-    if (!info) return;
-    urlEl.value = info.default_base_url;
-    modelEl.value = info.default_model;
-  };
-  applyDefaults($("setup-provider"), $("setup-url"), $("setup-model"));
-  $("setup-provider").onchange = () => applyDefaults($("setup-provider"), $("setup-url"), $("setup-model"));
-  $("settings-model").value = state.status?.model || "";
+  bindConnectorForm("setup", catalog);
+  bindConnectorForm("settings", catalog);
+  const saved = state.status?.config?.providers?.[state.status?.provider] || {};
+  $("settings-url").value = saved.base_url || catalog[state.status?.provider]?.default_base_url || "";
+  $("settings-model").value = state.status?.model || saved.default_model || "";
 }
 
 function renderAttachments() {
@@ -370,17 +417,21 @@ function bindUi() {
     });
   });
   $("setup-save").addEventListener("click", async () => {
-    await api("/api/login", {
-      method: "POST",
-      body: JSON.stringify({
-        provider: $("setup-provider").value,
-        api_key: $("setup-key").value,
-        base_url: $("setup-url").value,
-        default_model: $("setup-model").value,
-      }),
-    });
-    $("setup-key").value = "";
-    await refreshStatus();
+    try {
+      await api("/api/login", {
+        method: "POST",
+        body: JSON.stringify({
+          provider: $("setup-provider").value,
+          api_key: $("setup-key").value,
+          base_url: $("setup-url").value,
+          default_model: $("setup-model").value,
+        }),
+      });
+      $("setup-key").value = "";
+      await refreshStatus();
+    } catch (err) {
+      addBubble("system", err.message);
+    }
   });
   $("apply-update").addEventListener("click", async () => {
     $("update-status").textContent = "Updating from GoDeskio/Clawd-Code…";
@@ -395,16 +446,119 @@ function bindUi() {
   $("open-settings").addEventListener("click", () => $("settings-modal").classList.remove("hidden"));
   $("settings-close").addEventListener("click", () => $("settings-modal").classList.add("hidden"));
   $("settings-save").addEventListener("click", async () => {
-    await api("/api/provider", {
-      method: "POST",
-      body: JSON.stringify({
-        provider: $("settings-provider").value,
-        model: $("settings-model").value,
-      }),
-    });
-    $("settings-modal").classList.add("hidden");
-    await refreshStatus();
+    try {
+      const provider = $("settings-provider").value;
+      const key = $("settings-key").value;
+      const info = (state.catalog || {})[provider] || {};
+      const configured = Boolean(state.status?.config?.providers?.[provider]?.configured);
+      if (key || info.kind === "local" || !configured) {
+        await api("/api/login", {
+          method: "POST",
+          body: JSON.stringify({
+            provider,
+            api_key: key,
+            base_url: $("settings-url").value,
+            default_model: $("settings-model").value,
+          }),
+        });
+      } else {
+        await api("/api/provider", {
+          method: "POST",
+          body: JSON.stringify({ provider, model: $("settings-model").value }),
+        });
+      }
+      $("settings-key").value = "";
+      $("settings-modal").classList.add("hidden");
+      await refreshStatus();
+    } catch (err) {
+      addBubble("system", err.message);
+    }
   });
+
+  const wireHf = (prefix) => {
+    const status = $(`${prefix}-hf-status`);
+    const token = () => $(`${prefix}-key`).value;
+    $(`${prefix}-hf-test`).addEventListener("click", async () => {
+      status.textContent = "Testing Hugging Face token…";
+      try {
+        const data = await api("/api/connectors/hf/test", {
+          method: "POST",
+          body: JSON.stringify({ api_key: token() }),
+        });
+        status.textContent = data.message || "Connected.";
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    });
+    $(`${prefix}-hf-models`).addEventListener("click", async () => {
+      status.textContent = "Loading Hub models…";
+      try {
+        const data = await api("/api/connectors/hf/models", {
+          method: "POST",
+          body: JSON.stringify({ api_key: token() }),
+        });
+        const ids = (data.models || []).map((item) => item.id || item);
+        fillModelList(`${prefix}-model-list`, ids);
+        if (ids[0] && !$(`${prefix}-model`).value) $(`${prefix}-model`).value = ids[0];
+        status.textContent = `Loaded ${ids.length} Hub models. Pick one, then Save.`;
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    });
+    $(`${prefix}-hf-cache`).addEventListener("click", async () => {
+      const repo = $(`${prefix}-model`).value;
+      status.textContent = `Downloading ${repo} into ~/.clawd/hf-cache…`;
+      try {
+        const data = await api("/api/connectors/hf/cache", {
+          method: "POST",
+          body: JSON.stringify({ api_key: token(), repo_id: repo }),
+        });
+        status.textContent = data.message || data.path;
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    });
+  };
+  const wireLocal = (prefix) => {
+    const box = $(`${prefix}-local-results`);
+    $(`${prefix}-local-scan`).addEventListener("click", async () => {
+      box.textContent = "Scanning loopback ports…";
+      try {
+        const extra = $(`${prefix}-url`).value;
+        const data = await api("/api/connectors/local/scan", {
+          method: "POST",
+          body: JSON.stringify({ base_url: extra || "" }),
+        });
+        renderScanResults(box, data.endpoints, (item) => {
+          $(`${prefix}-url`).value = item.base_url;
+          fillModelList(`${prefix}-model-list`, item.models || []);
+          if (item.models?.[0]) $(`${prefix}-model`).value = item.models[0];
+        });
+      } catch (err) {
+        box.textContent = err.message;
+      }
+    });
+    $(`${prefix}-local-models`).addEventListener("click", async () => {
+      try {
+        const data = await api("/api/connectors/local/models", {
+          method: "POST",
+          body: JSON.stringify({
+            base_url: $(`${prefix}-url`).value,
+            api_key: $(`${prefix}-key`).value,
+          }),
+        });
+        fillModelList(`${prefix}-model-list`, data.models || []);
+        if (data.models?.[0] && !$(`${prefix}-model`).value) $(`${prefix}-model`).value = data.models[0];
+        box.textContent = data.models?.length ? `Found ${data.models.length} models.` : "No models listed.";
+      } catch (err) {
+        box.textContent = err.message;
+      }
+    });
+  };
+  wireHf("setup");
+  wireHf("settings");
+  wireLocal("setup");
+  wireLocal("settings");
 
   const composer = document.querySelector(".composer");
   composer.addEventListener("dragover", (event) => {

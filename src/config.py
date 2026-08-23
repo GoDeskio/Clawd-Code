@@ -16,25 +16,43 @@ def get_config_path() -> Path:
     return config_dir / "config.json"
 
 
+def _provider_slot(name: str, info: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "api_key": "",
+        "base_url": info["default_base_url"],
+        "default_model": info["default_model"],
+    }
+
+
+def _ensure_provider_slots(config: dict[str, Any]) -> dict[str, Any]:
+    from src.providers import PROVIDER_INFO
+
+    providers = config.setdefault("providers", {})
+    for name, info in PROVIDER_INFO.items():
+        if name not in providers or not isinstance(providers.get(name), dict):
+            providers[name] = _provider_slot(name, info)
+        else:
+            providers[name].setdefault("base_url", info["default_base_url"])
+            providers[name].setdefault("default_model", info["default_model"])
+            providers[name].setdefault("api_key", "")
+    return config
+
+
 def _get_default_config_from_providers() -> dict[str, Any]:
     """Build default config using provider info registry."""
     from src.providers import PROVIDER_INFO
 
-    return {
+    return _ensure_provider_slots({
         "default_provider": "anthropic",
         "providers": {
-            name: {
-                "api_key": "",
-                "base_url": info["default_base_url"],
-                "default_model": info["default_model"],
-            }
+            name: _provider_slot(name, info)
             for name, info in PROVIDER_INFO.items()
         },
         "session": {
             "auto_save": True,
             "max_history": 100
         }
-    }
+    })
 
 
 def get_default_config() -> dict[str, Any]:
@@ -79,7 +97,7 @@ def load_config() -> dict[str, Any]:
             if provider_config.get("api_key"):
                 provider_config["api_key"] = _decode_api_key(provider_config["api_key"])
 
-        return config
+        return _ensure_provider_slots(config)
     except Exception as e:
         print(f"Error loading config: {e}")
         return get_default_config()
@@ -184,11 +202,28 @@ def get_default_provider() -> str:
     return config.get("default_provider", "anthropic")
 
 
+def provider_requires_key(provider: str) -> bool:
+    from src.providers import PROVIDER_INFO
+
+    info = PROVIDER_INFO.get(provider) or {}
+    return bool(info.get("requires_key", True))
+
+
+def is_provider_ready(provider: str, provider_config: dict[str, Any] | None = None) -> bool:
+    """A cloud/HF provider is ready with a key; local is ready after a model is chosen."""
+    cfg = provider_config if provider_config is not None else get_provider_config(provider)
+    if not isinstance(cfg, dict):
+        return False
+    if provider_requires_key(provider):
+        return bool(str(cfg.get("api_key") or "").strip())
+    return bool(str(cfg.get("base_url") or "").strip() and str(cfg.get("default_model") or "").strip())
+
+
 def has_configured_provider() -> bool:
-    """Return True if at least one provider has a non-empty API key."""
+    """Return True if at least one provider is ready to chat."""
     config = load_config()
-    for provider_config in config.get("providers", {}).values():
-        if isinstance(provider_config, dict) and str(provider_config.get("api_key") or "").strip():
+    for name, provider_config in config.get("providers", {}).items():
+        if isinstance(provider_config, dict) and is_provider_ready(name, provider_config):
             return True
     return False
 
@@ -208,7 +243,8 @@ def public_config() -> dict[str, Any]:
         else:
             masked = "••••"
         providers[name] = {
-            "configured": bool(api_key),
+            "configured": is_provider_ready(name, provider_config),
+            "requires_key": provider_requires_key(name),
             "api_key_masked": masked,
             "base_url": provider_config.get("base_url", ""),
             "default_model": provider_config.get("default_model", ""),
