@@ -1,7 +1,7 @@
 {
   "name": "jonathan-ai",
   "productName": "Jonathan Ai",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "description": "Native desktop shell for Jonathan Ai. The Python agent remains the brain.",
   "main": "main.js",

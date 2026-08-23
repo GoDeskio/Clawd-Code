@@ -1,6 +1,6 @@
 # Jonathan Ai for Windows
 
-**Version 0.2.6** — Jonathan Ai is itself the AI agent. After install, chat works with one API key or a local LLM. Conversations persist across restarts; New Chat is always empty. Shared memory stays in `%USERPROFILE%\.clawd\memory`. MCP, Cursor, and Codex are optional. Rename conversations from the left sidebar (double-click or right-click). The version appears in the installer title and the app header.
+**Version 0.2.7** — Jonathan Ai is itself the AI agent. After install, chat works with one API key or a local LLM. Conversations persist across restarts; New Chat is always empty. Shared memory stays in `%USERPROFILE%\.clawd\memory`. MCP, Cursor, and Codex are optional. Object-shaped Anthropic tool results are stringified. Rename conversations from the left sidebar (double-click or right-click). The version appears in the installer title and the app header.
 
 `JonathanAi.exe` looks for the app in this order: `CLAWD_SOURCE_DIR`, the exe folder, `%USERPROFILE%\Jonathan\Jonathan-Ai`, then the current working directory. A working `.venv` is enough to open the UI; Electron is optional. If a Desktop click still says it cannot find Electron or the venv, run `JonathanAi-Setup.exe` again — it upgrades that same `Jonathan-Ai` folder in place and rewrites shortcuts to `%USERPROFILE%\Jonathan\Jonathan-Ai\JonathanAi.exe`.
 
