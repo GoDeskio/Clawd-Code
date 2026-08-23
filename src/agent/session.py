@@ -35,6 +35,22 @@ def session_dir() -> Path:
     return path
 
 
+def _read_json_file(path: Path) -> dict:
+    """Read session/memory JSON as UTF-8. Never use the Windows locale (cp1252)."""
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise json.JSONDecodeError("session JSON must be an object", "", 0)
+    return data
+
+
+def _write_json_file(path: Path, data: dict) -> None:
+    """Write session JSON as UTF-8 so non-ASCII tool results and titles survive Windows."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
 def _message_text(content) -> str:
     if isinstance(content, str):
         return content
@@ -145,8 +161,7 @@ class Session:
             "token_usage": merge_token_usage(self.token_usage, None),
         }
 
-        with open(session_file, 'w') as f:
-            json.dump(session_data, f, indent=2)
+        _write_json_file(session_file, session_data)
 
     @classmethod
     def load(cls, session_id: str) -> Optional['Session']:
@@ -156,8 +171,10 @@ class Session:
         if not session_file.exists():
             return None
 
-        with open(session_file, 'r') as f:
-            data = json.load(f)
+        try:
+            data = _read_json_file(session_file)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
 
         conversation = Conversation.from_dict(data.get("conversation") or {})
         return cls(
@@ -179,8 +196,8 @@ class Session:
         items: list[dict] = []
         for path in session_dir().glob("*.json"):
             try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+                data = _read_json_file(path)
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 continue
             conversation = Conversation.from_dict(data.get("conversation") or {})
             custom_title = bool(data.get("custom_title"))

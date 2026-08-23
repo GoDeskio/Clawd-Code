@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-08-23
+
+### Fixed
+- Windows desktop start no longer dies in `Session.load` with `UnicodeDecodeError` on session JSON. Session files are always opened and written as UTF-8 (`encoding='utf-8'`), so bytes such as `0x8F` that are undefined in cp1252 load correctly
+
 ## [0.2.7] - 2026-08-23
 
 ### Fixed
@@ -215,6 +220,7 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.8]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.8
 [0.2.7]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.7
 [0.2.6]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.6
 [0.2.5]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.5

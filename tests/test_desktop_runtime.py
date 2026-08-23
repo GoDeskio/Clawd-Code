@@ -279,7 +279,7 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("Skill", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.2.7")
+        self.assertEqual(runtime.status()["version"], "0.2.8")
         self.assertTrue(runtime.status()["standalone"])
 
     def test_schema_400_retries_same_turn_without_tools(self) -> None:
@@ -479,7 +479,7 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.7", html)
+        self.assertIn("0.2.8", html)
         self.assertIn("session-menu", html)
         self.assertIn("app.js", html)
 
