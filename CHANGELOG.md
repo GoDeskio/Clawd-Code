@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-08-23
+
+### Fixed
+- Anthropic 400 `tools.17.custom.input_schema.type` still fired after 0.2.0: MCP resource tools were not omitted (real names are `ListMcpResourcesTool` / `ReadMcpResourceTool`), which shifted index 17 to AskUserQuestion
+- Anthropic/OpenAI payloads now use only the classic tool shape `{name, description, input_schema:{type:object, properties, required?}}`; nested object schemas get `type`; anyOf/oneOf is flattened
+- The same Anthropic request is retried with tools omitted on this exact 400 so the user still gets a reply; tool index 17 is logged
+
 ## [0.2.0] - 2026-08-23
 
 ### Added
@@ -165,5 +172,6 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.1]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.1
 [0.2.0]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.0
 [0.1.0]: https://github.com/GPT-AGI/Clawd-Code/releases/tag/v0.1.0

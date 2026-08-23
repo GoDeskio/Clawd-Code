@@ -240,7 +240,7 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("Skill", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.2.0")
+        self.assertEqual(runtime.status()["version"], "0.2.1")
         self.assertTrue(runtime.status()["standalone"])
 
     def test_token_usage_persists_and_resets_on_new_chat(self) -> None:
@@ -351,7 +351,7 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.0", html)
+        self.assertIn("0.2.1", html)
         self.assertIn("session-menu", html)
         self.assertIn("app.js", html)
 

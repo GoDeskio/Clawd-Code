@@ -7,6 +7,7 @@ from typing import Any, Iterable
 
 from .protocol import ToolResult
 from .registry import Tool, ToolRegistry, ToolSpec
+from .schema_sanitize import sanitize_input_schema
 
 
 def load_tools_from_dir(directory: str | Path) -> list[Tool]:
@@ -46,7 +47,7 @@ def _load_tool_from_file(file_path: Path) -> Tool | None:
             return ToolSpec(
                 name=str(tool_spec["name"]),
                 description=str(tool_spec.get("description", "")),
-                input_schema=dict(tool_spec.get("input_schema") or {"type": "object"}),
+                input_schema=sanitize_input_schema(tool_spec.get("input_schema")) or {"type": "object", "properties": {}},
                 aliases=tuple(tool_spec.get("aliases") or ()),
                 is_read_only=bool(tool_spec.get("is_read_only", False)),
                 is_destructive=bool(tool_spec.get("is_destructive", False)),

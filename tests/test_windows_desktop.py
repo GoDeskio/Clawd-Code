@@ -72,7 +72,7 @@ class TestDashboardHtml(unittest.TestCase):
         css = (ROOT / "src" / "desktop" / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.0", html)
+        self.assertIn("0.2.1", html)
         self.assertIn("session-menu", html)
         self.assertIn("standalone", html)
         self.assertIn("informational", html)

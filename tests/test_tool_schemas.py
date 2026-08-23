@@ -38,7 +38,11 @@ class TestToolSchemaSanitizer(unittest.TestCase):
         tools = serialize_tools_for_provider(registry, include_optional_connectors=False)
         names = {item["name"] for item in tools}
         self.assertTrue(OPTIONAL_CONNECTOR_TOOLS.isdisjoint(names))
+        self.assertNotIn("ListMcpResourcesTool", names)
+        self.assertNotIn("ReadMcpResourceTool", names)
+        self.assertNotIn("MCP", names)
         self.assertIn("Skill", names)
+        self.assertIn("AskUserQuestion", names)
         self.assertIn("Bash", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object")
