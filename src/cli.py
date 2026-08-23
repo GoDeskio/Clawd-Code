@@ -29,6 +29,8 @@ Examples:
   clawd config             Show current configuration
   clawd --stream           Start REPL with live response rendering
   clawd desktop            Start the desktop host (browser UI)
+  clawd install            First-run wizard (source + deps)
+  clawd update             Check/apply GoDeskio/Clawd-Code updates
   clawd                    Start interactive REPL
 """
     )
@@ -64,6 +66,21 @@ Examples:
     desktop_parser.add_argument('--token', default=None, help='API token for the local UI')
     desktop_parser.add_argument('--no-browser', action='store_true', help='Do not open a browser window')
 
+    install_parser = subparsers.add_parser('install', help='First-run install wizard')
+    install_parser.add_argument('--source-dir', default=None, help='Local source folder (default: ~/Jonathan/Clawd-Code)')
+    install_parser.add_argument('--from-local', default=None, help='Copy this checkout instead of cloning')
+    install_parser.add_argument('--clone', action='store_true', help='Always clone from GoDeskio/Clawd-Code')
+    install_parser.add_argument('--skip-desktop-deps', action='store_true')
+    install_parser.add_argument('--cli', action='store_true')
+    install_parser.add_argument('--yes', action='store_true')
+    install_parser.add_argument('--ui', action='store_true')
+    install_parser.add_argument('--launch', action='store_true')
+    install_parser.add_argument('--no-browser', action='store_true')
+
+    update_parser = subparsers.add_parser('update', help='Check or apply updates from GoDeskio/Clawd-Code')
+    update_parser.add_argument('--apply', action='store_true', help='Fetch and apply if an update is available')
+    update_parser.add_argument('--source-dir', default=None)
+
     args = parser.parse_args()
 
     # Handle --version
@@ -90,6 +107,47 @@ Examples:
             open_browser=not args.no_browser,
             token=args.token,
         )
+    elif args.command == 'install':
+        from src.install.__main__ import main as install_main
+        from src.install.source import default_source_dir
+        argv = []
+        if args.source_dir:
+            argv.extend(["--source-dir", args.source_dir])
+        else:
+            argv.extend(["--source-dir", str(default_source_dir())])
+        if args.from_local:
+            argv.extend(["--from-local", args.from_local])
+        if args.clone:
+            argv.append("--clone")
+        if args.skip_desktop_deps:
+            argv.append("--skip-desktop-deps")
+        if args.cli:
+            argv.append("--cli")
+        if args.yes:
+            argv.append("--yes")
+        if args.ui:
+            argv.append("--ui")
+        if args.launch:
+            argv.append("--launch")
+        if args.no_browser:
+            argv.append("--no-browser")
+        return install_main(argv)
+    elif args.command == 'update':
+        from src.update import Updater
+        updater = Updater(args.source_dir)
+        if args.apply:
+            result = updater.apply()
+            print(f"Updated to {result.get('sha')} in {result.get('source_dir')}")
+            return 0
+        status = updater.status(refresh=True)
+        if status.get("error"):
+            print(f"Update check failed: {status['error']}")
+            return 1
+        state = "available" if status.get("update_available") else "up to date"
+        print(f"GoDeskio/Clawd-Code: {state}")
+        print(f"local  {status.get('local_sha')}")
+        print(f"remote {status.get('remote_sha')}")
+        return 0
 
     # Default: start REPL
     return start_repl(stream=args.stream)

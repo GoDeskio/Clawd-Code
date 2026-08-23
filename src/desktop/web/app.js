@@ -95,6 +95,26 @@ async function refreshStatus() {
   } else {
     $("setup-modal").classList.add("hidden");
   }
+  renderUpdate(state.status.update || {});
+}
+
+function renderUpdate(update) {
+  const node = $("update-status");
+  const apply = $("apply-update");
+  if (!node) return;
+  if (update.error) {
+    node.textContent = "Update check failed";
+    apply.classList.add("hidden");
+    return;
+  }
+  const short = (update.local_sha || "").slice(0, 7);
+  if (update.update_available) {
+    node.textContent = `Update available from GoDeskio/Clawd-Code${short ? " · local " + short : ""}`;
+    apply.classList.remove("hidden");
+  } else {
+    node.textContent = short ? `Up to date · ${short}` : "GoDeskio/Clawd-Code";
+    apply.classList.add("hidden");
+  }
 }
 
 async function refreshSessions() {
@@ -362,6 +382,16 @@ function bindUi() {
     $("setup-key").value = "";
     await refreshStatus();
   });
+  $("apply-update").addEventListener("click", async () => {
+    $("update-status").textContent = "Updating from GoDeskio/Clawd-Code…";
+    try {
+      const result = await api("/api/update/apply", { method: "POST", body: "{}" });
+      $("update-status").textContent = `Updated · ${(result.sha || "").slice(0, 7)} — restart the app`;
+      $("apply-update").classList.add("hidden");
+    } catch (err) {
+      $("update-status").textContent = err.message;
+    }
+  });
   $("open-settings").addEventListener("click", () => $("settings-modal").classList.remove("hidden"));
   $("settings-close").addEventListener("click", () => $("settings-modal").classList.add("hidden"));
   $("settings-save").addEventListener("click", async () => {
@@ -402,6 +432,12 @@ async function boot() {
   await refreshSessions();
   await refreshCommands();
   addBubble("system", "Clawd desktop is using the existing Python agent loop. Destructive and network tools will ask before they run.");
+  try {
+    const update = await api("/api/update/check", { method: "POST", body: "{}" });
+    renderUpdate(update);
+  } catch (_err) {
+    renderUpdate({ error: "offline" });
+  }
 }
 
 boot().catch((err) => addBubble("system", err.message));

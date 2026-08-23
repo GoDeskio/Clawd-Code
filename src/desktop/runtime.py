@@ -33,6 +33,9 @@ from src.tool_system.agent_loop import ToolEvent, run_agent_loop, summarize_tool
 from src.tool_system.context import ToolContext
 from src.tool_system.defaults import build_default_registry
 from src.tool_system.protocol import ToolCall
+from src.install.record import read_install_record, resolve_source_dir
+from src.install.source import default_source_dir
+from src.update import Updater
 
 from .attachments import Attachment, attachments_from_payload, render_attachments
 
@@ -96,7 +99,12 @@ class DesktopRuntime:
         self._jobs: dict[str, ChatJob] = {}
         self._permissions: dict[str, PermissionRequest] = {}
         self._lock = threading.Lock()
+        self.install_record = read_install_record()
+        self.updater = Updater(resolve_source_dir() or Path.cwd())
         self._try_init_provider()
+        if self.install_record:
+            self._update_thread = threading.Thread(target=self._auto_update_on_launch, daemon=True, name="clawd-update")
+            self._update_thread.start()
 
     def _make_context(self) -> ToolContext:
         ctx = ToolContext(workspace_root=self.workspace)
@@ -141,7 +149,46 @@ class DesktopRuntime:
             "session": self.session.to_summary(),
             "config": cfg,
             "notify_on_complete": get_desktop_settings().get("notify_on_complete", True),
+            "install": self.install_info(),
+            "update": self.updater.last_check or {
+                "source_dir": str(self.updater.source_dir),
+                "local_sha": None,
+                "update_available": False,
+            },
         }
+
+    def install_info(self) -> dict[str, Any]:
+        record = self.install_record or read_install_record() or {}
+        return {
+            "source_dir": record.get("source_dir") or str(self.updater.source_dir),
+            "default_source_dir": str(default_source_dir()),
+            "repo": record.get("repo") or "https://github.com/GoDeskio/Clawd-Code.git",
+            "commit": record.get("commit") or "",
+        }
+
+    def update_status(self, *, refresh: bool = False) -> dict[str, Any]:
+        return self.updater.status(refresh=refresh)
+
+    def apply_update(self) -> dict[str, Any]:
+        result = self.updater.apply()
+        self.install_record = read_install_record()
+        return result
+
+    def _auto_update_on_launch(self) -> None:
+        record = self.install_record or read_install_record()
+        if not record:
+            try:
+                self.updater.status(refresh=True)
+            except Exception:
+                return
+            return
+        try:
+            status = self.updater.status(refresh=True)
+            if status.get("update_available") and not status.get("dirty") and not status.get("error"):
+                self.updater.apply()
+                self.install_record = read_install_record()
+        except Exception:
+            return
 
     def provider_catalog(self) -> dict[str, Any]:
         return {

@@ -181,10 +181,52 @@ clawd desktop      # Start the desktop host
 
 ## 🚀 Quick Start
 
-### Install
+### Install the desktop agent (one command)
+
+The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session.
+
+**Entry point (pick one):**
 
 ```bash
-git clone https://github.com/GPT-AGI/Clawd-Code.git
+# Linux / macOS (from a checkout, or after downloading install.sh)
+./install.sh --yes
+
+# macOS Finder: double-click "Install Clawd.command"
+
+# Windows (double-click install.bat, or)
+powershell -File install.ps1
+
+# Already have Python 3.10+ and this repo:
+python -m src.cli install --yes
+python -m src.install --ui          # graphical wizard
+```
+
+Default local source: `~/Jonathan/Clawd-Code`  
+Windows: `%USERPROFILE%\Jonathan\Clawd-Code`
+
+Override the folder in the wizard or with:
+
+```bash
+CLAWD_INSTALL_DIR=/path/to/Jonathan/Clawd-Code ./install.sh --yes
+python -m src.cli install --source-dir ~/Jonathan/Clawd-Code --yes
+```
+
+The wizard only clones **https://github.com/GoDeskio/Clawd-Code**. It will refuse any other remote, including upstream GPT-AGI/Clawd-Code.
+
+After install, launch:
+
+```bash
+~/Jonathan/Clawd-Code/start-desktop.sh
+# or
+python -m src.cli desktop
+```
+
+The app checks GoDeskio/Clawd-Code on launch (and about every 6 hours) and can apply fast-forward updates. Status is shown in the desktop UI. Dirty working trees are not overwritten.
+
+### Developer CLI install (optional)
+
+```bash
+git clone https://github.com/GoDeskio/Clawd-Code.git
 cd Clawd-Code
 
 # Create venv (uv recommended)
@@ -271,6 +313,13 @@ npm start
 Electron starts the Python sidecar (`python -m src.cli desktop --no-browser`) and opens a window. Linux, macOS, and Windows are supported; Linux is the CI/dev path.
 
 First launch shows a login/config flow. API keys are written only to `~/.clawd/config.json` with mode `0600`. They are never committed.
+
+The running desktop host uses the Jonathan install tree when `~/.clawd/install.json` is present. Updates are fetched only from `https://github.com/GoDeskio/Clawd-Code`.
+
+```bash
+python -m src.cli update          # check
+python -m src.cli update --apply  # fetch + apply + restart if you relaunch
+```
 
 Desktop extras on top of the CLI:
 
@@ -378,9 +427,12 @@ Example:
 
 ```text
 Clawd-Code/
+├── install.sh / install.ps1 / install.bat / Install Clawd.command
 ├── src/
-│   ├── cli.py           # CLI entry (`clawd`, `login`, `config`, `desktop`)
+│   ├── cli.py           # CLI entry (`clawd`, `login`, `config`, `desktop`, `install`, `update`)
 │   ├── desktop/         # Localhost host, runtime, and web UI
+│   ├── install/         # First-run wizard
+│   ├── update/          # GoDeskio/Clawd-Code self-update
 │   ├── providers/       # LLM providers
 │   ├── repl/            # Interactive REPL
 │   ├── skills/          # SKILL.md loading and creation
@@ -708,6 +760,14 @@ python -m src.cli login
     }
   }
 }
+```
+
+### 安装桌面端（一条命令）
+
+```bash
+./install.sh --yes
+# 默认源码目录：~/Jonathan/Clawd-Code
+# 只从 https://github.com/GoDeskio/Clawd-Code 安装与更新
 ```
 
 ### 运行 CLI

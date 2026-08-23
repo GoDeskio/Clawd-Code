@@ -108,6 +108,14 @@ class DesktopServer:
             return 200, {"pending": runtime.pending_permissions()}
         if path == "/api/permissions" and method == "POST":
             return 200, runtime.resolve_permission(str(body.get("request_id") or ""), str(body.get("decision") or ""))
+        if path == "/api/install" and method == "GET":
+            return 200, runtime.install_info()
+        if path == "/api/update" and method == "GET":
+            return 200, runtime.update_status(refresh=False)
+        if path == "/api/update/check" and method == "POST":
+            return 200, runtime.update_status(refresh=True)
+        if path == "/api/update/apply" and method == "POST":
+            return 200, runtime.apply_update()
         return 404, {"error": f"unknown route: {method} {path}"}
 
     def serve_forever(self) -> None:

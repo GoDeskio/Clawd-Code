@@ -5,6 +5,11 @@ include MVP_PLAN.md
 recursive-include src *.py
 recursive-include src *.json
 recursive-include src/desktop/web *
+recursive-include src/install/web *
 include desktop/package.json
 include desktop/main.js
 include desktop/preload.js
+include install.sh
+include install.ps1
+include install.bat
+include Install Clawd.command

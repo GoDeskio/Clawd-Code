@@ -39,6 +39,8 @@
           <p id="model-line" class="muted">Not configured</p>
         </div>
         <div class="top-actions">
+          <span id="update-status" class="muted">Checking updates…</span>
+          <button id="apply-update" class="ghost hidden">Update now</button>
           <button id="save-session" class="ghost">Save</button>
         </div>
       </header>
@@ -106,6 +108,7 @@
       <label>Model
         <input id="settings-model" type="text" />
       </label>
+      <p class="muted">Source and updates: <code>https://github.com/GoDeskio/Clawd-Code</code>. Default local tree: <code>~/Jonathan/Clawd-Code</code>.</p>
       <p class="muted">To replace a key, use first-run setup again or <code>python -m src.cli login</code>.</p>
       <div class="row end">
         <button id="settings-close" class="ghost">Close</button>

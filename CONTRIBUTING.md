@@ -75,6 +75,8 @@ Clawd-Code/
 ├── src/                    # Source code
 │   ├── providers/         # LLM provider implementations
 │   ├── desktop/           # Desktop host, runtime, and web UI
+│   ├── install/           # First-run wizard
+│   ├── update/            # GoDeskio/Clawd-Code self-update
 │   ├── repl/              # Interactive REPL
 │   ├── agent/             # Session management
 │   ├── skills/            # SKILL.md loading and creation

@@ -8,7 +8,22 @@ const path = require("path");
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.CLAWD_DESKTOP_PORT || 8765);
 const TOKEN = process.env.CLAWD_DESKTOP_TOKEN || require("crypto").randomBytes(18).toString("hex");
-const ROOT = path.resolve(__dirname, "..");
+
+function resolveRoot() {
+  if (process.env.CLAWD_SOURCE_DIR) return path.resolve(process.env.CLAWD_SOURCE_DIR);
+  try {
+    const recordPath = path.join(os.homedir(), ".clawd", "install.json");
+    const record = JSON.parse(fs.readFileSync(recordPath, "utf8"));
+    if (record.source_dir && fs.existsSync(path.join(record.source_dir, "src", "cli.py"))) {
+      return record.source_dir;
+    }
+  } catch (_err) {
+    // Fall back to the checkout that shipped this Electron shell.
+  }
+  return path.resolve(__dirname, "..");
+}
+
+const ROOT = resolveRoot();
 
 let mainWindow = null;
 let tray = null;

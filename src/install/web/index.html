@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install Clawd Code</title>
+  <style>
+    :root { font-family: Palatino, "Iowan Old Style", serif; background: #10140f; color: #e8f0e4; }
+    body { max-width: 640px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-weight: 600; }
+    .muted { color: #93a38c; }
+    input, button { font: inherit; }
+    input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #2c362a; background: #1d241c; color: inherit; }
+    button { border: 0; border-radius: 10px; padding: 10px 14px; background: #8fd17a; color: #12210f; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: 0.5; }
+    #log { background: #171d16; border: 1px solid #2c362a; border-radius: 12px; padding: 12px; min-height: 180px; white-space: pre-wrap; }
+    label { display: block; margin: 14px 0; }
+  </style>
+</head>
+<body>
+  <h1>Install Clawd Code</h1>
+  <p class="muted">This wizard copies the GoDeskio/Clawd-Code source onto this computer, installs Python and desktop dependencies, and verifies the agent can start a session. API keys stay out of git.</p>
+  <label>Install folder
+    <input id="source-dir" />
+  </label>
+  <p class="muted" id="os-line"></p>
+  <button id="start">Install</button>
+  <h2>Progress</h2>
+  <div id="log">Waiting…</div>
+  <p id="done" class="muted"></p>
+  <script>
+    const log = document.getElementById("log");
+    async function boot() {
+      const defaults = await (await fetch("/api/defaults")).json();
+      document.getElementById("source-dir").value = defaults.source_dir;
+      document.getElementById("os-line").textContent = `Detected ${defaults.os.platform} · Python ${defaults.os.python}`;
+    }
+    document.getElementById("start").addEventListener("click", async () => {
+      const button = document.getElementById("start");
+      button.disabled = true;
+      log.textContent = "";
+      const res = await fetch("/api/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_dir: document.getElementById("source-dir").value }),
+      });
+      const { job_id } = await res.json();
+      let after = 0;
+      const poll = async () => {
+        const data = await (await fetch(`/api/jobs/${job_id}?after=${after}`)).json();
+        for (const event of data.events || []) {
+          if (event.message) log.textContent += "• " + event.message + "\n";
+          if (event.error) log.textContent += "ERROR: " + event.error + "\n";
+          if (event.type === "done") {
+            document.getElementById("done").textContent = "Installed. Launch with start-desktop.sh in " + event.source_dir;
+          }
+        }
+        after += (data.events || []).length;
+        if (!data.done) setTimeout(poll, 400);
+        else button.disabled = false;
+      };
+      poll();
+    });
+    boot();
+  </script>
+</body>
+</html>

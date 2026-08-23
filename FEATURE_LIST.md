@@ -49,6 +49,8 @@
 | Hook 系统 | 🚫 | 暂无 pre/post tool use hooks |
 | 权限系统 | ✅ | 路径沙箱 + 文档写入询问 + 桌面端对 Bash/Write/Edit/Web 的交互批准 |
 | 桌面应用 | ✅ | Electron/浏览器壳 + 本地 Python host，复用现有 agent loop |
+| 安装向导 | ✅ | `install.sh` / `install.ps1` / `clawd install`，默认源码目录 `~/Jonathan/Clawd-Code` |
+| 自更新 | ✅ | 仅从 GoDeskio/Clawd-Code 检查并快进更新 |
 
 ---
 
@@ -135,6 +137,7 @@
 | 输出样式测试 | ✅ | `test_output_styles.py` (64 行) |
 | 配置测试 | ✅ | `test_config.py` |
 | 桌面 host / 权限接线 | ✅ | `test_desktop_runtime.py` |
+| 安装向导 / 自更新 | ✅ | `test_install_update.py` |
 
 
 ## 路线图
