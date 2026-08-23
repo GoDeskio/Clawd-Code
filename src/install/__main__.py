@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .constants import CANONICAL_HTTPS
-from .source import default_source_dir
+from .app_root import discover_existing_install
 from .wizard import InstallWizard
 
 
@@ -44,17 +44,15 @@ def run_cli(args: argparse.Namespace) -> int:
     print(json.dumps({k: result.get(k) for k in ("source_dir", "venv_python", "commit", "desktop_deps")}, indent=2))
     source = Path(result.get("source_dir") or args.source_dir)
     try:
-        from .launch import launch_jonathan_ai
-        from .windows_shortcuts import create_windows_shortcuts, find_app_executable
-
         bundled = Path(__file__).resolve().parents[2] / "packaging" / "windows" / "bin" / "JonathanAi.exe"
-        dest_exe = source / "JonathanAi.exe"
-        if bundled.exists() and not dest_exe.exists():
-            import shutil
-
-            shutil.copy2(bundled, dest_exe)
         icon = source / "src" / "desktop" / "web" / "robot.png"
-        create_windows_shortcuts(find_app_executable(source), icon if icon.exists() else None)
+        from .windows_shortcuts import install_app_shortcuts
+
+        install_app_shortcuts(
+            source,
+            icon if icon.exists() else None,
+            bundled_exe=bundled if bundled.exists() else None,
+        )
     except Exception:
         pass
     if args.launch:
@@ -255,7 +253,7 @@ def run_ui(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Install Jonathan Ai from GoDeskio/Clawd-Code")
-    parser.add_argument("--source-dir", default=str(default_source_dir()), help="Local source folder (default: ~/Jonathan/Jonathan-Ai)")
+    parser.add_argument("--source-dir", default=str(discover_existing_install()), help="Local source folder (existing Jonathan-Ai / Clawd-Code, else ~/Jonathan/Jonathan-Ai)")
     parser.add_argument("--from-local", default=None, help="Copy this existing checkout instead of cloning")
     parser.add_argument("--clone", action="store_true", help="Always clone from GitHub (GoDeskio/Clawd-Code only)")
     parser.add_argument("--skip-desktop-deps", action="store_true", help="Skip npm install for Electron")

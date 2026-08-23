@@ -16,7 +16,8 @@ from .constants import CANONICAL_HTTPS
 from .deps import install_desktop_deps, install_python_deps
 from .python_env import detect_os, ensure_venv, find_system_python
 from .record import write_install_record
-from .source import current_branch, current_commit, default_source_dir, materialize_source
+from .app_root import discover_existing_install
+from .source import current_branch, current_commit, materialize_source
 from .verify import verify_agent_session
 
 
@@ -82,7 +83,7 @@ class InstallWizard:
     def defaults(self) -> dict[str, Any]:
         return {
             "os": detect_os(),
-            "source_dir": str(default_source_dir()),
+            "source_dir": str(discover_existing_install()),
             "repo": CANONICAL_HTTPS,
             "from_local": str(Path(__file__).resolve().parents[2]),
         }
@@ -158,7 +159,7 @@ class InstallWizard:
         clone: bool,
     ) -> None:
         try:
-            dest = Path(source_dir).expanduser() if source_dir else default_source_dir()
+            dest = Path(source_dir).expanduser() if source_dir else discover_existing_install()
             self._emit(job, {"type": "step", "id": "os", "message": f"Detected {detect_os()['platform']}"})
             self._emit(job, {"type": "step", "id": "python", "message": "Locating Python 3.10+"})
             python = find_system_python()

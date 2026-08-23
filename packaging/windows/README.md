@@ -1,6 +1,8 @@
 # Jonathan Ai for Windows
 
-**Version 0.2.2** — Jonathan Ai is itself the AI agent. After install, chat works with one API key or a local LLM. Conversations persist across restarts; New Chat is always empty. Shared memory stays in `%USERPROFILE%\.clawd\memory`. MCP, Cursor, and Codex are optional. Rename conversations from the left sidebar (double-click or right-click). The version appears in the installer title and the app header.
+**Version 0.2.3** — Jonathan Ai is itself the AI agent. After install, chat works with one API key or a local LLM. Conversations persist across restarts; New Chat is always empty. Shared memory stays in `%USERPROFILE%\.clawd\memory`. MCP, Cursor, and Codex are optional. Rename conversations from the left sidebar (double-click or right-click). The version appears in the installer title and the app header.
+
+`JonathanAi.exe` looks for the app in this order: `CLAWD_SOURCE_DIR`, the exe folder, `%USERPROFILE%\Jonathan\Jonathan-Ai`, then the current working directory. A working `.venv` is enough to open the UI; Electron is optional. If a Desktop click still says it cannot find Electron or the venv, run `JonathanAi-Setup.exe` again — it upgrades that same `Jonathan-Ai` folder in place and rewrites shortcuts to `%USERPROFILE%\Jonathan\Jonathan-Ai\JonathanAi.exe`.
 
 Desktop path:
 
@@ -11,7 +13,7 @@ Desktop path:
 From a checkout:
 
 1. Double-click `JonathanAi-Setup.exe` in this `bin/` folder, or `install.bat` / `JonathanAi-Setup.bat` at the repo root.
-2. The wizard shows real windows. Click **Next**, choose the folder (default `%USERPROFILE%\Jonathan\Jonathan-Ai`), click **Install**.
+2. The wizard shows real windows. Click **Next**, choose the folder (default is the existing `%USERPROFILE%\Jonathan\Jonathan-Ai` or a previous `Clawd-Code` folder), click **Install**. A second run upgrades that same folder.
 3. Click **Finish**. Jonathan Ai launches immediately.
 4. A **Jonathan Ai** shortcut is on the Desktop and in the Start Menu. You do not hunt for `start-desktop.bat`.
 

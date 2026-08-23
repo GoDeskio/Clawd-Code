@@ -118,7 +118,7 @@ def current_branch(repo: Path) -> str:
     return result.stdout.strip()
 
 
-def _copy_tree(src: Path, dest: Path) -> None:
+def _copy_tree(src: Path, dest: Path, *, overlay: bool = False) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() and dest.is_dir() and not any(dest.iterdir()):
         dest.rmdir()
@@ -130,9 +130,9 @@ def _copy_tree(src: Path, dest: Path) -> None:
         "*.pyc",
         ".mypy_cache",
     )
-    if dest.exists():
+    if dest.exists() and not overlay:
         return
-    shutil.copytree(src, dest, ignore=ignore, dirs_exist_ok=False)
+    shutil.copytree(src, dest, ignore=ignore, dirs_exist_ok=dest.exists())
 
 
 def materialize_source(
@@ -152,17 +152,30 @@ def materialize_source(
     assert_allowed_source_url(clone_url)
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    if dest.exists() and (dest / ".git").exists():
-        assert_repo_remotes_allowed(dest)
-        _run_git(["remote", "set-url", "origin", CANONICAL_HTTPS], cwd=dest, check=False)
-        assert_repo_remotes_allowed(dest)
+    if dest.exists() and ((dest / ".git").exists() or (dest / "src" / "cli.py").exists()):
+        if (dest / ".git").exists():
+            remotes = read_remotes(dest)
+            if "origin" in remotes:
+                _run_git(["remote", "set-url", "origin", CANONICAL_HTTPS], cwd=dest, check=False)
+            else:
+                _run_git(["remote", "add", "origin", CANONICAL_HTTPS], cwd=dest, check=False)
+            _run_git(["fetch", "origin"], cwd=dest, check=False)
+            branch = current_branch(dest)
+            target = f"origin/{branch}" if branch and branch != "HEAD" else "origin/main"
+            _run_git(["merge", "--ff-only", target], cwd=dest, check=False)
+        if from_local is not None:
+            src = Path(from_local).expanduser().resolve()
+            if src != dest and (src / "src" / "cli.py").exists():
+                _copy_tree(src, dest, overlay=True)
+                if (dest / ".git").exists():
+                    remotes = read_remotes(dest)
+                    if "origin" in remotes:
+                        _run_git(["remote", "set-url", "origin", CANONICAL_HTTPS], cwd=dest, check=False)
+                    else:
+                        _run_git(["remote", "add", "origin", CANONICAL_HTTPS], cwd=dest, check=False)
         return dest
 
     if dest.exists() and any(dest.iterdir()):
-        if (dest / "src" / "cli.py").exists():
-            if (dest / ".git").exists():
-                assert_repo_remotes_allowed(dest)
-            return dest
         raise UntrustedSourceError(f"install directory is not empty: {dest}")
 
     last_error: Exception | None = None

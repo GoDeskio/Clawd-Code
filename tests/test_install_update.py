@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from src.install.constants import CANONICAL_HTTPS
-from src.install.python_env import detect_os, find_system_python
+from src.install.python_env import detect_os, ensure_venv, find_system_python, venv_is_usable
 from src.install.record import read_install_record, write_install_record
 from src.install.source import (
     UntrustedSourceError,
@@ -76,6 +76,39 @@ class TestWizardAndVerify(unittest.TestCase):
         info = detect_os()
         self.assertIn("platform", info)
         self.assertTrue(find_system_python().exists())
+
+    def test_ensure_venv_recreates_broken_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "app"
+            broken = source / ".venv" / "bin" / "python"
+            if __import__("os").name == "nt":
+                broken = source / ".venv" / "Scripts" / "python.exe"
+            broken.parent.mkdir(parents=True, exist_ok=True)
+            broken.write_text("not-a-python", encoding="utf-8")
+            self.assertFalse(venv_is_usable(source))
+
+            def fake_run(cmd, **kwargs):
+                joined = " ".join(str(part) for part in cmd)
+                if "-m" in cmd and "venv" in cmd:
+                    target = source / ".venv" / ("Scripts" if __import__("os").name == "nt" else "bin")
+                    if (source / ".venv").exists():
+                        import shutil
+                        shutil.rmtree(source / ".venv", ignore_errors=True)
+                    target.mkdir(parents=True, exist_ok=True)
+                    exe = target / ("python.exe" if __import__("os").name == "nt" else "python")
+                    exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+                    exe.chmod(0o755)
+                    return subprocess.CompletedProcess(cmd, 0, "", "")
+                if str(broken) in joined or str(source / ".venv") in joined:
+                    return subprocess.CompletedProcess(cmd, 1, "", "broken venv")
+                return subprocess.CompletedProcess(cmd, 0, "3.12", "")
+
+            with patch("src.install.python_env.subprocess.run", side_effect=fake_run), patch(
+                "src.install.python_env.find_system_python", return_value=Path("/usr/bin/python3")
+            ):
+                created = ensure_venv(source)
+            self.assertTrue(created.exists())
+            self.assertIn("exit 0", created.read_text(encoding="utf-8"))
 
     def test_placeholders_do_not_write_keys_into_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

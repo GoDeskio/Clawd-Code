@@ -11,16 +11,31 @@ const TOKEN = process.env.CLAWD_DESKTOP_TOKEN || require("crypto").randomBytes(1
 
 app.setName("Jonathan Ai");
 
+function hasCliAndRuntime(dir) {
+  const cli = path.join(dir, "src", "cli.py");
+  if (!fs.existsSync(cli)) return false;
+  const py = process.platform === "win32"
+    ? path.join(dir, ".venv", "Scripts", "python.exe")
+    : path.join(dir, ".venv", "bin", "python");
+  const electron = path.join(dir, "desktop", "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
+  return fs.existsSync(py) || fs.existsSync(electron);
+}
+
 function resolveRoot() {
-  if (process.env.CLAWD_SOURCE_DIR) return path.resolve(process.env.CLAWD_SOURCE_DIR);
+  const candidates = [];
+  if (process.env.CLAWD_SOURCE_DIR) candidates.push(path.resolve(process.env.CLAWD_SOURCE_DIR));
   try {
     const recordPath = path.join(os.homedir(), ".clawd", "install.json");
     const record = JSON.parse(fs.readFileSync(recordPath, "utf8"));
-    if (record.source_dir && fs.existsSync(path.join(record.source_dir, "src", "cli.py"))) {
-      return record.source_dir;
-    }
+    if (record.source_dir) candidates.push(record.source_dir);
   } catch (_err) {
     // Fall back to the checkout that shipped this Electron shell.
+  }
+  candidates.push(path.resolve(__dirname, ".."));
+  candidates.push(path.join(os.homedir(), "Jonathan", "Jonathan-Ai"));
+  candidates.push(process.cwd());
+  for (const dir of candidates) {
+    if (dir && hasCliAndRuntime(dir)) return dir;
   }
   return path.resolve(__dirname, "..");
 }
@@ -100,7 +115,7 @@ function createWindow() {
     height: 840,
     minWidth: 880,
     minHeight: 600,
-    title: "Jonathan Ai 0.2.2",
+    title: "Jonathan Ai 0.2.3",
     backgroundColor: "#0b0c0f",
     autoHideMenuBar: true,
     icon: icon || undefined,

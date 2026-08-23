@@ -10,8 +10,8 @@ from src.version import get_version
 
 from .constants import CANONICAL_HTTPS, PRODUCT_NAME
 from .launch import launch_jonathan_ai
-from .source import default_source_dir
-from .windows_shortcuts import create_windows_shortcuts, find_app_executable
+from .app_root import discover_existing_install
+from .windows_shortcuts import install_app_shortcuts
 from .wizard import InstallWizard
 
 
@@ -31,7 +31,7 @@ def run_windows_wizard(*, source_dir: str | None = None, from_local: str | None 
         print(f"Tk is required for the Windows wizard: {exc}")
         return 1
 
-    dest = Path(source_dir).expanduser() if source_dir else default_source_dir()
+    dest = Path(source_dir).expanduser() if source_dir else discover_existing_install()
     local = Path(from_local) if from_local else Path(__file__).resolve().parents[2]
     page = {"i": 0}
     clone = {"v": False}
@@ -70,8 +70,8 @@ def run_windows_wizard(*, source_dir: str | None = None, from_local: str | None 
     tk.Label(
         welcome,
         text=f"This wizard installs {PRODUCT_NAME} {get_version()} on this computer.\n\n"
-        "It copies GoDeskio/Clawd-Code into your Jonathan folder, creates the app, "
-        "and puts Jonathan Ai on the Desktop and Start Menu.\n\n"
+        "It upgrades the existing Jonathan-Ai (or Clawd-Code) folder in place, "
+        "writes JonathanAi.exe into that folder, and rewrites Desktop/Start Menu shortcuts.\n\n"
         "Tokens stay on this machine. Nothing is written into the installer artifact.",
         fg="#e8e8e8",
         bg="#1a1b1e",
@@ -171,14 +171,11 @@ def run_windows_wizard(*, source_dir: str | None = None, from_local: str | None 
                 icon = robot_image_path()
                 if not icon.exists():
                     icon = Path(result["source_dir"]) / "src" / "desktop" / "web" / "robot.png"
-                exe = find_app_executable(Path(result["source_dir"]))
-                packaging_exe = Path(result["source_dir"]) / "packaging" / "windows" / "bin" / "JonathanAi.exe"
-                if packaging_exe.exists() and not (Path(result["source_dir"]) / "JonathanAi.exe").exists():
-                    import shutil
-
-                    shutil.copy2(packaging_exe, Path(result["source_dir"]) / "JonathanAi.exe")
-                    exe = Path(result["source_dir"]) / "JonathanAi.exe"
-                create_windows_shortcuts(exe, icon if icon.exists() else None)
+                install_app_shortcuts(
+                    Path(result["source_dir"]),
+                    icon if icon.exists() else None,
+                    bundled_exe=Path(result["source_dir"]) / "packaging" / "windows" / "bin" / "JonathanAi.exe",
+                )
                 status["result"] = result
             except Exception as exc:  # noqa: BLE001
                 status["error"] = str(exc)

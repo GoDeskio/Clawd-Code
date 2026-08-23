@@ -53,7 +53,7 @@
 - ✅ **Amigável ao Usuário** — Configuração fácil, REPL interativo, documentação abrangente
 - ✅ **Continuamente Melhorado** — Tratamento de erros aprimorado, testes, documentação
 
-**Versão 0.2.2 — Jonathan Ai.** O app desktop é o próprio agente. As conversas persistem em disco; New Chat abre um fio vazio. A memória compartilhada (`~/.clawd/memory`) leva factos de um chat para outro. MCP, Cursor e Codex são opcionais. Renomeie conversas na barra lateral. Os schemas vão no formato clássico da Anthropic (`input_schema.type`). Um 400 de schema repete o mesmo pedido sem tools.
+**Versão 0.2.3 — Jonathan Ai.** O app desktop é o próprio agente. As conversas persistem em disco; New Chat abre um fio vazio. A memória compartilhada (`~/.clawd/memory`) leva factos de um chat para outro. MCP, Cursor e Codex são opcionais. Renomeie conversas na barra lateral. Os schemas vão no formato clássico da Anthropic (`input_schema.type`). Um 400 de schema repete o mesmo pedido sem tools.
 
 **🚀 Experimente agora! Faça fork, modifique, torne seu! Pull requests são bem-vindos!**
 

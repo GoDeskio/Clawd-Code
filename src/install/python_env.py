@@ -71,14 +71,37 @@ def venv_python(source_dir: Path) -> Path:
     return source_dir / ".venv" / "bin" / "python"
 
 
+def venv_is_usable(source_dir: Path) -> bool:
+    target = venv_python(source_dir)
+    if not target.is_file():
+        return False
+    try:
+        result = subprocess.run(
+            [str(target), "-c", "import sys"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
 def ensure_venv(source_dir: Path, *, python: Path | None = None) -> Path:
     source_dir = Path(source_dir)
     target = venv_python(source_dir)
-    if target.exists():
+    if venv_is_usable(source_dir):
         return target
+    venv_dir = source_dir / ".venv"
+    if venv_dir.exists() and not venv_is_usable(source_dir):
+        shutil.rmtree(venv_dir, ignore_errors=True)
     interpreter = Path(python) if python else find_system_python()
+    cmd = [str(interpreter), "-m", "venv", str(venv_dir)]
+    if venv_dir.exists():
+        cmd = [str(interpreter), "-m", "venv", "--clear", str(venv_dir)]
     subprocess.run(
-        [str(interpreter), "-m", "venv", str(source_dir / ".venv")],
+        cmd,
         check=True,
         capture_output=True,
         text=True,

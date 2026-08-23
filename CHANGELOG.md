@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-08-23
+
+### Fixed
+- Windows `JonathanAi.exe` now probes `CLAWD_SOURCE_DIR`, the exe folder, `%USERPROFILE%\Jonathan\Jonathan-Ai`, then cwd. A Desktop shortcut pointing at the parent `Jonathan` folder still finds the venv.
+- Missing Electron is no longer an error: if `.venv\Scripts\pythonw.exe` exists, the app starts `pythonw -m src.cli desktop`.
+- Setup upgrades the existing Jonathan-Ai (or Clawd-Code) folder in place, writes `JonathanAi.exe` into that folder, deletes leftover parent-folder exes, and rewrites Desktop/Start Menu shortcuts to `%USERPROFILE%\Jonathan\Jonathan-Ai\JonathanAi.exe`. A second Setup run upgrades the same folder.
+
 ## [0.2.2] - 2026-08-23
 
 ### Added
@@ -179,6 +186,7 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.3]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.3
 [0.2.2]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.2
 [0.2.1]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.1
 [0.2.0]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.0

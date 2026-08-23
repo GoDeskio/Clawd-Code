@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 
@@ -71,8 +72,10 @@ def create_windows_shortcuts(target: Path, icon: Path | None = None) -> dict[str
 
 def find_app_executable(source_dir: Path) -> Path:
     source_dir = Path(source_dir)
+    dest = source_dir / "JonathanAi.exe"
+    if dest.exists():
+        return dest
     candidates = [
-        source_dir / "JonathanAi.exe",
         source_dir / "packaging" / "windows" / "bin" / "JonathanAi.exe",
         source_dir / "desktop" / "JonathanAi.exe",
         source_dir / "start-desktop.bat",
@@ -80,4 +83,51 @@ def find_app_executable(source_dir: Path) -> Path:
     for path in candidates:
         if path.exists():
             return path
-    return source_dir / "JonathanAi.exe"
+    return dest
+
+
+def remove_parent_leftover_exes(source_dir: Path) -> list[str]:
+    """Delete JonathanAi.exe left in %USERPROFILE%\\Jonathan (the parent folder)."""
+    from .app_root import leftover_parent_exes
+
+    removed: list[str] = []
+    dest_exe = (Path(source_dir) / "JonathanAi.exe").resolve()
+    for path in leftover_parent_exes(source_dir):
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved == dest_exe:
+            continue
+        if path.exists():
+            path.unlink()
+            removed.append(str(path))
+    return removed
+
+
+def install_app_shortcuts(
+    source_dir: Path,
+    icon: Path | None = None,
+    bundled_exe: Path | None = None,
+) -> dict[str, str]:
+    """Copy JonathanAi.exe into the app folder and rewrite Desktop/Start Menu links."""
+    source_dir = Path(source_dir)
+    dest_exe = source_dir / "JonathanAi.exe"
+    sources: list[Path] = []
+    if bundled_exe:
+        sources.append(Path(bundled_exe))
+    sources.extend(
+        [
+            source_dir / "packaging" / "windows" / "bin" / "JonathanAi.exe",
+        ]
+    )
+    for src in sources:
+        if src.exists() and src.resolve() != dest_exe.resolve():
+            shutil.copy2(src, dest_exe)
+            break
+    remove_parent_leftover_exes(source_dir)
+    result = create_windows_shortcuts(dest_exe, icon if icon and icon.exists() else None)
+    result["target"] = str(dest_exe)
+    result["workdir"] = str(source_dir)
+    result["removed_leftovers"] = remove_parent_leftover_exes(source_dir)
+    return result

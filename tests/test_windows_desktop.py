@@ -40,6 +40,17 @@ class TestWindowsArtifacts(unittest.TestCase):
         self.assertIn("Install", setup_c)
         self.assertIn("Finish", setup_c)
         self.assertIn("Jonathan Ai.lnk", setup_c)
+        self.assertIn("Jonathan\\\\Jonathan-Ai", setup_c)
+        self.assertIn("upgrade in place", setup_c.lower())
+        self.assertIn("Clawd-Code", setup_c)
+        self.assertIn("CopyFileW", setup_c)
+        launcher = (ROOT / "packaging" / "windows" / "JonathanAi.c").read_text(encoding="utf-8")
+        self.assertIn("CLAWD_SOURCE_DIR", launcher)
+        self.assertIn("Jonathan\\\\Jonathan-Ai", launcher)
+        self.assertIn("pythonw.exe", launcher)
+        self.assertIn("-m src.cli desktop", launcher)
+        self.assertIn("is_app_root", launcher)
+        self.assertIn("src\\\\cli.py", launcher)
 
 
 class TestShortcuts(unittest.TestCase):
@@ -72,7 +83,7 @@ class TestDashboardHtml(unittest.TestCase):
         css = (ROOT / "src" / "desktop" / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.2", html)
+        self.assertIn("0.2.3", html)
         self.assertIn("session-menu", html)
         self.assertIn("standalone", html)
         self.assertIn("informational", html)

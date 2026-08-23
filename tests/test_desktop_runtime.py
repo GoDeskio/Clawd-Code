@@ -243,7 +243,7 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("Skill", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.2.2")
+        self.assertEqual(runtime.status()["version"], "0.2.3")
         self.assertTrue(runtime.status()["standalone"])
 
     def test_new_chat_is_empty_and_keeps_previous(self) -> None:
@@ -400,7 +400,7 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.2", html)
+        self.assertIn("0.2.3", html)
         self.assertIn("session-menu", html)
         self.assertIn("app.js", html)
 

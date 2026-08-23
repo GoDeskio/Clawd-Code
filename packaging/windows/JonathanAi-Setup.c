@@ -57,6 +57,38 @@ static void join(wchar_t *out, const wchar_t *a, const wchar_t *b) {
     PathAppendW(out, b);
 }
 
+static int has_cli(const wchar_t *dir) {
+    wchar_t probe[MAX_PATH];
+    join(probe, dir, L"src\\cli.py");
+    return exists(probe);
+}
+
+static void discover_dest(wchar_t *out) {
+    wchar_t home[MAX_PATH], cand[MAX_PATH];
+    if (FAILED(SHGetFolderPathW(NULL, CSIDL_PROFILE, NULL, 0, home))) {
+        if (GetEnvironmentVariableW(L"USERPROFILE", home, MAX_PATH) == 0) {
+            lstrcpynW(out, L"Jonathan\\Jonathan-Ai", MAX_PATH);
+            return;
+        }
+    }
+    join(cand, home, L"Jonathan\\Jonathan-Ai");
+    if (has_cli(cand)) {
+        lstrcpynW(out, cand, MAX_PATH);
+        return;
+    }
+    join(cand, home, L"Jonathan\\Clawd-Code");
+    if (has_cli(cand)) {
+        lstrcpynW(out, cand, MAX_PATH);
+        return;
+    }
+    join(cand, home, L"Clawd-Code");
+    if (has_cli(cand)) {
+        lstrcpynW(out, cand, MAX_PATH);
+        return;
+    }
+    join(out, home, L"Jonathan\\Jonathan-Ai");
+}
+
 static BOOL run_hidden(const wchar_t *exe, wchar_t *cmdline, const wchar_t *cwd) {
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
@@ -96,33 +128,82 @@ static BOOL create_shortcut(const wchar_t *link, const wchar_t *target, const wc
     return TRUE;
 }
 
-static void make_shortcuts(const wchar_t *exe, const wchar_t *icon) {
-    wchar_t desk[MAX_PATH], start[MAX_PATH], desk_lnk[MAX_PATH], start_lnk[MAX_PATH], work[MAX_PATH];
+static void delete_parent_leftovers(const wchar_t *dest) {
+    wchar_t parent[MAX_PATH], leftover[MAX_PATH];
+    lstrcpynW(parent, dest, MAX_PATH);
+    PathRemoveFileSpecW(parent);
+    if (lstrcmpiW(PathFindFileNameW(dest), L"Jonathan-Ai") != 0) return;
+    join(leftover, parent, L"JonathanAi.exe");
+    if (exists(leftover) && lstrcmpiW(leftover, dest) != 0) {
+        DeleteFileW(leftover);
+    }
+    join(leftover, parent, L"JonathanAi-Setup.exe");
+    DeleteFileW(leftover);
+}
+
+static void make_shortcuts(const wchar_t *dest, const wchar_t *exe, const wchar_t *icon) {
+    wchar_t desk[MAX_PATH], start[MAX_PATH], desk_lnk[MAX_PATH], start_lnk[MAX_PATH];
     SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desk);
     SHGetFolderPathW(NULL, CSIDL_PROGRAMS, NULL, 0, start);
     join(desk_lnk, desk, L"Jonathan Ai.lnk");
     join(start_lnk, start, L"Jonathan Ai.lnk");
-    lstrcpynW(work, exe, MAX_PATH);
-    PathRemoveFileSpecW(work);
-    create_shortcut(desk_lnk, exe, work, icon);
-    create_shortcut(start_lnk, exe, work, icon);
+    DeleteFileW(desk_lnk);
+    DeleteFileW(start_lnk);
+    create_shortcut(desk_lnk, exe, dest, icon);
+    create_shortcut(start_lnk, exe, dest, icon);
+}
+
+static void copy_exes(const wchar_t *dest) {
+    wchar_t launcher[MAX_PATH], bundled[MAX_PATH], self[MAX_PATH], dest_setup[MAX_PATH];
+    join(launcher, dest, L"JonathanAi.exe");
+    join(bundled, g_root, L"JonathanAi.exe");
+    if (exists(bundled) && lstrcmpiW(bundled, launcher) != 0) {
+        CopyFileW(bundled, launcher, FALSE);
+    }
+    GetModuleFileNameW(NULL, self, MAX_PATH);
+    join(dest_setup, dest, L"JonathanAi-Setup.exe");
+    if (lstrcmpiW(self, dest_setup) != 0) {
+        CopyFileW(self, dest_setup, FALSE);
+    }
+}
+
+static void git_upgrade(const wchar_t *dest) {
+    wchar_t gitdir[MAX_PATH], cmd[2048];
+    join(gitdir, dest, L".git");
+    if (!exists(gitdir)) return;
+    append_log(L"Updating existing install from GoDeskio/Clawd-Code…");
+    wsprintfW(cmd, L"cmd.exe /C git -C \"%s\" remote set-url origin https://github.com/GoDeskio/Clawd-Code.git", dest);
+    run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, dest);
+    wsprintfW(cmd, L"cmd.exe /C git -C \"%s\" fetch origin", dest);
+    run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, dest);
+    wsprintfW(cmd, L"cmd.exe /C git -C \"%s\" merge --ff-only origin/main", dest);
+    if (!run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, dest)) {
+        wsprintfW(cmd, L"cmd.exe /C git -C \"%s\" merge --ff-only origin/master", dest);
+        run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, dest);
+    }
 }
 
 static DWORD WINAPI install_thread(LPVOID param) {
-    wchar_t dest[MAX_PATH], cmd[2048], python[MAX_PATH], launcher[MAX_PATH], icon[MAX_PATH], srccli[MAX_PATH];
+    wchar_t dest[MAX_PATH], cmd[2048], python[MAX_PATH], launcher[MAX_PATH], icon[MAX_PATH], srccli[MAX_PATH], venvpy[MAX_PATH];
     (void)param;
     GetWindowTextW(g_dest_edit, dest, MAX_PATH);
-    append_log(L"Creating install folder…");
+    if (!dest[0]) {
+        discover_dest(dest);
+        SetWindowTextW(g_dest_edit, dest);
+    }
+    append_log(L"Using existing Jonathan-Ai folder when present (upgrade in place)…");
     SHCreateDirectoryExW(NULL, dest, NULL);
 
     join(srccli, g_payload, L"src\\cli.py");
     if (exists(srccli)) {
-        append_log(L"Copying this checkout into the Jonathan folder…");
+        append_log(L"Replacing app files from this checkout…");
         wsprintfW(cmd, L"cmd.exe /C xcopy /E /I /Y /Q \"%s\" \"%s\"", g_payload, dest);
         run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, g_payload);
+    } else if (has_cli(dest)) {
+        git_upgrade(dest);
     } else {
         append_log(L"Cloning https://github.com/GoDeskio/Clawd-Code …");
-        wsprintfW(cmd, L"git clone --origin origin https://github.com/GoDeskio/Clawd-Code.git \"%s\"", dest);
+        wsprintfW(cmd, L"cmd.exe /C git clone --origin origin https://github.com/GoDeskio/Clawd-Code.git \"%s\"", dest);
         if (!run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, NULL)) {
             append_log(L"ERROR: git clone failed. Install Git or run from a checkout.");
             PostMessageW(g_main, WM_APP + 2, 0, 0);
@@ -130,18 +211,26 @@ static DWORD WINAPI install_thread(LPVOID param) {
         }
     }
 
+    append_log(L"Writing JonathanAi.exe into the app folder…");
+    copy_exes(dest);
+    delete_parent_leftovers(dest);
+
+    join(venvpy, dest, L".venv\\Scripts\\python.exe");
+    if (!exists(venvpy)) {
+        append_log(L"venv missing or broken — it will be recreated…");
+    }
+
     append_log(L"Locating Python 3.10+…");
     if (GetEnvironmentVariableW(L"CLAWD_PYTHON", python, MAX_PATH) == 0) {
         lstrcpynW(python, L"python", MAX_PATH);
     }
-    append_log(L"Installing Jonathan Ai (venv, dependencies, verify)…");
+    append_log(L"Installing / upgrading Jonathan Ai (venv, pip, optional Electron)…");
     wsprintfW(
         cmd,
         L"\"%s\" -m src.install --source-dir \"%s\" --from-local \"%s\" --yes",
         python, dest, dest
     );
     if (!run_hidden(python, cmd, dest)) {
-        /* Retry with py launcher. */
         wsprintfW(cmd, L"py -3 -m src.install --source-dir \"%s\" --from-local \"%s\" --yes", dest, dest);
         if (!run_hidden(L"py", cmd, dest)) {
             append_log(L"ERROR: Python install step failed.");
@@ -150,17 +239,14 @@ static DWORD WINAPI install_thread(LPVOID param) {
         }
     }
 
+    copy_exes(dest);
+    delete_parent_leftovers(dest);
     join(launcher, dest, L"JonathanAi.exe");
-    if (!exists(launcher)) {
-        wchar_t bundled[MAX_PATH];
-        join(bundled, g_root, L"JonathanAi.exe");
-        if (exists(bundled)) CopyFileW(bundled, launcher, FALSE);
-    }
     join(icon, dest, L"src\\desktop\\web\\favicon.ico");
     if (!exists(icon)) join(icon, g_root, L"jonathan-ai.ico");
-    append_log(L"Creating Desktop and Start Menu shortcuts…");
-    make_shortcuts(launcher, icon);
-    append_log(L"Done.");
+    append_log(L"Rewriting Desktop and Start Menu shortcuts to Jonathan-Ai\\JonathanAi.exe…");
+    make_shortcuts(dest, launcher, icon);
+    append_log(L"Done. Second Setup runs upgrade this same folder.");
     g_ok = 1;
     PostMessageW(g_main, WM_APP + 1, 0, 0);
     return 0;
@@ -169,6 +255,7 @@ static DWORD WINAPI install_thread(LPVOID param) {
 static void launch_app(void) {
     wchar_t dest[MAX_PATH], exe[MAX_PATH];
     GetWindowTextW(g_dest_edit, dest, MAX_PATH);
+    if (!dest[0]) discover_dest(dest);
     join(exe, dest, L"JonathanAi.exe");
     ShellExecuteW(NULL, L"open", exe, NULL, dest, SW_SHOWNORMAL);
 }
@@ -180,25 +267,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
         InitCommonControlsEx(&icc);
         CreateWindowW(L"STATIC", L"Jonathan Ai", WS_CHILD | WS_VISIBLE,
             24, 16, 400, 28, hwnd, NULL, NULL, NULL);
-        CreateWindowW(L"STATIC", L"Windows desktop installer  0.2.2", WS_CHILD | WS_VISIBLE,
+        CreateWindowW(L"STATIC", L"Windows desktop installer  0.2.3", WS_CHILD | WS_VISIBLE,
             24, 44, 400, 20, hwnd, NULL, NULL, NULL);
 
         g_welcome = CreateWindowW(L"STATIC",
-            L"This wizard installs Jonathan Ai 0.2.2.\r\n\r\n"
-            L"On Finish the app window opens and a Jonathan Ai icon is placed on the Desktop and Start Menu.\r\n\r\n"
-            L"Source and updates: https://github.com/GoDeskio/Clawd-Code\r\n"
-            L"Tokens stay on this computer. They are never written into the installer.",
+            L"This wizard installs or upgrades Jonathan Ai 0.2.3 in place.\r\n\r\n"
+            L"It reuses %USERPROFILE%\\Jonathan\\Jonathan-Ai (or an existing Clawd-Code folder).\r\n"
+            L"A second run upgrades that same folder — it does not create a parallel install.\r\n\r\n"
+            L"Shortcuts are rewritten to Jonathan-Ai\\JonathanAi.exe.\r\n"
+            L"Source and updates: https://github.com/GoDeskio/Clawd-Code",
             WS_CHILD | WS_VISIBLE, 24, 80, 560, 180, hwnd, NULL, NULL, NULL);
 
-        g_dest = CreateWindowW(L"STATIC", L"Install folder", WS_CHILD, 24, 80, 200, 20, hwnd, NULL, NULL, NULL);
+        g_dest = CreateWindowW(L"STATIC", L"Install folder (existing install is upgraded)", WS_CHILD, 24, 80, 520, 20, hwnd, NULL, NULL, NULL);
         g_dest_edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
             WS_CHILD | ES_AUTOHSCROLL, 24, 108, 560, 28, hwnd, NULL, NULL, NULL);
         {
-            wchar_t home[MAX_PATH], dest[MAX_PATH];
-            if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_PROFILE, NULL, 0, home))) {
-                join(dest, home, L"Jonathan\\Jonathan-Ai");
-                SetWindowTextW(g_dest_edit, dest);
-            }
+            wchar_t dest[MAX_PATH];
+            discover_dest(dest);
+            SetWindowTextW(g_dest_edit, dest);
         }
 
         g_progress = CreateWindowW(L"STATIC", L"", WS_CHILD, 24, 80, 10, 10, hwnd, NULL, NULL, NULL);
@@ -208,7 +294,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
             24, 120, 560, 180, hwnd, NULL, NULL, NULL);
 
         g_done = CreateWindowW(L"STATIC",
-            L"Installation finished.\r\nShortcuts named Jonathan Ai are on the Desktop and Start Menu.",
+            L"Upgrade finished. Desktop and Start Menu shortcuts point at Jonathan-Ai\\JonathanAi.exe.",
             WS_CHILD, 24, 80, 560, 80, hwnd, NULL, NULL, NULL);
         g_launch_check = CreateWindowW(L"BUTTON", L"Launch Jonathan Ai now",
             WS_CHILD | BS_AUTOCHECKBOX, 24, 170, 300, 24, hwnd, NULL, NULL, NULL);
@@ -283,7 +369,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1));
     if (!wc.hIcon) wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     RegisterClassW(&wc);
-    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.2.2",
+    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.2.3",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 640, 460, NULL, NULL, inst, NULL);
     ShowWindow(g_main, show);

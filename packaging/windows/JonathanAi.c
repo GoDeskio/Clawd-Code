@@ -18,6 +18,48 @@ static int exists(const wchar_t *path) {
     return attr != INVALID_FILE_ATTRIBUTES;
 }
 
+static int is_app_root(const wchar_t *dir) {
+    wchar_t probe[MAX_PATH];
+    if (!dir || !dir[0]) return 0;
+    join(probe, MAX_PATH, dir, L"src\\cli.py");
+    if (!exists(probe)) return 0;
+    join(probe, MAX_PATH, dir, L".venv\\Scripts\\python.exe");
+    if (exists(probe)) return 1;
+    join(probe, MAX_PATH, dir, L".venv\\Scripts\\pythonw.exe");
+    if (exists(probe)) return 1;
+    join(probe, MAX_PATH, dir, L"desktop\\node_modules\\electron\\dist\\electron.exe");
+    return exists(probe);
+}
+
+static int try_copy_root(wchar_t *out, const wchar_t *cand) {
+    if (!is_app_root(cand)) return 0;
+    lstrcpynW(out, cand, MAX_PATH);
+    return 1;
+}
+
+static int pick_root(wchar_t *out) {
+    wchar_t cand[MAX_PATH], exe_path[MAX_PATH];
+
+    if (GetEnvironmentVariableW(L"CLAWD_SOURCE_DIR", cand, MAX_PATH) > 0) {
+        if (try_copy_root(out, cand)) return 1;
+    }
+
+    GetModuleFileNameW(NULL, exe_path, MAX_PATH);
+    lstrcpynW(cand, exe_path, MAX_PATH);
+    PathRemoveFileSpecW(cand);
+    if (try_copy_root(out, cand)) return 1;
+
+    if (GetEnvironmentVariableW(L"USERPROFILE", cand, MAX_PATH) > 0) {
+        PathAppendW(cand, L"Jonathan\\Jonathan-Ai");
+        if (try_copy_root(out, cand)) return 1;
+    }
+
+    if (GetCurrentDirectoryW(MAX_PATH, cand) > 0) {
+        if (try_copy_root(out, cand)) return 1;
+    }
+    return 0;
+}
+
 static BOOL start_process(const wchar_t *exe, const wchar_t *args, const wchar_t *cwd) {
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
@@ -34,43 +76,59 @@ static BOOL start_process(const wchar_t *exe, const wchar_t *args, const wchar_t
     return TRUE;
 }
 
+static int start_electron(const wchar_t *root) {
+    wchar_t electron[MAX_PATH], desktop[MAX_PATH], cmdbuf[2048];
+    join(electron, MAX_PATH, root, L"desktop\\node_modules\\electron\\dist\\electron.exe");
+    if (!exists(electron)) return 0;
+    join(desktop, MAX_PATH, root, L"desktop");
+    wsprintfW(cmdbuf, L"\"%s\" \"%s\"", electron, desktop);
+    return start_process(electron, cmdbuf, desktop) ? 1 : 0;
+}
+
+static int start_pythonw(const wchar_t *root) {
+    wchar_t python[MAX_PATH], cmdbuf[2048];
+    join(python, MAX_PATH, root, L".venv\\Scripts\\pythonw.exe");
+    if (!exists(python)) {
+        join(python, MAX_PATH, root, L".venv\\Scripts\\python.exe");
+    }
+    if (!exists(python)) return 0;
+    /* Electron is optional. A working venv is enough to open the UI. */
+    wsprintfW(cmdbuf, L"\"%s\" -m src.cli desktop --no-browser", python);
+    if (!start_process(python, cmdbuf, root)) return 0;
+    Sleep(1200);
+    ShellExecuteW(NULL, L"open", L"http://127.0.0.1:8765/", NULL, NULL, SW_SHOWNORMAL);
+    return 1;
+}
+
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
-    wchar_t exe_path[MAX_PATH], root[MAX_PATH], probe[MAX_PATH], cmdbuf[2048];
+    wchar_t root[MAX_PATH];
     (void)inst; (void)prev; (void)cmd; (void)show;
-    GetModuleFileNameW(NULL, exe_path, MAX_PATH);
-    lstrcpynW(root, exe_path, MAX_PATH);
-    PathRemoveFileSpecW(root);
+
+    if (!pick_root(root)) {
+        MessageBoxW(
+            NULL,
+            L"Jonathan Ai could not find the app folder or the local Python venv.\n"
+            L"Re-run JonathanAi-Setup.exe. It upgrades the existing install in place\n"
+            L"(%USERPROFILE%\\Jonathan\\Jonathan-Ai).",
+            L"Jonathan Ai",
+            MB_OK | MB_ICONERROR
+        );
+        return 1;
+    }
 
     SetEnvironmentVariableW(L"CLAWD_SOURCE_DIR", root);
 
-    join(probe, MAX_PATH, root, L"desktop\\node_modules\\electron\\dist\\electron.exe");
-    if (exists(probe)) {
-        wchar_t desktop[MAX_PATH];
-        join(desktop, MAX_PATH, root, L"desktop");
-        wsprintfW(cmdbuf, L"\"%s\" \"%s\"", probe, desktop);
-        if (start_process(probe, cmdbuf, desktop)) {
-            return 0;
-        }
+    if (start_electron(root)) {
+        return 0;
     }
-
-    join(probe, MAX_PATH, root, L".venv\\Scripts\\pythonw.exe");
-    if (!exists(probe)) {
-        join(probe, MAX_PATH, root, L".venv\\Scripts\\python.exe");
-    }
-    if (exists(probe)) {
-        wsprintfW(cmdbuf, L"\"%s\" -m src.cli desktop --no-browser", probe);
-        if (start_process(probe, cmdbuf, root)) {
-            /* Electron may still be installing; open the local UI as a windowed fallback. */
-            Sleep(1200);
-            ShellExecuteW(NULL, L"open", L"http://127.0.0.1:8765/", NULL, NULL, SW_SHOWNORMAL);
-            return 0;
-        }
+    if (start_pythonw(root)) {
+        return 0;
     }
 
     MessageBoxW(
         NULL,
-        L"Jonathan Ai could not find Electron or the local Python venv.\n"
-        L"Re-run JonathanAi-Setup.exe.",
+        L"Jonathan Ai found the app folder but could not start Python.\n"
+        L"Re-run JonathanAi-Setup.exe to repair the venv.",
         L"Jonathan Ai",
         MB_OK | MB_ICONERROR
     );

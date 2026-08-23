@@ -38,7 +38,7 @@
 | 多 Provider 抽象 | ✅ | 已支持 Anthropic / OpenAI / GLM / Minimax / Hugging Face / Local LLM |
 | Provider 配置管理 | ✅ | 支持默认 Provider、Base URL、默认模型配置 |
 | 会话持久化 | ✅ | 支持保存/加载本地会话；重启后侧栏仍在；New Chat 新建空线程；桌面左侧可重命名 |
-| 独立桌面 Agent | ✅ | v0.2.2：会话持久化；New Chat 空线程；跨会话记忆 `~/.clawd/memory`；Anthropic schema 400 会去掉 tools 重试 |
+| 独立桌面 Agent | ✅ | v0.2.3：会话持久化；New Chat 空线程；跨会话记忆 `~/.clawd/memory`；Windows 启动器探测 Jonathan-Ai；Setup 原地升级 |
 | 工具 schema 清洗 | ✅ | 发给 Anthropic/OpenAI 的每个工具都带 `input_schema.type` |
 | 会话消息管理 | ✅ | 支持会话历史维护与序列化 |
 | 错误恢复 / 重新登录 | 🟡 | 已有基础认证错误处理与重新配置流程 |
