@@ -356,7 +356,10 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("app.js", html)
 
     def test_rename_api(self) -> None:
-        runtime = self._runtime()
+        runtime = DesktopRuntime(workspace=self.workspace, permission_timeout_s=2.0)
+        runtime.provider = MagicMock()
+        runtime.provider.model = "test-model"
+        runtime.session.model = "test-model"
         runtime.save_session()
         server = DesktopServer(runtime, host="127.0.0.1", port=0)
         server.start()
