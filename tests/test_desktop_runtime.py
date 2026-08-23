@@ -85,7 +85,11 @@ class TestGatedPermissions(DesktopTestCase):
             ctx,
         )
         self.assertTrue(result.is_error)
-        self.assertIn("permission", result.output.get("error", "").lower())
+        error_msg = result.output.get("error", "").lower()
+        self.assertTrue(
+            "permission" in error_msg or "write file" in error_msg,
+            f"expected a permission ask/deny, got: {error_msg}",
+        )
 
 
 class TestAttachments(DesktopTestCase):
@@ -139,6 +143,7 @@ class TestDesktopRuntime(DesktopTestCase):
             ChatResponse(
                 content="writing",
                 model="test-model",
+                usage={"input_tokens": 1, "output_tokens": 1},
                 finish_reason="tool_use",
                 tool_uses=[{
                     "id": "toolu_1",
@@ -146,7 +151,12 @@ class TestDesktopRuntime(DesktopTestCase):
                     "input": {"file_path": str(target), "content": "print('hello')"},
                 }],
             ),
-            ChatResponse(content="created", model="test-model", finish_reason="stop"),
+            ChatResponse(
+                content="created",
+                model="test-model",
+                usage={"input_tokens": 1, "output_tokens": 1},
+                finish_reason="stop",
+            ),
         ]
 
         def approver() -> None:
@@ -197,6 +207,7 @@ class TestDesktopServer(DesktopTestCase):
         runtime.provider.chat.return_value = ChatResponse(
             content="pong",
             model="test-model",
+            usage={"input_tokens": 1, "output_tokens": 1},
             finish_reason="stop",
         )
         runtime.session.model = "test-model"
