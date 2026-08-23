@@ -77,6 +77,22 @@ def run_ui(args: argparse.Namespace) -> int:
             if path == "/api/defaults":
                 self._send(200, json.dumps(wizard.defaults()).encode(), "application/json")
                 return
+            if path == "/api/connectors/github/repos":
+                try:
+                    from src.connectors.github import GitHubConnector
+
+                    self._send(200, json.dumps({"repos": GitHubConnector().list_repos()}).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
+            if path == "/api/connectors/gitlab/projects":
+                try:
+                    from src.connectors.gitlab import GitLabConnector
+
+                    self._send(200, json.dumps({"projects": GitLabConnector().list_projects()}).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
             if path.startswith("/api/jobs/"):
                 job_id = path.split("/")[3]
                 after = int((parse_qs(urlparse(self.path).query).get("after") or ["0"])[0] or 0)
@@ -130,6 +146,77 @@ def run_ui(args: argparse.Namespace) -> int:
                         default_model=body.get("default_model") or None,
                     )
                     self._send(200, json.dumps({"ok": True, "provider": provider}).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
+            if path == "/api/connectors/github/login":
+                try:
+                    from src.connectors.github import GitHubConnector
+
+                    result = GitHubConnector().login_with_token(str(body.get("token") or ""), owner=body.get("owner"))
+                    self._send(200, json.dumps(result).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
+            if path == "/api/connectors/gitlab/login":
+                try:
+                    from src.connectors.gitlab import GitLabConnector
+
+                    result = GitLabConnector(host=body.get("host")).login_with_token(
+                        str(body.get("token") or ""),
+                        owner=body.get("owner"),
+                        host=body.get("host"),
+                    )
+                    self._send(200, json.dumps(result).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
+            if path == "/api/connectors/mcp":
+                try:
+                    from src.connectors.store import save_mcp_server
+
+                    result = save_mcp_server(
+                        name=str(body.get("name") or ""),
+                        command=str(body.get("command") or ""),
+                        args=list(body.get("args") or []),
+                        url=str(body.get("url") or ""),
+                        token=str(body.get("token") or ""),
+                    )
+                    self._send(200, json.dumps({"ok": True, **result}).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
+            if path == "/api/connectors/mcp/test":
+                try:
+                    from src.connectors.mcp_client import test_mcp_record
+
+                    result = test_mcp_record(body)
+                    self._send(200, json.dumps(result).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
+            if path == "/api/connectors/agents":
+                try:
+                    from src.connectors.store import save_agent
+
+                    result = save_agent(
+                        name=str(body.get("name") or ""),
+                        base_url=str(body.get("base_url") or body.get("url") or ""),
+                        api_key=str(body.get("api_key") or body.get("token") or ""),
+                    )
+                    self._send(200, json.dumps({"ok": True, **result}).encode(), "application/json")
+                except Exception as exc:  # noqa: BLE001
+                    self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
+                return
+            if path == "/api/connectors/agents/test":
+                try:
+                    from src.connectors.agents import list_agent_tools, test_agent_endpoint
+
+                    url = str(body.get("base_url") or "")
+                    key = str(body.get("api_key") or "")
+                    result = test_agent_endpoint(url, key)
+                    result["tools"] = list_agent_tools(url, key)
+                    self._send(200, json.dumps(result).encode(), "application/json")
                 except Exception as exc:  # noqa: BLE001
                     self._send(400, json.dumps({"error": str(exc)}).encode(), "application/json")
                 return

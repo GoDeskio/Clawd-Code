@@ -24,10 +24,17 @@
         <div class="row">
           <button id="pick-workspace" class="ghost">Choose folder</button>
         </div>
+        <div class="row">
+          <button id="open-repo" class="ghost">Open this repo</button>
+          <button id="pull-repo" class="ghost">Pull</button>
+          <button id="publish-repo" class="ghost">Create repo and push</button>
+        </div>
+        <p id="git-line" class="muted"></p>
       </div>
       <div class="section-title">Sessions</div>
       <nav id="session-list" class="session-list"></nav>
       <div class="sidebar-foot">
+        <button id="open-connectors" class="ghost">Git &amp; agents</button>
         <button id="open-settings" class="ghost">Provider &amp; model</button>
       </div>
     </aside>
@@ -37,6 +44,7 @@
         <div>
           <h1 id="chat-title">New chat</h1>
           <p id="model-line" class="muted">Not configured</p>
+          <p id="usage-line" class="muted" title="Token counts for this chat only. Informational — never a quota or paywall.">0 in · 0 out · 0 total (informational)</p>
         </div>
         <div class="top-actions">
           <span id="update-status" class="muted">Checking updates…</span>
@@ -153,6 +161,106 @@
       <div class="row end">
         <button id="settings-close" class="ghost">Close</button>
         <button id="settings-save" class="primary">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="connectors-modal" class="modal hidden">
+    <div class="dialog wide">
+      <h2>Git &amp; other agents</h2>
+      <p class="muted">Tokens stay in <code>~/.clawd/config.json</code>. Jonathan Ai never pushes <code>main</code>/<code>master</code> unless you name that branch. Default GitHub owner is <code>GoDeskio</code>.</p>
+
+      <h3>GitHub</h3>
+      <p id="gh-status" class="muted">Not connected</p>
+      <label>Token
+        <input id="gh-token" type="password" autocomplete="off" />
+      </label>
+      <label>Owner / org
+        <input id="gh-owner" value="GoDeskio" />
+      </label>
+      <div class="row">
+        <button id="gh-save" class="primary" type="button">Save GitHub token</button>
+        <button id="gh-repos" class="ghost" type="button">List repos</button>
+      </div>
+      <label>OAuth App client ID (optional device login)
+        <input id="gh-client" />
+      </label>
+      <div class="row">
+        <button id="gh-device" class="ghost" type="button">Start GitHub device login</button>
+        <button id="gh-poll" class="ghost" type="button">Poll device login</button>
+      </div>
+      <p id="gh-device-status" class="muted"></p>
+      <div id="gh-repos-list" class="scan-list"></div>
+
+      <h3>GitLab</h3>
+      <p id="gl-status" class="muted">Not connected</p>
+      <label>Host
+        <input id="gl-host" value="https://gitlab.com" />
+      </label>
+      <label>Personal access token
+        <input id="gl-token" type="password" autocomplete="off" />
+      </label>
+      <label>Group / owner
+        <input id="gl-owner" />
+      </label>
+      <div class="row">
+        <button id="gl-save" class="primary" type="button">Save GitLab token</button>
+        <button id="gl-projects" class="ghost" type="button">List projects</button>
+      </div>
+      <label>Application ID (optional device login)
+        <input id="gl-client" />
+      </label>
+      <div class="row">
+        <button id="gl-device" class="ghost" type="button">Start GitLab device login</button>
+        <button id="gl-poll" class="ghost" type="button">Poll device login</button>
+      </div>
+      <p id="gl-device-status" class="muted"></p>
+      <div id="gl-projects-list" class="scan-list"></div>
+
+      <h3>MCP servers</h3>
+      <p class="muted">Add a real MCP server the user already has (stdio command or HTTP URL). Test lists its tools; Jonathan Ai can call them in a turn.</p>
+      <label>Name
+        <input id="mcp-name" />
+      </label>
+      <label>Command (stdio)
+        <input id="mcp-command" placeholder="npx" />
+      </label>
+      <label>Args (space-separated)
+        <input id="mcp-args" placeholder="-y @modelcontextprotocol/server-filesystem /tmp" />
+      </label>
+      <label>HTTP URL
+        <input id="mcp-url" />
+      </label>
+      <label>Optional token
+        <input id="mcp-token" type="password" autocomplete="off" />
+      </label>
+      <div class="row">
+        <button id="mcp-save" class="primary" type="button">Add MCP server</button>
+        <button id="mcp-test" class="ghost" type="button">Test MCP</button>
+      </div>
+      <p id="mcp-status" class="muted"></p>
+      <div id="mcp-list" class="scan-list"></div>
+
+      <h3>Other agents</h3>
+      <p class="muted">OpenAI-compatible agent URL (Cursor / Codex / local). Or drop <code>~/.clawd/hooks/cursor.json</code>. Other tools can POST <code>/api/hooks/inbound</code> on localhost with the desktop token.</p>
+      <label>Name
+        <input id="agent-name" />
+      </label>
+      <label>Base URL
+        <input id="agent-url" placeholder="http://127.0.0.1:3999/v1" />
+      </label>
+      <label>Optional API key
+        <input id="agent-key" type="password" autocomplete="off" />
+      </label>
+      <div class="row">
+        <button id="agent-save" class="primary" type="button">Add agent</button>
+        <button id="agent-test" class="ghost" type="button">Test connection</button>
+      </div>
+      <p id="agent-status" class="muted"></p>
+      <div id="agent-list" class="scan-list"></div>
+
+      <div class="row end">
+        <button id="connectors-close" class="ghost">Close</button>
       </div>
     </div>
   </div>

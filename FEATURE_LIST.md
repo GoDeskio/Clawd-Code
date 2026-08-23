@@ -40,13 +40,15 @@
 | 会话持久化 | ✅ | 支持保存/加载本地会话 |
 | 会话消息管理 | ✅ | 支持会话历史维护与序列化 |
 | 错误恢复 / 重新登录 | 🟡 | 已有基础认证错误处理与重新配置流程 |
-| Token / Cost 跟踪 | 🚫 | 当前聊天 CLI 尚未形成完整统计视图 |
+| Token / Cost 跟踪 | ✅ | 桌面每个聊天窗口显示 input/output/running total，随会话持久化；仅信息展示，不是配额墙 |
+| GitHub / GitLab | ✅ | 本机 token 或设备登录；clone/pull/push、建仓、PR/MR；默认不推 default branch |
+| MCP / 其他 Agent | ✅ | 设置中添加/列出/启用 MCP 与 OpenAI 兼容 agent URL；Cursor/Codex/local hook |
 | 上下文构建 | 🟡 | 已有 `context_system` 基础版，支持 workspace / git / `CLAUDE.md` 注入，仍缺 README 摘要、memory、compact |
 | Claude Code Agent Loop | ✅ | 已实现 agent_loop.py，支持工具调用循环 |
 | `/resume` 会话恢复体验 | 🚫 | 暂无独立恢复流程与 UI |
 | `/compact` 对话压缩 | 🚫 | 暂无自动/手动压缩能力 |
 | `/doctor` 诊断系统 | 🚫 | 暂无环境、配置、权限、依赖诊断命令 |
-| Hook 系统 | 🚫 | 暂无 pre/post tool use hooks |
+| Hook 系统 | 🟡 | 已有 Cursor/Codex/local agent hook 与 inbound POST；非通用 pre/post tool hook |
 | 权限系统 | ✅ | 路径沙箱 + 文档写入询问 + 桌面端对 Bash/Write/Edit/Web 的交互批准 |
 | 桌面应用 | ✅ | Electron/浏览器壳 + 本地 Python host，复用现有 agent loop |
 | 安装向导 | ✅ | `install.sh` / `install.ps1` / `clawd install`，默认源码目录 `~/Jonathan/Jonathan-Ai` |
@@ -121,8 +123,8 @@
 | Permission Engine | ✅ | 已接入工具 dispatch；桌面端可批准/拒绝/会话授权 |
 | Desktop Host | ✅ | `src/desktop` localhost HTTP/SSE + Electron 壳 |
 | Compaction Engine | 🚫 | 未形成对话压缩与 token 管理能力 |
-| Hook Runtime | 🚫 | 未接入设置驱动的 hook 执行机制 |
-| MCP Runtime | 🟡 | 已有 MCP 工具，未形成完整 MCP 协议层 |
+| MCP Runtime | ✅ | 用户添加的 MCP stdio/HTTP 客户端 + 设置 UI + 工具列表/调用 |
+| Hook Runtime | 🟡 | `~/.clawd/hooks/*.json` 与 `/api/hooks/inbound` 已接入；非通用 pre/post tool hook |
 
 ---
 
@@ -138,6 +140,7 @@
 | 配置测试 | ✅ | `test_config.py` |
 | 桌面 host / 权限接线 | ✅ | `test_desktop_runtime.py` |
 | 安装向导 / 自更新 | ✅ | `test_install_update.py` |
+| Git / MCP / agent 连接器 | ✅ | `test_git_connectors.py` |
 
 
 ## 路线图
@@ -195,7 +198,7 @@
 
 目标：把项目从单体 CLI 升级为可扩展平台。
 
-- [ ] MCP client/runtime 完善
+- [x] MCP client/runtime 完善（stdio/HTTP + 设置 UI；用户自带服务器，不内置假 agent）
 - [ ] Python 插件系统
 - [ ] 自定义 commands / tools / hooks
 - [ ] 本地模型与第三方 provider 扩展

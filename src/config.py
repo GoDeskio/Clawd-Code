@@ -96,6 +96,7 @@ def load_config() -> dict[str, Any]:
         for provider_name, provider_config in config.get("providers", {}).items():
             if provider_config.get("api_key"):
                 provider_config["api_key"] = _decode_api_key(provider_config["api_key"])
+        _decode_connector_secrets(config)
 
         return _ensure_provider_slots(config)
     except Exception as e:
@@ -119,6 +120,7 @@ def save_config(config: dict[str, Any]) -> None:
     for provider_name, provider_config in config_copy.get("providers", {}).items():
         if provider_config.get("api_key"):
             provider_config["api_key"] = _encode_api_key(provider_config["api_key"])
+    _encode_connector_secrets(config_copy)
 
     if os.name == "nt":
         with open(config_path, 'w', encoding='utf-8') as f:
@@ -258,7 +260,48 @@ def public_config() -> dict[str, Any]:
             "workspace": desktop.get("workspace", ""),
             "notify_on_complete": bool(desktop.get("notify_on_complete", True)),
         },
+        "connectors": _public_connectors_safe(),
     }
+
+
+def _encode_connector_secrets(config: dict[str, Any]) -> None:
+    connectors = config.get("connectors")
+    if not isinstance(connectors, dict):
+        return
+    for name in ("github", "gitlab"):
+        slot = connectors.get(name)
+        if isinstance(slot, dict) and slot.get("token"):
+            slot["token"] = _encode_api_key(str(slot["token"]))
+    for key, field in (("mcp", "token"), ("agents", "api_key")):
+        items = connectors.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and item.get(field):
+                item[field] = _encode_api_key(str(item[field]))
+
+
+def _decode_connector_secrets(config: dict[str, Any]) -> None:
+    connectors = config.get("connectors")
+    if not isinstance(connectors, dict):
+        return
+    for name in ("github", "gitlab"):
+        slot = connectors.get(name)
+        if isinstance(slot, dict) and slot.get("token"):
+            slot["token"] = _decode_api_key(str(slot["token"]))
+    for key, field in (("mcp", "token"), ("agents", "api_key")):
+        items = connectors.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and item.get(field):
+                item[field] = _decode_api_key(str(item[field]))
+
+
+def _public_connectors_safe() -> dict[str, Any]:
+    from src.connectors.store import public_connectors
+
+    return public_connectors()
 
 
 def get_desktop_settings() -> dict[str, Any]:

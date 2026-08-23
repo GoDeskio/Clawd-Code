@@ -120,7 +120,8 @@ button { cursor: pointer; }
   background: var(--panel);
   padding: 10px 12px;
 }
-.composer-row, .row { display: flex; gap: 8px; align-items: center; }
+.composer-row, .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#usage-line { margin: 4px 0 0; }
 .composer-row { justify-content: space-between; margin-top: 8px; }
 .end { justify-content: flex-end; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }

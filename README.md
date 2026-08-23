@@ -146,13 +146,16 @@ clawd desktop      # Start the desktop host
 |--------|--------|-------------|
 | CLI Entry | ✅ | `clawd`, `login`, `config`, `--version` |
 | Interactive REPL | ✅ | Rich interactive output, history, tab completion, multiline |
-| Multi-Provider | ✅ | Anthropic, OpenAI, GLM support |
+| Multi-Provider | ✅ | Anthropic, OpenAI, GLM, Minimax, Hugging Face, Local LLM |
 | Session Persistence | ✅ | Save/load sessions locally |
+| Token usage meter | ✅ | Per-chat input/output/total in the desktop header — informational only, never a gate |
 | Agent Loop | ✅ | Tool calling loop implementation |
 | Skill System | ✅ | SKILL.md-based slash-command skills with args + tool limits |
 | Context Building | 🟡 | Initial prompt injection for workspace, git, and CLAUDE.md; desktop workspace picker feeds the same builder |
 | Permission System | ✅ | Path sandbox plus interactive approve/deny for destructive and network tools |
 | Desktop App | ✅ | Electron/browser shell over the existing Python agent loop |
+| GitHub / GitLab | ✅ | Token or device login, clone/pull/push, create repo, PR/MR from the desktop UI |
+| MCP / other agents | ✅ | Add/list/enable MCP servers and OpenAI-compatible agent URLs; Cursor/Codex/local hooks |
 
 ### Tool System (30+ Tools Implemented)
 
@@ -174,7 +177,7 @@ clawd desktop      # Start the desktop host
 - ✅ **Phase 1**: Core Claude Code MVP experience
 - ✅ **Phase 2**: Real tool calling loop
 - 🟡 **Phase 3**: Context, permissions, recovery (permissions + desktop host landed; deeper context still in progress)
-- ⏳ **Phase 4**: MCP, plugins, extensibility
+- 🟡 **Phase 4**: MCP, plugins, extensibility (MCP + other-agent connectors landed)
 - ⏳ **Phase 5**: Python-native differentiators
 
 **See [FEATURE_LIST.md](FEATURE_LIST.md) for detailed feature status and PR guidelines.**
@@ -183,7 +186,7 @@ clawd desktop      # Start the desktop host
 
 ### Install the desktop agent (one command)
 
-The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session.
+The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session. After install it can connect Hugging Face, a local LLM, GitHub, GitLab, MCP servers, and other OpenAI-compatible agents — tokens stay on this machine.
 
 **Entry point (pick one):**
 
@@ -211,7 +214,7 @@ CLAWD_INSTALL_DIR=/path/to/Jonathan/Jonathan-Ai ./install.sh --yes
 python -m src.cli install --source-dir ~/Jonathan/Jonathan-Ai --yes
 ```
 
-The wizard only clones **https://github.com/GoDeskio/Clawd-Code**. It will refuse any other remote, including upstream GPT-AGI/Clawd-Code.
+The wizard only clones **https://github.com/GoDeskio/Clawd-Code**. It will refuse any other remote, including upstream GPT-AGI/Clawd-Code. The graphical wizard has an optional checkbox to clone that repo into the Jonathan folder if it is not already there.
 
 After install, launch:
 
@@ -316,6 +319,30 @@ Treat any OpenAI-compatible server as the **Local LLM** provider:
 | Custom | loopback or LAN URL + optional API key |
 
 On first run and in settings, **Scan local ports** probes those addresses, lists available models, and lets you pick a default. Custom URLs that resolve to the public internet are rejected. Local endpoints are never bound or advertised on the WAN by Jonathan Ai.
+
+#### GitHub and GitLab
+
+From **Git & agents** in the desktop app (or the install wizard after the tree is installed):
+
+1. Paste a personal access token, or start device/OAuth login with **your** GitHub OAuth App client ID / GitLab application ID. Jonathan Ai does not ship a client secret.
+2. Credentials are stored only in `~/.clawd/config.json` (mode `0600`). They never enter git, `install.json`, or the installer artifact.
+3. You can list repos/projects, clone (click a repo to open it), pull, push a branch, create a repo, and open a pull request or merge request — no terminal required.
+4. **Branch-then-PR, not main.** Jonathan Ai will not push `main`/`master` (or the remote default) unless you explicitly name that branch. **Create repo and push** uses a `jonathan/<name>` feature branch and opens a PR/MR.
+5. New GitHub repos default to the **GoDeskio** owner/org unless you pick another.
+
+#### Other agents (MCP, Cursor, Codex, local)
+
+Jonathan Ai is meant to call and be called by tools you already run. It does not invent fake agents.
+
+- **MCP:** add a stdio command or HTTP URL in settings, test it (lists tools), enable/disable it. Enabled servers are available in the next turn.
+- **OpenAI-compatible agents:** add a base URL (loopback/LAN preferred; user-pasted HTTPS is allowed). Test connection, list tools, and invoke from a turn via the `ExternalAgent` tool.
+- **Cursor / Codex / local hook:** drop `~/.clawd/hooks/cursor.json` (or `codex.json`) with `{ "name": "Cursor", "base_url": "http://127.0.0.1:PORT/v1", "api_key": "" }`. Other local tools can `POST http://127.0.0.1:8765/api/hooks/inbound` with header `X-Clawd-Token` and `{ "text": "..." }`.
+
+Tokens for MCP/agents are collected only in the wizard or settings.
+
+#### Token usage (informational)
+
+Every chat window shows input, output, and running total tokens for that conversation (header). The count is saved with the session. It is **never a quota**: there is no paywall, no “out of tokens” stop, no upgrade prompt, and no Jonathan Ai token store. If a provider API itself returns a rate-limit or billing error, the app says so and you can switch to Hugging Face, a local LLM, or another connected provider. Local/self-hosted models have no purchase path.
 
 ### Run the original CLI
 
@@ -711,13 +738,16 @@ clawd desktop      # 启动桌面 host
 |------|------|------|
 | CLI 入口 | ✅ | `clawd`、`login`、`config`、`--version` |
 | 交互式 REPL | ✅ | 丰富的交互输出、历史记录、Tab 补全、多行输入 |
-| 多提供商支持 | ✅ | 支持 Anthropic、OpenAI、GLM |
+| 多提供商支持 | ✅ | 支持 Anthropic、OpenAI、GLM、Minimax、Hugging Face、本地 LLM |
 | 会话持久化 | ✅ | 本地保存/加载会话 |
+| Token 用量 | ✅ | 每个聊天窗口显示 input/output/合计，仅信息展示，不是配额 |
 | Agent Loop | ✅ | 工具调用循环实现 |
 | Skill 系统 | ✅ | 基于 SKILL.md 的 /skill 技能：参数替换 + 工具限制 |
 | 上下文构建 | 🟡 | 已接入 workspace、git、CLAUDE.md 的基础上下文注入，桌面端工作区选择器复用同一套 builder |
 | 权限系统 | ✅ | 路径沙箱 + 破坏性/网络工具的交互批准 |
 | 桌面应用 | ✅ | Electron/浏览器壳，复用现有 Python agent loop |
+| GitHub / GitLab | ✅ | 本机登录后可 clone/pull/push、建仓、开 PR/MR |
+| MCP / 其他 Agent | ✅ | 设置中接入 MCP 与 OpenAI 兼容 agent；Cursor/Codex hook |
 
 ### 工具系统（已实现 30+ 工具）
 
@@ -780,6 +810,12 @@ Hugging Face：在 https://huggingface.co/settings/tokens 创建 token，于桌�
 
 本地 LLM：扫描 Ollama (`http://127.0.0.1:11434`)、LM Studio、vLLM、llama.cpp、TGI 或自定义局域网地址，仅允许回环/局域网，不会暴露到公网。
 
+GitHub / GitLab：在桌面 **Git & agents** 或安装向导中粘贴 token（或用你自己的 OAuth/Application ID 做设备登录）。默认可在 GoDeskio 下建仓；不会推送默认分支，除非你明确写出分支名。凭证只保存在 `~/.clawd/config.json`。
+
+MCP / 其他 Agent：在设置中添加真实的 MCP 命令/URL 或 OpenAI 兼容地址（Cursor / Codex / 本地），可测试连接并列出工具。也可放置 `~/.clawd/hooks/cursor.json`，或向 `http://127.0.0.1:8765/api/hooks/inbound` POST。
+
+每个聊天窗口会显示该会话的 token 用量（输入/输出/合计），只做展示，不是付费墙。
+
 配置文件会保存在 `~/.clawd/config.json`。示例结构：
 
 ```json
@@ -811,7 +847,9 @@ Hugging Face：在 https://huggingface.co/settings/tokens 创建 token，于桌�
 ./install.sh --yes
 # 默认源码目录：~/Jonathan/Jonathan-Ai
 # 只从 https://github.com/GoDeskio/Clawd-Code 安装与更新
-# 安装后可在向导或桌面设置中连接 Hugging Face / 本地 LLM，无需重装
+# 安装后可在向导或桌面设置中连接 Hugging Face / 本地 LLM / GitHub / GitLab / MCP，无需重装
+# Token 只保存在 ~/.clawd/config.json，不会写入安装包或 git
+# 聊天窗口的 token 计数只做展示，不是付费墙
 ```
 
 ### 运行 CLI

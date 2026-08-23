@@ -90,12 +90,31 @@ async function refreshStatus() {
   const model = state.status.model || "unconfigured";
   $("model-line").textContent = `${state.status.provider} · ${model}`;
   $("chat-title").textContent = state.status.session?.title || "New chat";
+  renderUsage(state.status.session);
+  const git = state.status.git || {};
+  if ($("git-line")) {
+    $("git-line").textContent = git.is_repo
+      ? `${git.branch || "detached"} · default ${git.default_branch || "main"}${git.dirty ? " · dirty" : ""}`
+      : "Not a git repo";
+  }
+  renderConnectorStatus(state.status.connectors || {});
   if (state.status.needs_setup) {
     $("setup-modal").classList.remove("hidden");
   } else {
     $("setup-modal").classList.add("hidden");
   }
   renderUpdate(state.status.update || {});
+}
+
+function renderUsage(session) {
+  const node = $("usage-line");
+  if (!node) return;
+  const usage = (session && session.token_usage) || {};
+  const inn = usage.input_tokens || 0;
+  const out = usage.output_tokens || 0;
+  const total = usage.total_tokens || inn + out;
+  node.textContent = `${inn} in · ${out} out · ${total} total (informational)`;
+  node.title = "Token counts for this chat only. Informational — never a quota, paywall, or purchase path.";
 }
 
 function renderUpdate(update) {
@@ -126,7 +145,8 @@ async function refreshSessions() {
   for (const session of state.sessions) {
     const btn = document.createElement("button");
     btn.className = `session-item${session.session_id === current ? " active" : ""}`;
-    btn.innerHTML = `<strong>${session.title || session.session_id}</strong><div class="muted">${session.provider} · ${session.message_count} msgs</div>`;
+    const tokens = session.token_usage?.total_tokens || 0;
+    btn.innerHTML = `<strong>${session.title || session.session_id}</strong><div class="muted">${session.provider} · ${session.message_count} msgs · ${tokens} tok</div>`;
     btn.addEventListener("click", async () => {
       await api("/api/sessions/load", { method: "POST", body: JSON.stringify({ session_id: session.session_id }) });
       $("transcript").innerHTML = "";
@@ -188,6 +208,135 @@ function bindConnectorForm(prefix, catalog) {
   };
   providerEl.onchange = apply;
   apply();
+}
+
+function renderConnectorStatus(connectors) {
+  if (!connectors) return;
+  if ($("gh-status") && connectors.github) {
+    $("gh-status").textContent = connectors.github.configured
+      ? `Connected ${connectors.github.login || ""} · owner ${connectors.github.owner}`
+      : "Not connected";
+    if ($("gh-owner") && connectors.github.owner) $("gh-owner").value = connectors.github.owner;
+  }
+  if ($("gl-status") && connectors.gitlab) {
+    $("gl-status").textContent = connectors.gitlab.configured
+      ? `Connected ${connectors.gitlab.login || ""} · ${connectors.gitlab.host}`
+      : "Not connected";
+    if (connectors.gitlab.host) $("gl-host").value = connectors.gitlab.host;
+    if (connectors.gitlab.owner) $("gl-owner").value = connectors.gitlab.owner;
+  }
+  renderMcpList(connectors.mcp || []);
+  renderAgentList(connectors.agents || []);
+}
+
+function renderMcpList(items) {
+  const box = $("mcp-list");
+  if (!box) return;
+  box.innerHTML = "";
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "scan-item";
+    const label = document.createElement("div");
+    label.textContent = `${item.name} · ${item.transport}${item.enabled ? "" : " · disabled"}`;
+    const actions = document.createElement("div");
+    actions.className = "row";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "ghost";
+    toggle.textContent = item.enabled ? "Disable" : "Enable";
+    toggle.addEventListener("click", async () => {
+      await api("/api/connectors/mcp/enable", {
+        method: "POST",
+        body: JSON.stringify({ id: item.id || item.name, enabled: !item.enabled }),
+      });
+      await refreshStatus();
+    });
+    const test = document.createElement("button");
+    test.type = "button";
+    test.className = "ghost";
+    test.textContent = "Test";
+    test.addEventListener("click", async () => {
+      try {
+        const data = await api("/api/connectors/mcp/test", {
+          method: "POST",
+          body: JSON.stringify({ id: item.id, name: item.name }),
+        });
+        $("mcp-status").textContent = `Tools: ${(data.tools || []).join(", ") || "(none listed)"}`;
+      } catch (err) {
+        $("mcp-status").textContent = err.message;
+      }
+    });
+    actions.append(toggle, test);
+    row.append(label, actions);
+    box.appendChild(row);
+  }
+}
+
+function renderAgentList(items) {
+  const box = $("agent-list");
+  if (!box) return;
+  box.innerHTML = "";
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "scan-item";
+    const label = document.createElement("div");
+    label.textContent = `${item.name} · ${item.base_url}${item.enabled === false ? " · disabled" : ""}`;
+    const actions = document.createElement("div");
+    actions.className = "row";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "ghost";
+    toggle.textContent = item.enabled === false ? "Enable" : "Disable";
+    toggle.addEventListener("click", async () => {
+      await api("/api/connectors/agents/enable", {
+        method: "POST",
+        body: JSON.stringify({ id: item.id || item.name, enabled: item.enabled === false }),
+      });
+      await refreshStatus();
+    });
+    const test = document.createElement("button");
+    test.type = "button";
+    test.className = "ghost";
+    test.textContent = "Test";
+    test.addEventListener("click", async () => {
+      try {
+        const data = await api("/api/connectors/agents/test", {
+          method: "POST",
+          body: JSON.stringify({ id: item.id, name: item.name }),
+        });
+        const tools = (data.tools || []).map((entry) => entry.name || entry).join(", ");
+        $("agent-status").textContent = `Reachable. Tools: ${tools || "(chat completions only)"}`;
+      } catch (err) {
+        $("agent-status").textContent = err.message;
+      }
+    });
+    actions.append(toggle, test);
+    row.append(label, actions);
+    box.appendChild(row);
+  }
+}
+
+function renderRepoList(box, repos, forge) {
+  box.innerHTML = "";
+  for (const repo of repos) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "scan-item";
+    btn.textContent = repo.full_name || repo.clone_url;
+    btn.addEventListener("click", async () => {
+      try {
+        await api("/api/git/clone", {
+          method: "POST",
+          body: JSON.stringify({ forge, repo: repo.full_name || repo.clone_url }),
+        });
+        addBubble("system", `Cloned ${repo.full_name} and opened it.`);
+        await refreshStatus();
+      } catch (err) {
+        addBubble("system", err.message);
+      }
+    });
+    box.appendChild(btn);
+  }
 }
 
 function renderScanResults(box, endpoints, onPick) {
@@ -297,6 +446,8 @@ function watchJob(jobId) {
       if (event.text && !(assistant && assistant.dataset.raw)) {
         addBubble(event.kind === "command" ? "system" : "assistant", event.text);
       }
+      if (event.session) renderUsage(event.session);
+      else if (event.usage) renderUsage({ token_usage: event.usage });
       if (native?.notify && event.kind !== "command") {
         native.notify("Jonathan Ai finished", (event.text || "Done").slice(0, 120));
       }
@@ -559,6 +710,194 @@ function bindUi() {
   wireHf("settings");
   wireLocal("setup");
   wireLocal("settings");
+
+  $("open-connectors").addEventListener("click", async () => {
+    $("connectors-modal").classList.remove("hidden");
+    await refreshStatus();
+  });
+  $("connectors-close").addEventListener("click", () => $("connectors-modal").classList.add("hidden"));
+  $("open-repo").addEventListener("click", async () => {
+    try {
+      await api("/api/git/open", { method: "POST", body: "{}" });
+      addBubble("system", "Opened the git workspace.");
+      await refreshStatus();
+    } catch (err) {
+      addBubble("system", err.message);
+    }
+  });
+  $("pull-repo").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/git/pull", { method: "POST", body: "{}" });
+      addBubble("system", `Pulled ${data.branch || "current branch"}.`);
+      await refreshStatus();
+    } catch (err) {
+      addBubble("system", err.message);
+    }
+  });
+  $("publish-repo").addEventListener("click", async () => {
+    const name = window.prompt("Repository name", (state.status?.workspace || "").split(/[\\/]/).pop() || "jonathan-project");
+    if (!name) return;
+    const forge = window.prompt("Forge: github or gitlab", "github") || "github";
+    const branch = window.prompt("Feature branch (leave blank to use jonathan/<name>; default branches are refused unless named)", "") || "";
+    try {
+      const result = await api("/api/git/publish", {
+        method: "POST",
+        body: JSON.stringify({ name, forge, branch: branch || null, owner: $("gh-owner")?.value || undefined }),
+      });
+      const url = result.review?.html_url || result.repo?.html_url || "done";
+      addBubble("system", `Published ${result.repo?.full_name || name} on ${result.forge}. ${url}`);
+      await refreshStatus();
+    } catch (err) {
+      addBubble("system", err.message);
+    }
+  });
+  $("gh-save").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/github/login", {
+        method: "POST",
+        body: JSON.stringify({ token: $("gh-token").value, owner: $("gh-owner").value || "GoDeskio" }),
+      });
+      $("gh-token").value = "";
+      $("gh-status").textContent = `Connected as ${data.login || "GitHub user"}`;
+    } catch (err) {
+      $("gh-status").textContent = err.message;
+    }
+  });
+  $("gl-save").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/gitlab/login", {
+        method: "POST",
+        body: JSON.stringify({ token: $("gl-token").value, owner: $("gl-owner").value, host: $("gl-host").value }),
+      });
+      $("gl-token").value = "";
+      $("gl-status").textContent = `Connected as ${data.login || "GitLab user"}`;
+    } catch (err) {
+      $("gl-status").textContent = err.message;
+    }
+  });
+  $("gh-repos").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/github/repos");
+      renderRepoList($("gh-repos-list"), data.repos || [], "github");
+    } catch (err) {
+      $("gh-status").textContent = err.message;
+    }
+  });
+  $("gl-projects").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/gitlab/projects");
+      renderRepoList($("gl-projects-list"), data.projects || [], "gitlab");
+    } catch (err) {
+      $("gl-status").textContent = err.message;
+    }
+  });
+  $("gh-device").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/github/device/start", {
+        method: "POST",
+        body: JSON.stringify({ client_id: $("gh-client").value }),
+      });
+      $("gh-device-status").textContent = data.message || JSON.stringify(data);
+    } catch (err) {
+      $("gh-device-status").textContent = err.message;
+    }
+  });
+  $("gh-poll").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/github/device/poll", { method: "POST", body: "{}" });
+      $("gh-device-status").textContent = data.pending ? "Still waiting…" : `Connected as ${data.login}`;
+    } catch (err) {
+      $("gh-device-status").textContent = err.message;
+    }
+  });
+  $("gl-device").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/gitlab/device/start", {
+        method: "POST",
+        body: JSON.stringify({ client_id: $("gl-client").value, host: $("gl-host").value }),
+      });
+      $("gl-device-status").textContent = data.message || JSON.stringify(data);
+    } catch (err) {
+      $("gl-device-status").textContent = err.message;
+    }
+  });
+  $("gl-poll").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/gitlab/device/poll", { method: "POST", body: "{}" });
+      $("gl-device-status").textContent = data.pending ? "Still waiting…" : `Connected as ${data.login}`;
+    } catch (err) {
+      $("gl-device-status").textContent = err.message;
+    }
+  });
+  $("mcp-save").addEventListener("click", async () => {
+    try {
+      const args = ($("mcp-args").value || "").trim().split(/\s+/).filter(Boolean);
+      const data = await api("/api/connectors/mcp", {
+        method: "POST",
+        body: JSON.stringify({
+          name: $("mcp-name").value,
+          command: $("mcp-command").value,
+          args,
+          url: $("mcp-url").value,
+          token: $("mcp-token").value,
+        }),
+      });
+      $("mcp-status").textContent = "Saved on this machine.";
+      renderMcpList(data.mcp || []);
+    } catch (err) {
+      $("mcp-status").textContent = err.message;
+    }
+  });
+  $("mcp-test").addEventListener("click", async () => {
+    try {
+      const args = ($("mcp-args").value || "").trim().split(/\s+/).filter(Boolean);
+      const data = await api("/api/connectors/mcp/test", {
+        method: "POST",
+        body: JSON.stringify({
+          name: $("mcp-name").value,
+          command: $("mcp-command").value,
+          args,
+          url: $("mcp-url").value,
+          token: $("mcp-token").value,
+        }),
+      });
+      $("mcp-status").textContent = `Tools: ${(data.tools || []).join(", ") || "(none listed)"}`;
+    } catch (err) {
+      $("mcp-status").textContent = err.message;
+    }
+  });
+  $("agent-save").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/agents", {
+        method: "POST",
+        body: JSON.stringify({
+          name: $("agent-name").value,
+          base_url: $("agent-url").value,
+          api_key: $("agent-key").value,
+        }),
+      });
+      $("agent-status").textContent = "Saved on this machine.";
+      renderAgentList(data.agents || []);
+    } catch (err) {
+      $("agent-status").textContent = err.message;
+    }
+  });
+  $("agent-test").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/connectors/agents/test", {
+        method: "POST",
+        body: JSON.stringify({
+          name: $("agent-name").value,
+          base_url: $("agent-url").value,
+          api_key: $("agent-key").value,
+        }),
+      });
+      const tools = (data.tools || []).map((item) => item.name || item).join(", ");
+      $("agent-status").textContent = `Reachable. Tools: ${tools || "(chat completions only)"}`;
+    } catch (err) {
+      $("agent-status").textContent = err.message;
+    }
+  });
 
   const composer = document.querySelector(".composer");
   composer.addEventListener("dragover", (event) => {

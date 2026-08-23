@@ -234,6 +234,9 @@ class TestDesktopServer(DesktopTestCase):
         events = json.loads(urllib.request.urlopen(events_req, timeout=2).read())
         self.assertTrue(events["done"])
         self.assertTrue(any(ev.get("type") == "done" and ev.get("text") == "pong" for ev in events["events"]))
+        done = [ev for ev in events["events"] if ev.get("type") == "done"][0]
+        self.assertGreaterEqual((done.get("usage") or {}).get("total_tokens") or 0, 1)
+        self.assertGreaterEqual(runtime.session.token_usage["total_tokens"], 1)
 
     def test_api_rejects_missing_token(self) -> None:
         server = DesktopServer(DesktopRuntime(workspace=self.workspace), host="127.0.0.1", port=0)
@@ -252,6 +255,9 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("Jonathan Ai", html)
         self.assertIn("Hugging Face", html)
         self.assertIn("Local LLM", html)
+        self.assertIn("GitHub", html)
+        self.assertIn("Create repo and push", html)
+        self.assertIn("informational", html)
         self.assertIn("app.js", html)
 
 

@@ -90,6 +90,75 @@ class DesktopServer:
             return 200, runtime.scan_local(body.get("base_url") or body.get("url"))
         if path == "/api/connectors/local/models" and method == "POST":
             return 200, runtime.list_local(str(body.get("base_url") or ""), api_key=body.get("api_key"))
+        if path == "/api/connectors" and method == "GET":
+            return 200, runtime.connectors_public()
+        if path == "/api/connectors/github/login" and method == "POST":
+            return 200, runtime.connect_github(str(body.get("token") or ""), owner=body.get("owner"))
+        if path == "/api/connectors/gitlab/login" and method == "POST":
+            return 200, runtime.connect_gitlab(str(body.get("token") or ""), owner=body.get("owner"), host=body.get("host"))
+        if path == "/api/connectors/github/device/start" and method == "POST":
+            return 200, runtime.start_device_login("github", str(body.get("client_id") or ""))
+        if path == "/api/connectors/gitlab/device/start" and method == "POST":
+            return 200, runtime.start_device_login(
+                "gitlab",
+                str(body.get("client_id") or body.get("application_id") or ""),
+                forge_host=body.get("host"),
+            )
+        if path == "/api/connectors/github/device/poll" and method == "POST":
+            return 200, runtime.poll_device_login("github")
+        if path == "/api/connectors/gitlab/device/poll" and method == "POST":
+            return 200, runtime.poll_device_login("gitlab")
+        if path == "/api/connectors/github/repos" and method == "GET":
+            return 200, runtime.github_repos()
+        if path == "/api/connectors/gitlab/projects" and method == "GET":
+            return 200, runtime.gitlab_projects()
+        if path == "/api/git/clone" and method == "POST":
+            return 200, runtime.clone_repo(str(body.get("forge") or "github"), str(body.get("repo") or ""), dest=body.get("dest"))
+        if path == "/api/git/pull" and method == "POST":
+            return 200, runtime.pull_repo(body.get("dest"))
+        if path == "/api/git/push" and method == "POST":
+            return 200, runtime.push_repo(
+                str(body.get("branch") or ""),
+                dest=body.get("dest"),
+                forge=str(body.get("forge") or "github"),
+                operator_named=bool(body.get("branch")),
+            )
+        if path == "/api/git/pr" and method == "POST":
+            return 200, runtime.open_review(
+                str(body.get("forge") or "github"),
+                str(body.get("repo") or ""),
+                str(body.get("branch") or ""),
+                str(body.get("title") or "Update"),
+                body=str(body.get("body") or ""),
+            )
+        if path == "/api/git/publish" and method == "POST":
+            return 200, runtime.publish_repo(
+                forge=str(body.get("forge") or "github"),
+                name=body.get("name"),
+                owner=body.get("owner"),
+                branch=body.get("branch"),
+                title=body.get("title"),
+            )
+        if path == "/api/git/open" and method == "POST":
+            return 200, runtime.open_this_repo()
+        if path == "/api/git/status" and method == "GET":
+            return 200, runtime.status().get("git") or {}
+        if path == "/api/connectors/mcp" and method == "POST":
+            return 200, runtime.add_mcp(body)
+        if path == "/api/connectors/mcp/enable" and method == "POST":
+            return 200, runtime.enable_mcp(str(body.get("id") or body.get("name") or ""), bool(body.get("enabled", True)))
+        if path == "/api/connectors/agents/enable" and method == "POST":
+            return 200, runtime.enable_agent(str(body.get("id") or body.get("name") or ""), bool(body.get("enabled", True)))
+        if path == "/api/connectors/mcp/test" and method == "POST":
+            return 200, runtime.test_mcp(body)
+        if path == "/api/connectors/agents" and method == "POST":
+            return 200, runtime.add_agent(body)
+        if path == "/api/connectors/agents/test" and method == "POST":
+            return 200, runtime.test_saved_agent(body)
+        if path == "/api/connectors/agents/invoke" and method == "POST":
+            return 200, runtime.invoke_saved_agent(body)
+        if path == "/api/hooks/inbound" and method == "POST":
+            return 200, runtime.inbound_hook(str(body.get("text") or body.get("prompt") or ""))
         if path == "/api/workspace" and method == "POST":
             return 200, runtime.set_workspace(str(body.get("path") or ""))
         if path == "/api/sessions" and method == "GET":

@@ -207,6 +207,15 @@ class TestUpdater(unittest.TestCase):
             data = read_install_record(home=home)
             self.assertEqual(data["repo"], CANONICAL_HTTPS)
             self.assertIn("Jonathan", data["source_dir"])
+            self.assertNotIn("token", data)
+            self.assertNotIn("api_key", data)
+
+    def test_wizard_html_covers_git_and_agents(self) -> None:
+        html = (Path(__file__).resolve().parents[1] / "src" / "install" / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("GitHub", html)
+        self.assertIn("GitLab", html)
+        self.assertIn("MCP", html)
+        self.assertIn("Clone GoDeskio/Clawd-Code", html)
 
 
 if __name__ == "__main__":

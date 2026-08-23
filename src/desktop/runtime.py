@@ -46,11 +46,51 @@ from src.tool_system.agent_loop import ToolEvent, run_agent_loop, summarize_tool
 from src.tool_system.context import ToolContext
 from src.tool_system.defaults import build_default_registry
 from src.tool_system.protocol import ToolCall
+from src.connectors.agents import get_saved_agent, invoke_agent, list_agent_tools, test_agent_endpoint
+from src.connectors.git_common import workspace_git_status
+from src.connectors.github import GitHubConnector, poll_github_device_login, start_github_device_login
+from src.connectors.gitlab import GitLabConnector, poll_gitlab_device_login, start_gitlab_device_login
+from src.connectors.hooks import load_hook_files
+from src.connectors.mcp_client import enabled_mcp_clients, test_mcp_record
+from src.connectors.publish import publish_workspace
+from src.connectors.store import (
+    DEFAULT_GITHUB_OWNER,
+    public_connectors,
+    read_connectors,
+    save_agent,
+    save_mcp_server,
+    set_agent_enabled,
+    set_mcp_enabled,
+)
 from src.install.record import read_install_record, resolve_source_dir
 from src.install.source import default_source_dir
 from src.update import Updater
 
 from .attachments import Attachment, attachments_from_payload, render_attachments
+
+
+def provider_limit_hint(exc: Exception | str) -> str:
+    """Explain a provider rate-limit/billing error without inventing a token store."""
+    message = str(exc)
+    lower = message.lower()
+    markers = (
+        "rate limit",
+        "rate_limit",
+        "too many requests",
+        "429",
+        "quota",
+        "billing",
+        "insufficient_quota",
+        "credit",
+        "payment required",
+    )
+    if not any(marker in lower for marker in markers):
+        return ""
+    return (
+        " This is the connected provider's own limit, not a Jonathan Ai token store. "
+        "Switch to Hugging Face, a local LLM, or another saved provider in settings. "
+        "The on-screen token count is informational and never a paywall."
+    )
 
 
 EventCallback = Callable[[dict[str, Any]], None]
@@ -114,6 +154,11 @@ class DesktopRuntime:
         self._lock = threading.Lock()
         self.install_record = read_install_record()
         self.updater = Updater(resolve_source_dir() or Path.cwd())
+        self._device: dict[str, Any] = {}
+        try:
+            load_hook_files()
+        except Exception:
+            pass
         self._try_init_provider()
         if self.install_record:
             self._update_thread = threading.Thread(target=self._auto_update_on_launch, daemon=True, name="clawd-update")
@@ -124,7 +169,11 @@ class DesktopRuntime:
         ctx.gate_destructive_tools = True
         ctx.permission_handler = self._handle_permission_request
         ctx.ask_user = self._ask_user_questions
+        ctx.mcp_clients = enabled_mcp_clients()
         return ctx
+
+    def _refresh_mcp(self) -> None:
+        self.tool_context.mcp_clients = enabled_mcp_clients()
 
     def _try_init_provider(self) -> None:
         try:
@@ -160,6 +209,8 @@ class DesktopRuntime:
             "config": cfg,
             "notify_on_complete": get_desktop_settings().get("notify_on_complete", True),
             "install": self.install_info(),
+            "connectors": public_connectors(),
+            "git": workspace_git_status(self.workspace),
             "update": self.updater.last_check or {
                 "source_dir": str(self.updater.source_dir),
                 "local_sha": None,
@@ -283,6 +334,159 @@ class DesktopRuntime:
     def list_local(self, base_url: str, api_key: str | None = None) -> dict[str, Any]:
         url = normalize_openai_base(base_url)
         return {"base_url": url, "models": list_local_models(url, api_key)}
+
+    def connectors_public(self) -> dict[str, Any]:
+        return public_connectors()
+
+    def connect_github(self, token: str, owner: str | None = None) -> dict[str, Any]:
+        result = GitHubConnector().login_with_token(token, owner=owner or DEFAULT_GITHUB_OWNER)
+        return {"ok": True, **result, "connectors": public_connectors()}
+
+    def connect_gitlab(self, token: str, owner: str | None = None, host: str | None = None) -> dict[str, Any]:
+        result = GitLabConnector(host=host).login_with_token(token, owner=owner, host=host)
+        return {"ok": True, **result, "connectors": public_connectors()}
+
+    def start_device_login(self, host: str, client_id: str, forge_host: str | None = None) -> dict[str, Any]:
+        if host == "gitlab":
+            payload = start_gitlab_device_login(client_id, host=forge_host or "https://gitlab.com")
+        else:
+            payload = start_github_device_login(client_id)
+        self._device = {"host": host, **payload}
+        return {k: v for k, v in payload.items() if k != "device_code"} | {"started": True}
+
+    def poll_device_login(self, host: str | None = None) -> dict[str, Any]:
+        pending = self._device
+        kind = host or pending.get("host") or "github"
+        if not pending.get("device_code"):
+            raise ValueError("Start device login first")
+        if kind == "gitlab":
+            result = poll_gitlab_device_login(pending["client_id"], pending["device_code"], host=pending.get("host"))
+        else:
+            result = poll_github_device_login(pending["client_id"], pending["device_code"])
+        if result.get("pending"):
+            return result
+        self._device = {}
+        return {**result, "connectors": public_connectors()}
+
+    def github_repos(self) -> dict[str, Any]:
+        return {"repos": GitHubConnector().list_repos()}
+
+    def gitlab_projects(self) -> dict[str, Any]:
+        return {"projects": GitLabConnector().list_projects()}
+
+    def clone_repo(self, forge: str, repo: str, dest: str | None = None) -> dict[str, Any]:
+        target = Path(dest).expanduser() if dest else Path.home() / "Jonathan" / Path(str(repo).rstrip("/").split("/")[-1].replace(".git", ""))
+        if forge == "gitlab":
+            result = GitLabConnector().clone(repo, target)
+        else:
+            result = GitHubConnector().clone(repo, target)
+        return {**result, "opened": self.set_workspace(result["path"])}
+
+    def pull_repo(self, dest: str | None = None) -> dict[str, Any]:
+        path = Path(dest).expanduser() if dest else self.workspace
+        connectors = read_connectors()
+        if connectors["gitlab"].get("token") and "gitlab" in str(workspace_git_status(path).get("status") or ""):
+            return GitLabConnector().pull(path)
+        if connectors["github"].get("token"):
+            return GitHubConnector().pull(path)
+        return GitHubConnector().pull(path)
+
+    def push_repo(self, branch: str, *, dest: str | None = None, forge: str = "github", operator_named: bool = False) -> dict[str, Any]:
+        path = Path(dest).expanduser() if dest else self.workspace
+        named = bool(operator_named or (branch or "").strip())
+        if forge == "gitlab":
+            return GitLabConnector().push_branch(path, branch, operator_named=named)
+        return GitHubConnector().push_branch(path, branch, operator_named=named)
+
+    def open_review(self, forge: str, repo: str, branch: str, title: str, body: str = "") -> dict[str, Any]:
+        if forge == "gitlab":
+            return GitLabConnector().create_merge_request(repo, title=title, source=branch, body=body)
+        return GitHubConnector().create_pull_request(repo, title=title, head=branch, body=body)
+
+    def publish_repo(self, *, forge: str = "github", name: str | None = None, owner: str | None = None, branch: str | None = None, title: str | None = None) -> dict[str, Any]:
+        operator_named = bool(branch)
+        return publish_workspace(
+            self.workspace,
+            forge=forge,
+            name=name,
+            owner=owner,
+            branch=branch,
+            title=title,
+            operator_named_branch=operator_named,
+        )
+
+    def open_this_repo(self) -> dict[str, Any]:
+        status = workspace_git_status(self.workspace)
+        if status.get("is_repo"):
+            return self.set_workspace(status["path"])
+        raise ValueError("This workspace is not a git repository")
+
+    def add_mcp(self, body: dict[str, Any]) -> dict[str, Any]:
+        result = save_mcp_server(
+            name=str(body.get("name") or ""),
+            command=str(body.get("command") or ""),
+            args=list(body.get("args") or []),
+            url=str(body.get("url") or ""),
+            token=str(body.get("token") or ""),
+            enabled=bool(body.get("enabled", True)),
+            server_id=body.get("id"),
+        )
+        self._refresh_mcp()
+        return result
+
+    def enable_mcp(self, server_id: str, enabled: bool) -> dict[str, Any]:
+        result = set_mcp_enabled(server_id, enabled)
+        self._refresh_mcp()
+        return result
+
+    def enable_agent(self, agent_id: str, enabled: bool) -> dict[str, Any]:
+        return set_agent_enabled(agent_id, enabled)
+
+    def test_mcp(self, body: dict[str, Any]) -> dict[str, Any]:
+        record = body
+        if body.get("id") or body.get("name"):
+            for item in read_connectors().get("mcp") or []:
+                if item.get("id") == body.get("id") or item.get("name") == body.get("name"):
+                    record = {**item, **{k: v for k, v in body.items() if v}}
+                    break
+        result = test_mcp_record(record)
+        return result
+
+    def add_agent(self, body: dict[str, Any]) -> dict[str, Any]:
+        return save_agent(
+            name=str(body.get("name") or ""),
+            base_url=str(body.get("base_url") or body.get("url") or ""),
+            api_key=str(body.get("api_key") or body.get("token") or ""),
+            kind=str(body.get("kind") or "openai-compatible"),
+            enabled=bool(body.get("enabled", True)),
+            agent_id=body.get("id"),
+        )
+
+    def test_saved_agent(self, body: dict[str, Any]) -> dict[str, Any]:
+        url = str(body.get("base_url") or "")
+        key = str(body.get("api_key") or "")
+        if body.get("id") or body.get("name"):
+            saved = get_saved_agent(str(body.get("id") or body.get("name")))
+            url = url or str(saved.get("base_url") or "")
+            key = key or str(saved.get("api_key") or "")
+        result = test_agent_endpoint(url, key)
+        result["tools"] = list_agent_tools(url, key)
+        return result
+
+    def invoke_saved_agent(self, body: dict[str, Any]) -> dict[str, Any]:
+        saved = get_saved_agent(str(body.get("id") or body.get("name") or ""))
+        return invoke_agent(
+            str(saved.get("base_url") or ""),
+            str(body.get("text") or body.get("prompt") or ""),
+            api_key=str(saved.get("api_key") or ""),
+            model=body.get("model"),
+        )
+
+    def inbound_hook(self, text: str) -> dict[str, Any]:
+        if not str(text or "").strip():
+            raise ValueError("inbound hook text is required")
+        job_id = self.start_chat(text)
+        return {"ok": True, "job_id": job_id}
 
     def set_workspace(self, path: str | Path) -> dict[str, Any]:
         workspace = Path(path).expanduser().resolve()
@@ -587,17 +791,24 @@ class DesktopRuntime:
                 on_event=on_event,
                 on_text_chunk=on_text_chunk,
             )
+            usage = self.session.record_usage(result.usage)
             if self.session.conversation.messages:
                 self.session.save()
             self._finish(job, {
                 "type": "done",
                 "text": result.response_text,
-                "usage": result.usage,
+                "usage": usage,
+                "turn_usage": result.usage,
                 "num_turns": result.num_turns,
                 "session": self.session.to_summary(),
             })
         except Exception as exc:
-            self._finish(job, {"type": "error", "error": str(exc)})
+            hint = provider_limit_hint(exc)
+            self._finish(job, {
+                "type": "error",
+                "error": f"{exc}{hint}",
+                "provider_limit": bool(hint),
+            })
 
     def _handle_slash(self, job: ChatJob, raw: str) -> bool:
         if raw == "/":
@@ -706,11 +917,13 @@ class DesktopRuntime:
             }),
             on_text_chunk=lambda chunk: self._emit(job, {"type": "token", "text": chunk}) if chunk else None,
         )
+        usage = self.session.record_usage(result_loop.usage)
         self.session.save()
         self._finish(job, {
             "type": "done",
             "text": result_loop.response_text,
-            "usage": result_loop.usage,
+            "usage": usage,
+            "turn_usage": result_loop.usage,
             "num_turns": result_loop.num_turns,
             "session": self.session.to_summary(),
         })

@@ -83,6 +83,7 @@ GATED_TOOL_NAMES = frozenset({
     "webfetch",
     "websearch",
     "mcp",
+    "externalagent",
     "remotetrigger",
 })
 

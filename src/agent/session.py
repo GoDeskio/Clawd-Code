@@ -11,6 +11,22 @@ from dataclasses import dataclass, field
 from .conversation import Conversation
 
 
+def empty_token_usage() -> dict:
+    return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
+
+def merge_token_usage(current: dict | None, delta: dict | None) -> dict:
+    """Add one turn's tokens onto the running chat total. Informational only."""
+    totals = dict(current) if isinstance(current, dict) else empty_token_usage()
+    extra = delta if isinstance(delta, dict) else {}
+    inp = int(extra.get("input_tokens") or extra.get("prompt_tokens") or 0)
+    out = int(extra.get("output_tokens") or extra.get("completion_tokens") or 0)
+    totals["input_tokens"] = int(totals.get("input_tokens") or 0) + max(inp, 0)
+    totals["output_tokens"] = int(totals.get("output_tokens") or 0) + max(out, 0)
+    totals["total_tokens"] = totals["input_tokens"] + totals["output_tokens"]
+    return totals
+
+
 def session_dir() -> Path:
     """Return the local session directory (~/.clawd/sessions)."""
     path = Path.home() / ".clawd" / "sessions"
@@ -39,6 +55,7 @@ class Session:
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
     workspace: str = ""
     title: str = "New chat"
+    token_usage: dict = field(default_factory=empty_token_usage)
 
     def preview_title(self) -> str:
         derived = _title_from_conversation(self.conversation)
@@ -56,7 +73,12 @@ class Session:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "message_count": len(self.conversation.messages),
+            "token_usage": merge_token_usage(self.token_usage, None),
         }
+
+    def record_usage(self, usage: dict | None) -> dict:
+        self.token_usage = merge_token_usage(self.token_usage, usage)
+        return dict(self.token_usage)
 
     def save(self):
         """Save session to disk."""
@@ -74,6 +96,7 @@ class Session:
             "updated_at": self.updated_at,
             "workspace": self.workspace,
             "title": self.title,
+            "token_usage": merge_token_usage(self.token_usage, None),
         }
 
         with open(session_file, 'w') as f:
@@ -100,6 +123,7 @@ class Session:
             updated_at=data.get("updated_at", ""),
             workspace=data.get("workspace", ""),
             title=data.get("title") or _title_from_conversation(conversation),
+            token_usage=merge_token_usage(data.get("token_usage"), None),
         )
 
     @classmethod
@@ -122,6 +146,7 @@ class Session:
                 "created_at": data.get("created_at", ""),
                 "updated_at": data.get("updated_at", ""),
                 "message_count": len(conversation.messages),
+                "token_usage": merge_token_usage(data.get("token_usage"), None),
             })
         items.sort(key=lambda row: row.get("updated_at") or row.get("created_at") or "", reverse=True)
         return items

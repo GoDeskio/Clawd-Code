@@ -11,6 +11,7 @@
     .muted { color: #93a38c; }
     input, button, select { font: inherit; }
     input, select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #2c362a; background: #1d241c; color: inherit; }
+    input[type="checkbox"] { width: auto; }
     button { border: 0; border-radius: 10px; padding: 10px 14px; background: #8fd17a; color: #12210f; font-weight: 600; cursor: pointer; }
     button.ghost { background: transparent; color: inherit; border: 1px solid #2c362a; }
     button:disabled { opacity: 0.5; }
@@ -23,11 +24,16 @@
 </head>
 <body>
   <h1>Install Jonathan Ai</h1>
-  <p class="muted">This wizard copies the GoDeskio/Clawd-Code source onto this computer, installs Python and desktop dependencies, and verifies Jonathan Ai can start a session. Tokens never go into git or the installer artifact.</p>
+  <p class="muted">This wizard copies the GoDeskio/Clawd-Code source onto this computer, installs Python and desktop dependencies, and verifies Jonathan Ai can start a session. Tokens never go into git or the installer artifact. They stay in <code>~/.clawd/config.json</code> only.</p>
   <label>Install folder
     <input id="source-dir" />
   </label>
   <p class="muted" id="os-line"></p>
+  <label>
+    <input id="clone-source" type="checkbox" />
+    Clone GoDeskio/Clawd-Code into the Jonathan folder if it is not already there
+  </label>
+  <p class="muted">Unchecked copies this checkout. The remote is always <code>https://github.com/GoDeskio/Clawd-Code</code>.</p>
   <button id="start">Install</button>
   <h2>Progress</h2>
   <div id="log">Waiting…</div>
@@ -65,6 +71,81 @@
     <div id="local-results"></div>
     <p id="connect-status" class="muted"></p>
     <button id="connect" type="button">Save connection on this machine</button>
+  </section>
+
+  <section id="forges" class="hidden">
+    <h2>GitHub &amp; GitLab</h2>
+    <p class="muted">Optional. Tokens stay on this machine. Jonathan Ai never pushes <code>main</code>/<code>master</code> unless you name that branch. New GitHub repos default to the <code>GoDeskio</code> org/user.</p>
+    <h3>GitHub</h3>
+    <label>Token
+      <input id="gh-token" type="password" autocomplete="off" />
+    </label>
+    <label>Owner / org
+      <input id="gh-owner" value="GoDeskio" />
+    </label>
+    <div class="row">
+      <button id="gh-save" type="button">Save GitHub token</button>
+      <button id="gh-repos" class="ghost" type="button">List repos</button>
+    </div>
+    <p id="gh-status" class="muted"></p>
+    <div id="gh-repos-list"></div>
+    <h3>GitLab</h3>
+    <label>Host
+      <input id="gl-host" value="https://gitlab.com" />
+    </label>
+    <label>Personal access token
+      <input id="gl-token" type="password" autocomplete="off" />
+    </label>
+    <label>Group / owner
+      <input id="gl-owner" />
+    </label>
+    <div class="row">
+      <button id="gl-save" type="button">Save GitLab token</button>
+      <button id="gl-projects" class="ghost" type="button">List projects</button>
+    </div>
+    <p id="gl-status" class="muted"></p>
+    <div id="gl-projects-list"></div>
+  </section>
+
+  <section id="other-agents" class="hidden">
+    <h2>Other agents &amp; MCP</h2>
+    <p class="muted">Add a real MCP server or an OpenAI-compatible agent URL you already run (Cursor / Codex / local). Do not invent fake agents. Optional tokens stay in <code>~/.clawd/config.json</code>.</p>
+    <h3>MCP server</h3>
+    <label>Name
+      <input id="mcp-name" />
+    </label>
+    <label>Command (stdio)
+      <input id="mcp-command" placeholder="npx" />
+    </label>
+    <label>Args
+      <input id="mcp-args" placeholder="-y @modelcontextprotocol/server-filesystem /tmp" />
+    </label>
+    <label>HTTP URL
+      <input id="mcp-url" />
+    </label>
+    <label>Optional token
+      <input id="mcp-token" type="password" autocomplete="off" />
+    </label>
+    <div class="row">
+      <button id="mcp-save" type="button">Add MCP server</button>
+      <button id="mcp-test" class="ghost" type="button">Test MCP</button>
+    </div>
+    <p id="mcp-status" class="muted"></p>
+    <h3>OpenAI-compatible agent</h3>
+    <label>Name
+      <input id="agent-name" />
+    </label>
+    <label>Base URL
+      <input id="agent-url" placeholder="http://127.0.0.1:3999/v1" />
+    </label>
+    <label>Optional API key
+      <input id="agent-key" type="password" autocomplete="off" />
+    </label>
+    <div class="row">
+      <button id="agent-save" type="button">Add agent</button>
+      <button id="agent-test" class="ghost" type="button">Test connection</button>
+    </div>
+    <p id="agent-status" class="muted"></p>
   </section>
 
   <script>
@@ -107,7 +188,10 @@
       const res = await fetch("/api/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_dir: document.getElementById("source-dir").value }),
+        body: JSON.stringify({
+          source_dir: document.getElementById("source-dir").value,
+          clone: document.getElementById("clone-source").checked,
+        }),
       });
       const { job_id } = await res.json();
       let after = 0;
@@ -119,6 +203,8 @@
           if (event.type === "done") {
             document.getElementById("done").textContent = "Installed. Launch with start-desktop.sh in " + event.source_dir;
             document.getElementById("connectors").classList.remove("hidden");
+            document.getElementById("forges").classList.remove("hidden");
+            document.getElementById("other-agents").classList.remove("hidden");
           }
         }
         after += (data.events || []).length;
@@ -160,6 +246,100 @@
         });
         box.appendChild(btn);
       }
+    });
+    async function postJson(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    }
+    document.getElementById("gh-save").addEventListener("click", async () => {
+      const data = await postJson("/api/connectors/github/login", {
+        token: document.getElementById("gh-token").value,
+        owner: document.getElementById("gh-owner").value,
+      });
+      document.getElementById("gh-status").textContent = data.ok
+        ? `Connected ${data.login || ""} · owner ${data.owner || "GoDeskio"}`
+        : (data.error || "failed");
+    });
+    document.getElementById("gh-repos").addEventListener("click", async () => {
+      const data = await (await fetch("/api/connectors/github/repos")).json();
+      const box = document.getElementById("gh-repos-list");
+      box.innerHTML = "";
+      for (const repo of data.repos || []) {
+        const row = document.createElement("div");
+        row.className = "scan-item";
+        row.textContent = repo.full_name || repo.clone_url;
+        box.appendChild(row);
+      }
+      if (data.error) document.getElementById("gh-status").textContent = data.error;
+    });
+    document.getElementById("gl-save").addEventListener("click", async () => {
+      const data = await postJson("/api/connectors/gitlab/login", {
+        token: document.getElementById("gl-token").value,
+        owner: document.getElementById("gl-owner").value,
+        host: document.getElementById("gl-host").value,
+      });
+      document.getElementById("gl-status").textContent = data.ok
+        ? `Connected ${data.login || ""} · ${data.host || ""}`
+        : (data.error || "failed");
+    });
+    document.getElementById("gl-projects").addEventListener("click", async () => {
+      const data = await (await fetch("/api/connectors/gitlab/projects")).json();
+      const box = document.getElementById("gl-projects-list");
+      box.innerHTML = "";
+      for (const repo of data.projects || []) {
+        const row = document.createElement("div");
+        row.className = "scan-item";
+        row.textContent = repo.full_name || repo.clone_url;
+        box.appendChild(row);
+      }
+      if (data.error) document.getElementById("gl-status").textContent = data.error;
+    });
+    document.getElementById("mcp-save").addEventListener("click", async () => {
+      const args = (document.getElementById("mcp-args").value || "").trim().split(/\s+/).filter(Boolean);
+      const data = await postJson("/api/connectors/mcp", {
+        name: document.getElementById("mcp-name").value,
+        command: document.getElementById("mcp-command").value,
+        args,
+        url: document.getElementById("mcp-url").value,
+        token: document.getElementById("mcp-token").value,
+      });
+      document.getElementById("mcp-status").textContent = data.ok || data.mcp ? "Saved on this machine." : (data.error || "failed");
+    });
+    document.getElementById("mcp-test").addEventListener("click", async () => {
+      const args = (document.getElementById("mcp-args").value || "").trim().split(/\s+/).filter(Boolean);
+      const data = await postJson("/api/connectors/mcp/test", {
+        name: document.getElementById("mcp-name").value,
+        command: document.getElementById("mcp-command").value,
+        args,
+        url: document.getElementById("mcp-url").value,
+        token: document.getElementById("mcp-token").value,
+      });
+      document.getElementById("mcp-status").textContent = data.ok
+        ? `Tools: ${(data.tools || []).join(", ") || "(none listed)"}`
+        : (data.error || "failed");
+    });
+    document.getElementById("agent-save").addEventListener("click", async () => {
+      const data = await postJson("/api/connectors/agents", {
+        name: document.getElementById("agent-name").value,
+        base_url: document.getElementById("agent-url").value,
+        api_key: document.getElementById("agent-key").value,
+      });
+      document.getElementById("agent-status").textContent = data.ok || data.agents ? "Saved on this machine." : (data.error || "failed");
+    });
+    document.getElementById("agent-test").addEventListener("click", async () => {
+      const data = await postJson("/api/connectors/agents/test", {
+        name: document.getElementById("agent-name").value,
+        base_url: document.getElementById("agent-url").value,
+        api_key: document.getElementById("agent-key").value,
+      });
+      const tools = (data.tools || []).map((item) => item.name || item).join(", ");
+      document.getElementById("agent-status").textContent = data.ok
+        ? `Reachable. Tools: ${tools || "(chat completions only)"}`
+        : (data.error || "failed");
     });
     document.getElementById("connect").addEventListener("click", async () => {
       const status = document.getElementById("connect-status");
