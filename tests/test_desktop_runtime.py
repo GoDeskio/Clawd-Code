@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from src.desktop.attachments import attach_clipboard_text, attach_path, render_attachments
-from src.desktop.runtime import DesktopRuntime
+from src.desktop.runtime import DesktopRuntime, provider_limit_hint
 from src.desktop.server import DesktopServer
 from src.providers.base import ChatResponse
 from src.tool_system.permissions import maybe_ask_for_gated_tool
@@ -196,6 +196,51 @@ class TestDesktopRuntime(DesktopTestCase):
         listed = Session.list_sessions()
         self.assertEqual(listed[0]["session_id"], summary["session_id"])
         self.assertIn("first question", listed[0]["title"])
+
+    def test_token_usage_persists_and_resets_on_new_chat(self) -> None:
+        runtime = self._runtime()
+        runtime.session.record_usage({"input_tokens": 11, "output_tokens": 7})
+        saved = runtime.save_session()
+        self.assertEqual(saved["token_usage"]["input_tokens"], 11)
+        self.assertEqual(saved["token_usage"]["output_tokens"], 7)
+        self.assertEqual(saved["token_usage"]["total_tokens"], 18)
+
+        fresh = runtime.new_session()
+        self.assertEqual(fresh["token_usage"]["total_tokens"], 0)
+
+        restored = runtime.load_session(saved["session_id"])
+        self.assertEqual(restored["token_usage"]["total_tokens"], 18)
+        self.assertEqual(runtime.status()["session"]["token_usage"]["total_tokens"], 18)
+        dumped = json.dumps(runtime.status())
+        self.assertNotIn("out of tokens", dumped.lower())
+        self.assertNotIn("buy tokens", dumped.lower())
+
+    def test_provider_limit_is_not_a_hard_stop(self) -> None:
+        hint = provider_limit_hint("429 insufficient_quota billing")
+        self.assertIn("Switch to Hugging Face", hint)
+        self.assertNotIn("Buy", hint)
+        self.assertNotIn("upgrade", hint.lower())
+        runtime = self._runtime()
+        runtime.provider.chat.side_effect = RuntimeError("Error 429 rate_limit exceeded")
+        job_id = runtime.start_chat("hello")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job_id)[1]))
+        events, _ = runtime.drain_events(job_id)
+        error = [ev for ev in events if ev.get("type") == "error"][0]
+        self.assertTrue(error.get("provider_limit"))
+        self.assertIn("not a Jonathan Ai token store", error["error"])
+        # Chat stays usable — a new turn is accepted, no quota wall.
+        runtime.provider.chat.side_effect = None
+        runtime.provider.chat.return_value = ChatResponse(
+            content="ok",
+            model="test-model",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            finish_reason="stop",
+        )
+        job2 = runtime.start_chat("try again")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job2)[1]))
+        events2, done = runtime.drain_events(job2)
+        self.assertTrue(done)
+        self.assertTrue(any(ev.get("type") == "done" and ev.get("text") == "ok" for ev in events2))
 
 
 class TestDesktopServer(DesktopTestCase):

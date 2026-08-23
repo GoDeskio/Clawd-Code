@@ -456,6 +456,9 @@ function watchJob(jobId) {
     if (event.type === "error") {
       addBubble("system", event.error || "Error");
       if (event.needs_setup) $("setup-modal").classList.remove("hidden");
+      if (event.provider_limit && $("settings-modal")) {
+        $("settings-modal").classList.remove("hidden");
+      }
     }
   };
   source.onerror = () => {
