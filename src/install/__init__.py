@@ -1,4 +1,4 @@
-"""First-run installer for the Clawd desktop agent."""
+"""First-run installer for the Jonathan Ai desktop agent."""
 
 from .source import default_source_dir, is_allowed_source_url
 from .wizard import InstallWizard

@@ -1,4 +1,4 @@
-"""Desktop host for Clawd Code.
+"""Desktop host for Jonathan Ai.
 
 The existing Python agent loop, tools, skills, providers, and sessions stay
 the brain. This package adds a localhost HTTP/SSE host and a static UI that

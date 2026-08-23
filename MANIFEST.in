@@ -12,4 +12,4 @@ include desktop/preload.js
 include install.sh
 include install.ps1
 include install.bat
-include Install Clawd.command
+include Install Jonathan Ai.command

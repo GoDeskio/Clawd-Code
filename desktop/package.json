@@ -1,8 +1,9 @@
 {
-  "name": "clawd-desktop",
+  "name": "jonathan-ai",
+  "productName": "Jonathan Ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Native desktop shell for Clawd Code. The Python agent remains the brain.",
+  "description": "Native desktop shell for Jonathan Ai. The Python agent remains the brain.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

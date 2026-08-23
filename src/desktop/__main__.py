@@ -8,7 +8,7 @@ from .server import DEFAULT_HOST, DEFAULT_PORT, run_desktop
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Clawd Code desktop host")
+    parser = argparse.ArgumentParser(description="Jonathan Ai desktop host")
     parser.add_argument("--host", default=DEFAULT_HOST, help="Bind host (localhost only)")
     parser.add_argument("--port", type=int, default=int(os.environ.get("CLAWD_DESKTOP_PORT") or DEFAULT_PORT))
     parser.add_argument("--workspace", default=None, help="Initial workspace directory")

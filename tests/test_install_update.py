@@ -28,7 +28,7 @@ class TestJonathanPath(unittest.TestCase):
     def test_default_source_dir_is_jonathan_folder(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             dest = default_source_dir(home=Path(tmp))
-            self.assertEqual(dest, Path(tmp) / "Jonathan" / "Clawd-Code")
+            self.assertEqual(dest, Path(tmp) / "Jonathan" / "Jonathan-Ai")
 
 
 class TestSourceAllowlist(unittest.TestCase):
@@ -59,7 +59,7 @@ class TestMaterializeSource(unittest.TestCase):
     def test_copies_local_tree_and_forces_godesk_origin(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             src = Path(tmp) / "checkout"
-            dest = Path(tmp) / "Jonathan" / "Clawd-Code"
+            dest = Path(tmp) / "Jonathan" / "Jonathan-Ai"
             (src / "src").mkdir(parents=True)
             (src / "src" / "cli.py").write_text("print('ok')\n", encoding="utf-8")
             subprocess.run(["git", "init"], cwd=src, check=True, capture_output=True)
@@ -104,7 +104,7 @@ class TestWizardAndVerify(unittest.TestCase):
             home = Path(tmp) / "home"
             home.mkdir()
             src = Path(tmp) / "checkout"
-            dest = Path(tmp) / "Jonathan" / "Clawd-Code"
+            dest = Path(tmp) / "Jonathan" / "Jonathan-Ai"
             (src / "src").mkdir(parents=True)
             (src / "src" / "cli.py").write_text("# cli\n", encoding="utf-8")
             (src / "requirements.txt").write_text("rich\n", encoding="utf-8")
@@ -150,7 +150,7 @@ class TestWizardAndVerify(unittest.TestCase):
 
 class TestUpdater(unittest.TestCase):
     def _repo(self, tmp: Path) -> Path:
-        repo = tmp / "Jonathan" / "Clawd-Code"
+        repo = tmp / "Jonathan" / "Jonathan-Ai"
         repo.mkdir(parents=True)
         subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
         subprocess.run(["git", "remote", "add", "origin", CANONICAL_HTTPS], cwd=repo, check=True, capture_output=True)
@@ -197,8 +197,8 @@ class TestUpdater(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             path = write_install_record(
-                source_dir=home / "Jonathan" / "Clawd-Code",
-                venv_python=home / "Jonathan" / "Clawd-Code" / ".venv" / "bin" / "python",
+                source_dir=home / "Jonathan" / "Jonathan-Ai",
+                venv_python=home / "Jonathan" / "Jonathan-Ai" / ".venv" / "bin" / "python",
                 commit="abc",
                 branch="main",
                 home=home,

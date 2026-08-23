@@ -28,7 +28,7 @@ def _print_progress(event: dict) -> None:
 
 def run_cli(args: argparse.Namespace) -> int:
     wizard = InstallWizard()
-    print(f"Clawd install wizard  ·  source {CANONICAL_HTTPS}", flush=True)
+    print(f"Jonathan Ai install wizard  ·  source {CANONICAL_HTTPS}", flush=True)
     print(f"Install folder: {args.source_dir}", flush=True)
     try:
         result = wizard.run_sync(
@@ -120,8 +120,8 @@ def run_ui(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Install the Clawd desktop agent from GoDeskio/Clawd-Code")
-    parser.add_argument("--source-dir", default=str(default_source_dir()), help="Local source folder (default: ~/Jonathan/Clawd-Code)")
+    parser = argparse.ArgumentParser(description="Install Jonathan Ai from GoDeskio/Clawd-Code")
+    parser.add_argument("--source-dir", default=str(default_source_dir()), help="Local source folder (default: ~/Jonathan/Jonathan-Ai)")
     parser.add_argument("--from-local", default=None, help="Copy this existing checkout instead of cloning")
     parser.add_argument("--clone", action="store_true", help="Always clone from GitHub (GoDeskio/Clawd-Code only)")
     parser.add_argument("--skip-desktop-deps", action="store_true", help="Skip npm install for Electron")

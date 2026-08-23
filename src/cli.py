@@ -20,7 +20,7 @@ def main():
         return 0
 
     parser = argparse.ArgumentParser(
-        description="Clawd Codex - Claude Code Python Implementation",
+        description="Jonathan Ai - local desktop and CLI agent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -67,7 +67,7 @@ Examples:
     desktop_parser.add_argument('--no-browser', action='store_true', help='Do not open a browser window')
 
     install_parser = subparsers.add_parser('install', help='First-run install wizard')
-    install_parser.add_argument('--source-dir', default=None, help='Local source folder (default: ~/Jonathan/Clawd-Code)')
+    install_parser.add_argument('--source-dir', default=None, help='Local source folder (default: ~/Jonathan/Jonathan-Ai)')
     install_parser.add_argument('--from-local', default=None, help='Copy this checkout instead of cloning')
     install_parser.add_argument('--clone', action='store_true', help='Always clone from GoDeskio/Clawd-Code')
     install_parser.add_argument('--skip-desktop-deps', action='store_true')
@@ -177,7 +177,7 @@ def _show_provider_defaults_table() -> None:
 def handle_login():
     """Interactive API configuration."""
     console = Console()
-    console.print("\n[bold blue]Clawd Codex - API Configuration[/bold blue]\n")
+    console.print("\n[bold blue]Jonathan Ai - API Configuration[/bold blue]\n")
 
     # Show available providers and their defaults
     _show_provider_defaults_table()

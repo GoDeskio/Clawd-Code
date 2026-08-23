@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Desktop app: localhost Python host + chat UI, optional Electron shell
 - First-run install wizard (`./install.sh`, `install.ps1`, `python -m src.cli install`)
-- Local source default `~/Jonathan/Clawd-Code` with configurable path
+- Local source default `~/Jonathan/Jonathan-Ai` with configurable path
+- User-facing product name **Jonathan Ai** (desktop, wizard, tray; repo remains GoDeskio/Clawd-Code)
 - Self-update from GoDeskio/Clawd-Code only (launch + interval, UI status)
 - Interactive permission prompts for gated desktop tools (Bash, Write, Edit, Web)
 - Session listing, first-run login UI, workspace picker, file/clipboard attach

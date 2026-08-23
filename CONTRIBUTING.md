@@ -1,6 +1,6 @@
-# Contributing to Clawd Code
+# Contributing to Jonathan Ai
 
-Thank you for your interest in contributing to Clawd Code! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Jonathan Ai! This document provides guidelines and instructions for contributing.
 
 ## Table of Contents
 
@@ -359,4 +359,4 @@ If you have questions, feel free to:
 - Start a discussion in the Discussions tab
 - Reach out to maintainers
 
-Thank you for contributing to Clawd Code!
+Thank you for contributing to Jonathan Ai!

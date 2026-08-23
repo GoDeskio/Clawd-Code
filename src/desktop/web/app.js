@@ -243,7 +243,7 @@ function watchJob(jobId) {
     }
     if (event.type === "permission_request") {
       showPermission(event);
-      if (native?.notify) native.notify("Clawd needs permission", event.message || event.tool_name);
+      if (native?.notify) native.notify("Jonathan Ai needs permission", event.message || event.tool_name);
       return;
     }
     if (event.type === "done") {
@@ -251,7 +251,7 @@ function watchJob(jobId) {
         addBubble(event.kind === "command" ? "system" : "assistant", event.text);
       }
       if (native?.notify && event.kind !== "command") {
-        native.notify("Clawd finished", (event.text || "Done").slice(0, 120));
+        native.notify("Jonathan Ai finished", (event.text || "Done").slice(0, 120));
       }
       return;
     }
@@ -431,7 +431,7 @@ async function boot() {
   await prepareSetup();
   await refreshSessions();
   await refreshCommands();
-  addBubble("system", "Clawd desktop is using the existing Python agent loop. Destructive and network tools will ask before they run.");
+  addBubble("system", "Jonathan Ai is using the existing Python agent loop. Destructive and network tools will ask before they run.");
   try {
     const update = await api("/api/update/check", { method: "POST", body: "{}" });
     renderUpdate(update);

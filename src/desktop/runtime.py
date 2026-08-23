@@ -685,7 +685,7 @@ class DesktopRuntime:
         return "\n".join(lines)
 
 
-_HELP_TEXT = """**Clawd Desktop**
+_HELP_TEXT = """**Jonathan Ai**
 
 - `/` — list commands and skills
 - `/help` — this help

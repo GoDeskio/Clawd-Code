@@ -9,6 +9,8 @@ const HOST = "127.0.0.1";
 const PORT = Number(process.env.CLAWD_DESKTOP_PORT || 8765);
 const TOKEN = process.env.CLAWD_DESKTOP_TOKEN || require("crypto").randomBytes(18).toString("hex");
 
+app.setName("Jonathan Ai");
+
 function resolveRoot() {
   if (process.env.CLAWD_SOURCE_DIR) return path.resolve(process.env.CLAWD_SOURCE_DIR);
   try {
@@ -49,7 +51,7 @@ function startPython() {
   python.stderr.on("data", (chunk) => process.stderr.write(chunk));
   python.on("exit", (code) => {
     if (!app.isQuiting && code) {
-      dialog.showErrorBox("Clawd backend stopped", `Python host exited with code ${code}`);
+      dialog.showErrorBox("Jonathan Ai backend stopped", `Python host exited with code ${code}`);
     }
   });
 }
@@ -88,7 +90,7 @@ function createWindow() {
     height: 840,
     minWidth: 880,
     minHeight: 600,
-    title: "Clawd Code",
+    title: "Jonathan Ai",
     backgroundColor: "#10140f",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -109,9 +111,9 @@ function createWindow() {
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(ROOT, "src", "desktop", "web", "icon.svg"));
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
-  tray.setToolTip("Clawd Code");
+  tray.setToolTip("Jonathan Ai");
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Show Clawd", click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { label: "Show Jonathan Ai", click: () => { mainWindow?.show(); mainWindow?.focus(); } },
     { label: "New chat", click: () => { mainWindow?.show(); mainWindow?.webContents.send("clawd:new-chat"); } },
     { type: "separator" },
     { label: "Quit", click: () => { app.isQuiting = true; app.quit(); } },
@@ -147,7 +149,7 @@ ipcMain.handle("clawd:captureScreenshot", async () => {
 
 ipcMain.handle("clawd:notify", async (_event, { title, body }) => {
   if (!Notification.isSupported()) return false;
-  new Notification({ title: title || "Clawd", body: body || "" }).show();
+  new Notification({ title: title || "Jonathan Ai", body: body || "" }).show();
   return true;
 });
 

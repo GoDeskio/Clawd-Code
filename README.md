@@ -2,9 +2,9 @@
 
 **English** | [中文](#中文版) | [Français](docs/i18n/README_FR.md) | [Русский](docs/i18n/README_RU.md) | [हिन्दी](docs/i18n/README_HI.md) | [العربية](docs/i18n/README_AR.md) | [Português](docs/i18n/README_PT.md)
 
-# 🚀 Claude Code Python
+# Jonathan Ai
 
-**A Complete Python Reimplementation Based on Real Claude Code Source**
+**A local desktop and CLI agent, built as a Python reimplementation of Claude Code**
 
 *From TypeScript Source → Rebuilt in Python with ❤️*
 
@@ -22,9 +22,9 @@
 
 ***
 
-## 🎯 Why Clawd Code?
+## 🎯 Why Jonathan Ai?
 
-**Clawd Code** is a **production-oriented Python rebuild of Claude Code**, ported from the **real TypeScript architecture** and shipped as a **working CLI agent**, not just a source dump.
+**Jonathan Ai** is a **production-oriented Python rebuild of Claude Code**, ported from the **real TypeScript architecture** and shipped as a **working desktop and CLI agent**, not just a source dump.
 
 - **Real Agent Runtime** — tool-calling loop, streaming REPL, session history, and multi-turn execution
 - **High-Fidelity Port** — keeps the original Claude Code architecture while adapting it to idiomatic Python
@@ -191,7 +191,7 @@ The first-run wizard installs everything needed to run the desktop agent: it det
 # Linux / macOS (from a checkout, or after downloading install.sh)
 ./install.sh --yes
 
-# macOS Finder: double-click "Install Clawd.command"
+# macOS Finder: double-click "Install Jonathan Ai.command"
 
 # Windows (double-click install.bat, or)
 powershell -File install.ps1
@@ -201,14 +201,14 @@ python -m src.cli install --yes
 python -m src.install --ui          # graphical wizard
 ```
 
-Default local source: `~/Jonathan/Clawd-Code`  
-Windows: `%USERPROFILE%\Jonathan\Clawd-Code`
+Default local source: `~/Jonathan/Jonathan-Ai`  
+Windows: `%USERPROFILE%\Jonathan\Jonathan-Ai`
 
 Override the folder in the wizard or with:
 
 ```bash
-CLAWD_INSTALL_DIR=/path/to/Jonathan/Clawd-Code ./install.sh --yes
-python -m src.cli install --source-dir ~/Jonathan/Clawd-Code --yes
+CLAWD_INSTALL_DIR=/path/to/Jonathan/Jonathan-Ai ./install.sh --yes
+python -m src.cli install --source-dir ~/Jonathan/Jonathan-Ai --yes
 ```
 
 The wizard only clones **https://github.com/GoDeskio/Clawd-Code**. It will refuse any other remote, including upstream GPT-AGI/Clawd-Code.
@@ -216,7 +216,7 @@ The wizard only clones **https://github.com/GoDeskio/Clawd-Code**. It will refus
 After install, launch:
 
 ```bash
-~/Jonathan/Clawd-Code/start-desktop.sh
+~/Jonathan/Jonathan-Ai/start-desktop.sh
 # or
 python -m src.cli desktop
 ```
@@ -400,7 +400,7 @@ Example:
 
 ***
 
-## 🎓 Why Clawd Codex?
+## 🎓 Why Jonathan Ai?
 
 ### Based on Real Source Code
 
@@ -427,7 +427,7 @@ Example:
 
 ```text
 Clawd-Code/
-├── install.sh / install.ps1 / install.bat / Install Clawd.command
+├── install.sh / install.ps1 / install.bat / Install Jonathan Ai.command
 ├── src/
 │   ├── cli.py           # CLI entry (`clawd`, `login`, `config`, `desktop`, `install`, `update`)
 │   ├── desktop/         # Localhost host, runtime, and web UI
@@ -509,9 +509,9 @@ MIT License — See [LICENSE](LICENSE)
 
 If you find this useful, please **star** ⭐ the repo!
 
-**Made with ❤️ by Clawd Code Team**
+**Made with ❤️ by Jonathan Ai**
 
-[⬆ Back to Top](#-clawd-codex)
+[⬆ Back to Top](#jonathan-ai)
 
 </div>
 
@@ -525,9 +525,9 @@ If you find this useful, please **star** ⭐ the repo!
 
 [English](#-clawd-codex) | **中文** | [Français](docs/i18n/README_FR.md) | [Русский](docs/i18n/README_RU.md) | [हिन्दी](docs/i18n/README_HI.md) | [العربية](docs/i18n/README_AR.md) | [Português](docs/i18n/README_PT.md)
 
-# 🚀 Claude Code Python
+# Jonathan Ai
 
-**基于真实 Claude Code 源码的完整 Python 重实现**
+**本地桌面与 CLI Agent，基于真实 Claude Code 源码的 Python 重实现**
 
 *从 TypeScript 源码 → 用 Python 重建 ❤️*
 
@@ -548,9 +548,9 @@ If you find this useful, please **star** ⭐ the repo!
 
 ***
 
-## 🎯 为什么是 Clawd Code？
+## 🎯 为什么是 Jonathan Ai？
 
-**Clawd Code** 是一个面向真实使用的 **Claude Code Python 重构版**：它基于**真实 TypeScript 架构**移植而来，并且交付的是一个**可运行的 CLI Agent**，而不只是源码镜像。
+**Jonathan Ai** 是一个面向真实使用的 **Claude Code Python 重构版**：它基于**真实 TypeScript 架构**移植而来，并且交付的是一个**可运行的桌面与 CLI Agent**，而不只是源码镜像。
 
 - **真实 Agent Runtime** — 具备工具调用循环、流式 REPL、会话历史与多轮执行能力
 - **高保真移植** — 尽可能保留 Claude Code 的原始架构，同时做符合 Python 风格的实现
@@ -766,7 +766,7 @@ python -m src.cli login
 
 ```bash
 ./install.sh --yes
-# 默认源码目录：~/Jonathan/Clawd-Code
+# 默认源码目录：~/Jonathan/Jonathan-Ai
 # 只从 https://github.com/GoDeskio/Clawd-Code 安装与更新
 ```
 
@@ -854,7 +854,7 @@ arguments: [path]
 
 ***
 
-## 🎓 为什么选择 Clawd Codex？
+## 🎓 为什么选择 Jonathan Ai？
 
 ### 基于真实源码
 
@@ -959,7 +959,7 @@ MIT 许可证 — 查看 [LICENSE](LICENSE)
 
 如果你觉得这个项目有用，请给个 **star** ⭐！
 
-**用 ❤️ 制作 by Clawd Code 团队**
+**用 ❤️ 制作 by Jonathan Ai**
 
 [⬆ 回到顶部](#中文版)
 

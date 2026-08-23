@@ -2,7 +2,7 @@
 # Never clones any repository except https://github.com/GoDeskio/Clawd-Code.git
 $ErrorActionPreference = "Stop"
 $Repo = "https://github.com/GoDeskio/Clawd-Code.git"
-$Dest = if ($env:CLAWD_INSTALL_DIR) { $env:CLAWD_INSTALL_DIR } else { Join-Path $env:USERPROFILE "Jonathan\Clawd-Code" }
+$Dest = if ($env:CLAWD_INSTALL_DIR) { $env:CLAWD_INSTALL_DIR } else { Join-Path $env:USERPROFILE "Jonathan\Jonathan-Ai" }
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 function Find-Python {

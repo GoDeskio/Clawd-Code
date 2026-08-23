@@ -1,4 +1,4 @@
-# Claude Code Python Feature List & PR Roadmap
+# Jonathan Ai Feature List & PR Roadmap
 
 > 面向社区贡献者的能力清单、路线图与 PR 指南。
 >
@@ -49,7 +49,7 @@
 | Hook 系统 | 🚫 | 暂无 pre/post tool use hooks |
 | 权限系统 | ✅ | 路径沙箱 + 文档写入询问 + 桌面端对 Bash/Write/Edit/Web 的交互批准 |
 | 桌面应用 | ✅ | Electron/浏览器壳 + 本地 Python host，复用现有 agent loop |
-| 安装向导 | ✅ | `install.sh` / `install.ps1` / `clawd install`，默认源码目录 `~/Jonathan/Clawd-Code` |
+| 安装向导 | ✅ | `install.sh` / `install.ps1` / `clawd install`，默认源码目录 `~/Jonathan/Jonathan-Ai` |
 | 自更新 | ✅ | 仅从 GoDeskio/Clawd-Code 检查并快进更新 |
 
 ---

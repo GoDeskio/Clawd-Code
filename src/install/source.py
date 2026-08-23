@@ -22,7 +22,7 @@ class UntrustedSourceError(ValueError):
 
 
 def default_source_dir(home: Path | None = None) -> Path:
-    """~/Jonathan/Clawd-Code or %USERPROFILE%\\Jonathan\\Clawd-Code."""
+    """~/Jonathan/Jonathan-Ai or %USERPROFILE%\\Jonathan\\Jonathan-Ai."""
     root = Path(home) if home is not None else Path.home()
     return (root / JONATHAN_FOLDER_NAME / SOURCE_FOLDER_NAME).expanduser()
 

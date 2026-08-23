@@ -4,19 +4,19 @@
 set -euo pipefail
 
 REPO="https://github.com/GoDeskio/Clawd-Code.git"
-DEST="${CLAWD_INSTALL_DIR:-${HOME}/Jonathan/Clawd-Code}"
+DEST="${CLAWD_INSTALL_DIR:-${HOME}/Jonathan/Jonathan-Ai}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   cat <<EOF
-Install Clawd Code (GoDeskio/Clawd-Code) onto this machine.
+Install Jonathan Ai (source: GoDeskio/Clawd-Code) onto this machine.
 
 Usage:
   ./install.sh
   ./install.sh --yes
   CLAWD_INSTALL_DIR=/custom/path ./install.sh
 
-Default folder: ~/Jonathan/Clawd-Code
+Default folder: ~/Jonathan/Jonathan-Ai
 EOF
   exit 0
 fi

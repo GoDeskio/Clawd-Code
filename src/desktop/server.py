@@ -309,7 +309,7 @@ def run_desktop(
     token: str | None = None,
 ) -> int:
     server = create_server(host=host, port=port, workspace=workspace, token=token)
-    print(f"Clawd desktop host: {server.url}")
+    print(f"Jonathan Ai desktop host: {server.url}")
     print("Bound to localhost only. API keys stay in ~/.clawd/config.json.")
     if open_browser:
         webbrowser.open(server.url)
