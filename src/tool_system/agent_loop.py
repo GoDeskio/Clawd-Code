@@ -278,6 +278,7 @@ def run_agent_loop(
     verbose: bool = False,
     on_event: ToolEventHandler | None = None,
     on_text_chunk: TextChunkHandler | None = None,
+    omit_tools: bool = False,
 ) -> AgentLoopResult:
     """Run agent loop: LLM -> tools -> LLM until no more tools or max turns.
 
@@ -291,6 +292,7 @@ def run_agent_loop(
         verbose: Whether to print tool calls/results
         on_event: Optional callback for tool events
         on_text_chunk: Optional callback for incremental user-visible text chunks
+        omit_tools: If True, call the provider with no tools (schema-400 fallback)
 
     Returns:
         AgentLoopResult with final text response, usage info, and turn count
@@ -300,7 +302,7 @@ def run_agent_loop(
     # unless the user connected one — Jonathan Ai chats standalone.
     from .schema_sanitize import serialize_tools_for_provider
 
-    tool_schemas = serialize_tools_for_provider(
+    tool_schemas = [] if omit_tools else serialize_tools_for_provider(
         tool_registry,
         tool_context=tool_context,
     )

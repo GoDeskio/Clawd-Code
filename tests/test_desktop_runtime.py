@@ -279,8 +279,33 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("Skill", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.2.5")
+        self.assertEqual(runtime.status()["version"], "0.2.6")
         self.assertTrue(runtime.status()["standalone"])
+
+    def test_schema_400_retries_same_turn_without_tools(self) -> None:
+        runtime = self._runtime()
+
+        class Schema400(RuntimeError):
+            status_code = 400
+            body = {"error": {"message": "tools.17.custom.input_schema.type: Field required"}}
+
+        runtime.provider.chat.side_effect = [
+            Schema400("Error code: 400 - tools.17.custom.input_schema.type: Field required"),
+            ChatResponse(
+                content="hello without tools",
+                model="test-model",
+                usage={"input_tokens": 2, "output_tokens": 2},
+                finish_reason="stop",
+            ),
+        ]
+        job = runtime.start_chat("first desktop message")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1]))
+        events, done = runtime.drain_events(job)
+        self.assertTrue(done)
+        self.assertTrue(any(ev.get("type") == "done" and "hello without tools" in str(ev.get("text")) for ev in events))
+        self.assertGreaterEqual(runtime.provider.chat.call_count, 2)
+        last = runtime.provider.chat.call_args_list[-1]
+        self.assertFalse(last.kwargs.get("tools"))
 
     def test_multi_agent_workers_do_not_need_other_products(self) -> None:
         runtime = self._runtime()
@@ -454,7 +479,7 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.5", html)
+        self.assertIn("0.2.6", html)
         self.assertIn("session-menu", html)
         self.assertIn("app.js", html)
 

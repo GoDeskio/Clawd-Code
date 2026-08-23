@@ -98,6 +98,12 @@ Examples:
     elif args.command == 'config':
         return show_config()
     elif args.command == 'desktop':
+        try:
+            from src.install.bootstrap import ensure_runtime_deps
+
+            ensure_runtime_deps()
+        except Exception:
+            pass
         from src.desktop.server import run_desktop
         return run_desktop(
             host=args.host,

@@ -229,21 +229,39 @@ class TestUpdater(unittest.TestCase):
             with self.assertRaises(UntrustedSourceError):
                 updater.apply()
 
-    def test_status_compares_local_and_remote_sha(self) -> None:
+    def test_status_compares_local_and_origin_of_current_branch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(Path(tmp))
             updater = Updater(repo)
             local = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
-            with patch("src.update.updater.fetch_repo_status", return_value={
-                "sha": "deadbeef",
-                "default_branch": "main",
-                "release_tag": "",
-                "html_url": "https://github.com/GoDeskio/Clawd-Code",
-            }):
+            calls: list[list[str]] = []
+
+            def fake_git(args, cwd):
+                calls.append(list(args))
+                if args[:2] == ["rev-parse", "HEAD"]:
+                    return subprocess.CompletedProcess(["git", *args], 0, local + "\n", "")
+                if args[:1] == ["rev-parse"] and str(args[1]).startswith("origin/"):
+                    return subprocess.CompletedProcess(["git", *args], 0, "deadbeef\n", "")
+                if args[:2] == ["status", "--porcelain"]:
+                    return subprocess.CompletedProcess(["git", *args], 0, "", "")
+                if args[:2] == ["remote", "-v"]:
+                    return subprocess.CompletedProcess(["git", *args], 0, f"origin\t{CANONICAL_HTTPS} (fetch)\n", "")
+                return subprocess.CompletedProcess(["git", *args], 0, "", "")
+
+            with patch("src.update.updater._git", side_effect=fake_git), patch(
+                "src.update.updater.fetch_repo_status", return_value={
+                    "sha": "mainsha",
+                    "default_branch": "main",
+                    "release_tag": "",
+                    "html_url": "https://github.com/GoDeskio/Clawd-Code",
+                }
+            ):
                 status = updater.status(refresh=True)
             self.assertTrue(status["update_available"])
             self.assertEqual(status["local_sha"], local)
             self.assertEqual(status["remote_sha"], "deadbeef")
+            self.assertNotEqual(status["remote_sha"], "mainsha")
+            self.assertFalse(any(item[:1] == ["merge"] and "origin/main" in " ".join(item) for item in calls))
 
     def test_apply_refuses_dirty_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

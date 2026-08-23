@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-08-23
+
+### Fixed
+- First desktop launch now auto-repairs the venv and installs missing pip packages (Electron/npm remains optional). `JonathanAi.exe`, Electron, and `clawd desktop` all run this bootstrap before chat starts
+- Auto-update tracks the **current branch** only. A feature-branch install is never treated as stale just because `main` moved, and apply never checks out `main`
+- If a desktop Anthropic turn still raises `tools.N.custom.input_schema.type`, the same user message is retried with tools omitted so the first reply still lands
+
 ## [0.2.5] - 2026-08-23
 
 ### Fixed
@@ -203,6 +210,7 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.6]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.6
 [0.2.5]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.5
 [0.2.4]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.4
 [0.2.3]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.3

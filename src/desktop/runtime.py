@@ -913,17 +913,35 @@ class DesktopRuntime:
                 if chunk:
                     self._emit(job, {"type": "token", "text": chunk})
 
-            result = run_agent_loop(
-                conversation=self.session.conversation,
-                provider=self.provider,
-                tool_registry=self.tool_registry,
-                tool_context=self.tool_context,
-                max_turns=20,
-                stream=self.stream,
-                verbose=False,
-                on_event=on_event,
-                on_text_chunk=on_text_chunk,
-            )
+            try:
+                result = run_agent_loop(
+                    conversation=self.session.conversation,
+                    provider=self.provider,
+                    tool_registry=self.tool_registry,
+                    tool_context=self.tool_context,
+                    max_turns=20,
+                    stream=self.stream,
+                    verbose=False,
+                    on_event=on_event,
+                    on_text_chunk=on_text_chunk,
+                )
+            except Exception as loop_exc:
+                from src.tool_system.schema_sanitize import is_input_schema_type_error
+
+                if not is_input_schema_type_error(loop_exc):
+                    raise
+                result = run_agent_loop(
+                    conversation=self.session.conversation,
+                    provider=self.provider,
+                    tool_registry=self.tool_registry,
+                    tool_context=self.tool_context,
+                    max_turns=20,
+                    stream=self.stream,
+                    verbose=False,
+                    on_event=on_event,
+                    on_text_chunk=on_text_chunk,
+                    omit_tools=True,
+                )
             usage = self.session.record_usage(result.usage)
             if self.session.conversation.messages:
                 self.session.save()

@@ -53,6 +53,8 @@ class TestWindowsArtifacts(unittest.TestCase):
         self.assertIn("-m src.cli desktop", launcher)
         self.assertIn("is_app_root", launcher)
         self.assertIn("src\\\\cli.py", launcher)
+        self.assertIn("src.install.bootstrap", launcher)
+        self.assertIn("run_bootstrap", launcher)
 
 
 class TestShortcuts(unittest.TestCase):
@@ -85,7 +87,7 @@ class TestDashboardHtml(unittest.TestCase):
         css = (ROOT / "src" / "desktop" / "web" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.5", html)
+        self.assertIn("0.2.6", html)
         self.assertIn("session-menu", html)
         self.assertIn("standalone", html)
         self.assertIn("informational", html)

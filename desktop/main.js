@@ -55,6 +55,20 @@ function pythonCommand() {
   return process.platform === "win32" ? "python" : "python3";
 }
 
+function bootstrapDeps() {
+  const { spawnSync } = require("child_process");
+  try {
+    spawnSync(pythonCommand(), ["-m", "src.install.bootstrap", "--source-dir", ROOT], {
+      cwd: ROOT,
+      env: { ...process.env, CLAWD_SOURCE_DIR: ROOT },
+      timeout: 180000,
+      stdio: "ignore",
+    });
+  } catch (_err) {
+    // Setup can still repair the venv. Chat host starts anyway.
+  }
+}
+
 function startPython() {
   const args = ["-m", "src.cli", "desktop", "--host", HOST, "--port", String(PORT), "--no-browser", "--token", TOKEN];
   python = spawn(pythonCommand(), args, {
@@ -71,7 +85,7 @@ function startPython() {
   });
 }
 
-function waitForHealth(timeoutMs = 20000) {
+function waitForHealth(timeoutMs = 60000) {
   const started = Date.now();
   return new Promise((resolve, reject) => {
     const attempt = () => {
@@ -115,7 +129,7 @@ function createWindow() {
     height: 840,
     minWidth: 880,
     minHeight: 600,
-    title: "Jonathan Ai 0.2.5",
+    title: "Jonathan Ai 0.2.6",
     backgroundColor: "#0b0c0f",
     autoHideMenuBar: true,
     icon: icon || undefined,
@@ -181,6 +195,7 @@ ipcMain.handle("clawd:notify", async (_event, { title, body }) => {
 });
 
 app.whenReady().then(async () => {
+  bootstrapDeps();
   startPython();
   await waitForHealth();
   createWindow();

@@ -60,6 +60,40 @@ static int pick_root(wchar_t *out) {
     return 0;
 }
 
+static BOOL run_and_wait(const wchar_t *exe, const wchar_t *args, const wchar_t *cwd) {
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    wchar_t cmdline[2048];
+    DWORD code = 1;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    lstrcpynW(cmdline, args, 2048);
+    if (!CreateProcessW(exe, cmdline, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, cwd, &si, &pi)) {
+        return FALSE;
+    }
+    WaitForSingleObject(pi.hProcess, 180000);
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return code == 0;
+}
+
+static void run_bootstrap(const wchar_t *root) {
+    wchar_t python[MAX_PATH], cmdbuf[2048];
+    join(python, MAX_PATH, root, L".venv\\Scripts\\python.exe");
+    if (exists(python)) {
+        wsprintfW(cmdbuf, L"\"%s\" -m src.install.bootstrap --source-dir \"%s\"", python, root);
+        if (run_and_wait(python, cmdbuf, root)) return;
+    }
+    wsprintfW(cmdbuf, L"python -m src.install.bootstrap --source-dir \"%s\"", root);
+    if (run_and_wait(L"python", cmdbuf, root)) return;
+    wsprintfW(cmdbuf, L"py -3 -m src.install.bootstrap --source-dir \"%s\"", root);
+    run_and_wait(L"py", cmdbuf, root);
+}
+
 static BOOL start_process(const wchar_t *exe, const wchar_t *args, const wchar_t *cwd) {
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
@@ -117,6 +151,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     }
 
     SetEnvironmentVariableW(L"CLAWD_SOURCE_DIR", root);
+    run_bootstrap(root);
 
     if (start_electron(root)) {
         return 0;

@@ -63,15 +63,26 @@ class Updater:
         }
         try:
             self._guard_tree()
-            remote = fetch_repo_status()
-            payload.update({
-                "remote_sha": remote.get("sha"),
-                "default_branch": remote.get("default_branch"),
-                "release_tag": remote.get("release_tag"),
-                "html_url": remote.get("html_url"),
-            })
-            payload["update_available"] = bool(remote.get("sha") and remote.get("sha") != local_sha)
+            _git(["fetch", "origin"], self.source_dir)
+            branch = local_branch if local_branch and local_branch != "HEAD" else ""
+            remote_sha = ""
+            if branch:
+                probed = _git(["rev-parse", f"origin/{branch}"], self.source_dir)
+                if probed.returncode == 0:
+                    remote_sha = probed.stdout.strip()
+            payload["track_branch"] = branch
+            payload["remote_sha"] = remote_sha
+            # Only the current branch. Never treat origin/main as an update
+            # for a feature-branch install.
+            payload["update_available"] = bool(remote_sha and remote_sha != local_sha)
             payload["dirty"] = self.is_dirty()
+            try:
+                remote = fetch_repo_status()
+                payload["default_branch"] = remote.get("default_branch")
+                payload["release_tag"] = remote.get("release_tag")
+                payload["html_url"] = remote.get("html_url")
+            except Exception:
+                pass
         except Exception as exc:
             payload["error"] = str(exc)
         self.last_check = payload
@@ -82,22 +93,15 @@ class Updater:
         self._guard_tree()
         if self.is_dirty() and not allow_dirty:
             raise RuntimeError("working tree has local changes; refusing to auto-update")
-        remote = fetch_repo_status()
         local_branch = current_branch(self.source_dir)
-        remote_default = str(remote.get("default_branch") or "main")
-        # Stay on a feature-branch install. Never check out or merge main into it.
-        if local_branch and local_branch not in {"HEAD"}:
-            branch = local_branch
-        else:
-            branch = remote_default
-        sha = str(remote.get("sha") or "")
+        if not local_branch or local_branch == "HEAD":
+            raise RuntimeError("detached HEAD; refusing auto-update")
+        # Stay on the installed branch. Never check out or merge main into a
+        # feature-branch install of this PR.
+        branch = local_branch
         fetch = _git(["fetch", "origin", branch], self.source_dir)
         if fetch.returncode != 0:
             raise RuntimeError(fetch.stderr.strip() or "git fetch failed")
-        if not local_branch or local_branch == "HEAD":
-            checkout = _git(["checkout", branch], self.source_dir)
-            if checkout.returncode != 0:
-                pass
         pull = _git(["merge", "--ff-only", f"origin/{branch}"], self.source_dir)
         if pull.returncode != 0:
             raise RuntimeError(pull.stderr.strip() or "fast-forward update failed")
@@ -114,7 +118,7 @@ class Updater:
         record = read_install_record() or {}
         result = {
             "ok": True,
-            "applied": new_sha != sha or True,
+            "applied": True,
             "sha": new_sha,
             "previous": record.get("commit"),
             "branch": branch,
