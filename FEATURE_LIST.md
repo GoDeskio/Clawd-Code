@@ -50,8 +50,8 @@
 | `/doctor` 诊断系统 | 🚫 | 暂无环境、配置、权限、依赖诊断命令 |
 | Hook 系统 | 🟡 | 已有 Cursor/Codex/local agent hook 与 inbound POST；非通用 pre/post tool hook |
 | 权限系统 | ✅ | 路径沙箱 + 文档写入询问 + 桌面端对 Bash/Write/Edit/Web 的交互批准 |
-| 桌面应用 | ✅ | Electron/浏览器壳 + 本地 Python host，复用现有 agent loop |
-| 安装向导 | ✅ | `install.sh` / `install.ps1` / `clawd install`，默认源码目录 `~/Jonathan/Jonathan-Ai` |
+| 桌面应用 | ✅ | Electron/浏览器壳 + 本地 Python host；Windows 上为 JonathanAi.exe 与玻璃拟态仪表盘 |
+| 安装向导 | ✅ | Windows Setup exe 可见向导（Next/Install/Finish）+ Desktop/开始菜单快捷方式；默认源码目录 `~/Jonathan/Jonathan-Ai` |
 | 自更新 | ✅ | 仅从 GoDeskio/Clawd-Code 检查并快进更新 |
 
 ---

@@ -188,7 +188,16 @@ clawd desktop      # Start the desktop host
 
 The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session. After install it can connect Hugging Face, a local LLM, GitHub, GitLab, MCP servers, and other OpenAI-compatible agents — tokens stay on this machine.
 
-**Entry point (pick one):**
+**Windows (real desktop app):**
+
+1. Double-click `packaging/windows/bin/JonathanAi-Setup.exe` (or `install.bat` / `JonathanAi-Setup.bat`).
+2. A visible wizard runs: **Next → Install → Finish**.
+3. On Finish, **Jonathan Ai** opens. A **Jonathan Ai** icon is on the Desktop and in the Start Menu.
+4. Later launches use `JonathanAi.exe` — not a hidden `.bat`.
+
+Rebuild the Setup/app exes with `packaging/windows/build.sh` (Linux/mingw) or `packaging/windows/build-windows.ps1` (Windows). Details: [packaging/windows/README.md](packaging/windows/README.md).
+
+**Other entry points:**
 
 ```bash
 # Linux / macOS (from a checkout, or after downloading install.sh)
@@ -196,7 +205,7 @@ The first-run wizard installs everything needed to run the desktop agent: it det
 
 # macOS Finder: double-click "Install Jonathan Ai.command"
 
-# Windows (double-click install.bat, or)
+# Windows fallback if the Setup exe is missing
 powershell -File install.ps1
 
 # Already have Python 3.10+ and this repo:
@@ -219,8 +228,9 @@ The wizard only clones **https://github.com/GoDeskio/Clawd-Code**. It will refus
 After install, launch:
 
 ```bash
+# Windows: Desktop / Start Menu shortcut "Jonathan Ai", or JonathanAi.exe
+# Linux / macOS:
 ~/Jonathan/Jonathan-Ai/start-desktop.sh
-# or
 python -m src.cli desktop
 ```
 
@@ -367,6 +377,8 @@ python -m src.desktop --port 8765
 ```
 
 This binds `http://127.0.0.1:8765/` only, serves the chat UI, and opens a browser. Use `--no-browser` in CI.
+
+The dashboard is a glassmorphism prompt UI: conversations on the left (title + last activity), frosted chat cards, and a monochrome + eye-glow palette matching the robot sketch. The token meter in the header is informational only.
 
 **Option B — Electron desktop shell (tray, notifications, folder picker)**
 
@@ -842,6 +854,8 @@ MCP / 其他 Agent：在设置中添加真实的 MCP 命令/URL 或 OpenAI 兼�
 ```
 
 ### 安装桌面端（一条命令）
+
+Windows：双击 `packaging/windows/bin/JonathanAi-Setup.exe`，向导点 Next / Install / Finish 后应用会打开，桌面和开始菜单出现 **Jonathan Ai** 图标。
 
 ```bash
 ./install.sh --yes

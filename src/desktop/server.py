@@ -365,6 +365,7 @@ class DesktopServer:
                     ".svg": "image/svg+xml",
                     ".json": "application/json",
                     ".png": "image/png",
+                    ".ico": "image/x-icon",
                 }.get(target.suffix, "application/octet-stream")
                 extra = []
                 if target.name == "index.html":

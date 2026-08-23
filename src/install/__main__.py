@@ -42,9 +42,26 @@ def run_cli(args: argparse.Namespace) -> int:
         print(f"Install failed: {exc}", file=sys.stderr)
         return 1
     print(json.dumps({k: result.get(k) for k in ("source_dir", "venv_python", "commit", "desktop_deps")}, indent=2))
+    source = Path(result.get("source_dir") or args.source_dir)
+    try:
+        from .launch import launch_jonathan_ai
+        from .windows_shortcuts import create_windows_shortcuts, find_app_executable
+
+        bundled = Path(__file__).resolve().parents[2] / "packaging" / "windows" / "bin" / "JonathanAi.exe"
+        dest_exe = source / "JonathanAi.exe"
+        if bundled.exists() and not dest_exe.exists():
+            import shutil
+
+            shutil.copy2(bundled, dest_exe)
+        icon = source / "src" / "desktop" / "web" / "robot.png"
+        create_windows_shortcuts(find_app_executable(source), icon if icon.exists() else None)
+    except Exception:
+        pass
     if args.launch:
-        from src.desktop.server import run_desktop
-        return run_desktop(workspace=str(result.get("source_dir") or args.source_dir), open_browser=not args.no_browser)
+        from .launch import launch_jonathan_ai
+
+        launch_jonathan_ai(source)
+        return 0
     print("Start the desktop app with:")
     print(f"  {result.get('venv_python')} -m src.cli desktop")
     print(f"  {result.get('launchers', {}).get('unix') or result.get('source_dir')}/start-desktop.sh")
@@ -245,11 +262,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cli", action="store_true", help="Run the wizard in the terminal")
     parser.add_argument("--yes", action="store_true", help="Unattended CLI install (same as --cli)")
     parser.add_argument("--ui", action="store_true", help="Open the graphical wizard")
+    parser.add_argument("--gui", action="store_true", help="Open the Windows Next/Install/Finish wizard")
     parser.add_argument("--port", default=8766, help="Wizard UI port")
     parser.add_argument("--token", default=None)
     parser.add_argument("--launch", action="store_true", help="Start the desktop host after install")
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args(argv)
+    if args.gui or (sys.platform.startswith("win") and not (args.cli or args.yes or args.ui)):
+        from .win_gui import run_windows_wizard
+
+        return run_windows_wizard(source_dir=args.source_dir, from_local=args.from_local)
     if args.ui and not (args.cli or args.yes):
         return run_ui(args)
     if args.cli or args.yes or args.launch or not sys.stdin.isatty():

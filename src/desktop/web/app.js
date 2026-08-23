@@ -106,6 +106,17 @@ async function refreshStatus() {
   renderUpdate(state.status.update || {});
 }
 
+function formatActivity(iso) {
+  if (!iso) return "No activity yet";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "No activity yet";
+  const delta = Date.now() - date.getTime();
+  if (delta < 60_000) return "Just now";
+  if (delta < 3_600_000) return `${Math.floor(delta / 60_000)} min ago`;
+  if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)} h ago`;
+  return date.toLocaleDateString();
+}
+
 function renderUsage(session) {
   const node = $("usage-line");
   if (!node) return;
@@ -146,7 +157,7 @@ async function refreshSessions() {
     const btn = document.createElement("button");
     btn.className = `session-item${session.session_id === current ? " active" : ""}`;
     const tokens = session.token_usage?.total_tokens || 0;
-    btn.innerHTML = `<strong>${session.title || session.session_id}</strong><div class="muted">${session.provider} · ${session.message_count} msgs · ${tokens} tok</div>`;
+    btn.innerHTML = `<strong>${session.title || session.session_id}</strong><div class="muted">${formatActivity(session.updated_at)} · ${tokens} tok</div>`;
     btn.addEventListener("click", async () => {
       await api("/api/sessions/load", { method: "POST", body: JSON.stringify({ session_id: session.session_id }) });
       $("transcript").innerHTML = "";

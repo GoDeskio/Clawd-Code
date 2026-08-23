@@ -84,14 +84,26 @@ function waitForHealth(timeoutMs = 20000) {
   });
 }
 
+function iconPath() {
+  const candidates = [
+    path.join(ROOT, "src", "desktop", "web", "robot.png"),
+    path.join(__dirname, "icons", "jonathan-ai-robot.png"),
+    path.join(__dirname, "icons", "icon.ico"),
+  ];
+  return candidates.find((item) => fs.existsSync(item)) || "";
+}
+
 function createWindow() {
+  const icon = iconPath();
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
     minWidth: 880,
     minHeight: 600,
     title: "Jonathan Ai",
-    backgroundColor: "#10140f",
+    backgroundColor: "#0b0c0f",
+    autoHideMenuBar: true,
+    icon: icon || undefined,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -109,7 +121,7 @@ function createWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(path.join(ROOT, "src", "desktop", "web", "icon.svg"));
+  const icon = nativeImage.createFromPath(iconPath() || path.join(ROOT, "src", "desktop", "web", "icon.svg"));
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setToolTip("Jonathan Ai");
   tray.setContextMenu(Menu.buildFromTemplate([

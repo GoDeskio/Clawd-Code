@@ -84,6 +84,7 @@ sessions/
 node_modules/
 desktop/dist/
 desktop/out/
+packaging/windows/build/
 npm-debug.log*
 
 # Local desktop captures (user-initiated screenshots)

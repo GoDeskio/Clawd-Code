@@ -1,0 +1,19 @@
+appId: io.godesk.jonathanai
+productName: Jonathan Ai
+copyright: MIT
+directories:
+  output: ../packaging/windows/bin/electron
+files:
+  - main.js
+  - preload.js
+  - package.json
+  - icons/**
+win:
+  icon: icons/icon.ico
+  executableName: JonathanAi
+  artifactName: JonathanAi.exe
+  target:
+    - target: dir
+      arch:
+        - x64
+electronVersion: 36.0.0

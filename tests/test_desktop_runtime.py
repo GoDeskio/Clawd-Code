@@ -303,6 +303,8 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("GitHub", html)
         self.assertIn("Create repo and push", html)
         self.assertIn("informational", html)
+        self.assertIn("robot.png", html)
+        self.assertIn("Conversations", html)
         self.assertIn("app.js", html)
 
 

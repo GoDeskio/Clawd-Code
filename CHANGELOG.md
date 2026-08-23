@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Windows desktop path: JonathanAi-Setup.exe wizard (Next/Install/Finish), JonathanAi.exe app, Desktop and Start Menu shortcuts named Jonathan Ai, robot sketch branding, glassmorphism dashboard
 - First-class GitHub and GitLab connectors: token or device/OAuth login, clone/pull/push, create repo/project, PR/MR, list remotes. Default GitHub owner is GoDeskio. Default branches are not pushed unless the operator names them.
 - MCP server and OpenAI-compatible agent connectors (add/list/enable/test/invoke) plus Cursor/Codex/local hook files and inbound localhost hook
 - Per-chat informational token usage (input, output, running total) persisted with the session — never a quota or paywall
