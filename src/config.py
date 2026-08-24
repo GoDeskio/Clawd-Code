@@ -16,25 +16,43 @@ def get_config_path() -> Path:
     return config_dir / "config.json"
 
 
+def _provider_slot(name: str, info: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "api_key": "",
+        "base_url": info["default_base_url"],
+        "default_model": info["default_model"],
+    }
+
+
+def _ensure_provider_slots(config: dict[str, Any]) -> dict[str, Any]:
+    from src.providers import PROVIDER_INFO
+
+    providers = config.setdefault("providers", {})
+    for name, info in PROVIDER_INFO.items():
+        if name not in providers or not isinstance(providers.get(name), dict):
+            providers[name] = _provider_slot(name, info)
+        else:
+            providers[name].setdefault("base_url", info["default_base_url"])
+            providers[name].setdefault("default_model", info["default_model"])
+            providers[name].setdefault("api_key", "")
+    return config
+
+
 def _get_default_config_from_providers() -> dict[str, Any]:
     """Build default config using provider info registry."""
     from src.providers import PROVIDER_INFO
 
-    return {
+    return _ensure_provider_slots({
         "default_provider": "anthropic",
         "providers": {
-            name: {
-                "api_key": "",
-                "base_url": info["default_base_url"],
-                "default_model": info["default_model"],
-            }
+            name: _provider_slot(name, info)
             for name, info in PROVIDER_INFO.items()
         },
         "session": {
             "auto_save": True,
             "max_history": 100
         }
-    }
+    })
 
 
 def get_default_config() -> dict[str, Any]:
@@ -78,8 +96,9 @@ def load_config() -> dict[str, Any]:
         for provider_name, provider_config in config.get("providers", {}).items():
             if provider_config.get("api_key"):
                 provider_config["api_key"] = _decode_api_key(provider_config["api_key"])
+        _decode_connector_secrets(config)
 
-        return config
+        return _ensure_provider_slots(config)
     except Exception as e:
         print(f"Error loading config: {e}")
         return get_default_config()
@@ -101,6 +120,7 @@ def save_config(config: dict[str, Any]) -> None:
     for provider_name, provider_config in config_copy.get("providers", {}).items():
         if provider_config.get("api_key"):
             provider_config["api_key"] = _encode_api_key(provider_config["api_key"])
+    _encode_connector_secrets(config_copy)
 
     if os.name == "nt":
         with open(config_path, 'w', encoding='utf-8') as f:
@@ -182,3 +202,136 @@ def get_default_provider() -> str:
     """
     config = load_config()
     return config.get("default_provider", "anthropic")
+
+
+def provider_requires_key(provider: str) -> bool:
+    from src.providers import PROVIDER_INFO
+
+    info = PROVIDER_INFO.get(provider) or {}
+    return bool(info.get("requires_key", True))
+
+
+def is_provider_ready(provider: str, provider_config: dict[str, Any] | None = None) -> bool:
+    """A cloud/HF provider is ready with a key; local is ready after a model is chosen."""
+    cfg = provider_config if provider_config is not None else get_provider_config(provider)
+    if not isinstance(cfg, dict):
+        return False
+    if provider_requires_key(provider):
+        return bool(str(cfg.get("api_key") or "").strip())
+    return bool(str(cfg.get("base_url") or "").strip() and str(cfg.get("default_model") or "").strip())
+
+
+def has_configured_provider() -> bool:
+    """Return True if at least one provider is ready to chat."""
+    config = load_config()
+    for name, provider_config in config.get("providers", {}).items():
+        if isinstance(provider_config, dict) and is_provider_ready(name, provider_config):
+            return True
+    return False
+
+
+def public_config() -> dict[str, Any]:
+    """Return configuration safe to send to a desktop UI (keys masked)."""
+    config = load_config()
+    providers: dict[str, Any] = {}
+    for name, provider_config in config.get("providers", {}).items():
+        if not isinstance(provider_config, dict):
+            continue
+        api_key = str(provider_config.get("api_key") or "")
+        if not api_key:
+            masked = ""
+        elif len(api_key) > 12:
+            masked = f"{api_key[:4]}…{api_key[-4:]}"
+        else:
+            masked = "••••"
+        providers[name] = {
+            "configured": is_provider_ready(name, provider_config),
+            "requires_key": provider_requires_key(name),
+            "api_key_masked": masked,
+            "base_url": provider_config.get("base_url", ""),
+            "default_model": provider_config.get("default_model", ""),
+        }
+    desktop = config.get("desktop") if isinstance(config.get("desktop"), dict) else {}
+    return {
+        "default_provider": config.get("default_provider", "anthropic"),
+        "providers": providers,
+        "configured": has_configured_provider(),
+        "desktop": {
+            "workspace": desktop.get("workspace", ""),
+            "notify_on_complete": bool(desktop.get("notify_on_complete", True)),
+        },
+        "connectors": _public_connectors_safe(),
+    }
+
+
+def _encode_connector_secrets(config: dict[str, Any]) -> None:
+    connectors = config.get("connectors")
+    if not isinstance(connectors, dict):
+        return
+    for name in ("github", "gitlab"):
+        slot = connectors.get(name)
+        if isinstance(slot, dict) and slot.get("token"):
+            slot["token"] = _encode_api_key(str(slot["token"]))
+    for key, field in (("mcp", "token"), ("agents", "api_key")):
+        items = connectors.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and item.get(field):
+                item[field] = _encode_api_key(str(item[field]))
+
+
+def _decode_connector_secrets(config: dict[str, Any]) -> None:
+    connectors = config.get("connectors")
+    if not isinstance(connectors, dict):
+        return
+    for name in ("github", "gitlab"):
+        slot = connectors.get(name)
+        if isinstance(slot, dict) and slot.get("token"):
+            slot["token"] = _decode_api_key(str(slot["token"]))
+    for key, field in (("mcp", "token"), ("agents", "api_key")):
+        items = connectors.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and item.get(field):
+                item[field] = _decode_api_key(str(item[field]))
+
+
+def _public_connectors_safe() -> dict[str, Any]:
+    from src.connectors.store import public_connectors
+
+    return public_connectors()
+
+
+def get_desktop_settings() -> dict[str, Any]:
+    config = load_config()
+    desktop = config.get("desktop")
+    if not isinstance(desktop, dict):
+        desktop = {}
+    return {
+        "workspace": desktop.get("workspace", ""),
+        "notify_on_complete": bool(desktop.get("notify_on_complete", True)),
+        "current_session_id": desktop.get("current_session_id") or "",
+    }
+
+
+def update_desktop_settings(
+    *,
+    workspace: Optional[str] = None,
+    notify_on_complete: Optional[bool] = None,
+    current_session_id: Optional[str] = None,
+) -> dict[str, Any]:
+    config = load_config()
+    desktop = config.get("desktop")
+    if not isinstance(desktop, dict):
+        desktop = {}
+    if workspace is not None:
+        desktop["workspace"] = workspace
+    if notify_on_complete is not None:
+        desktop["notify_on_complete"] = bool(notify_on_complete)
+    if current_session_id is not None:
+        desktop["current_session_id"] = current_session_id
+    config["desktop"] = desktop
+    save_config(config)
+    return get_desktop_settings()

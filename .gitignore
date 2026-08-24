@@ -80,5 +80,19 @@ sessions/
 .transcripts/
 .port_sessions/
 
+# Desktop / Electron
+node_modules/
+desktop/dist/
+desktop/out/
+packaging/windows/build/
+npm-debug.log*
+
+# Local desktop captures (user-initiated screenshots)
+.clawd/captures/
+
+# Durable agent memory and chat sessions stay on the machine, never in git
+.clawd/memory/
+.clawd/sessions/
+
 # Claude Code personal settings
 CLAUDE.local.md

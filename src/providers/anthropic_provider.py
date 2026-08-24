@@ -17,6 +17,12 @@ except ModuleNotFoundError:  # pragma: no cover
     anthropic = _MissingAnthropic()
 
 from .base import BaseProvider, ChatResponse, MessageInput, TextChunkCallback
+from src.agent.conversation import sanitize_anthropic_messages
+from src.tool_system.schema_sanitize import (
+    is_input_schema_type_error,
+    log_rejected_tool_index,
+    prepare_anthropic_tools,
+)
 
 
 class AnthropicProvider(BaseProvider):
@@ -44,6 +50,113 @@ class AnthropicProvider(BaseProvider):
             return self.client
         self.client = anthropic.Anthropic(**self._client_kwargs)
         return self.client
+
+    def _classic_tools(self, tools: Optional[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+        return prepare_anthropic_tools(tools)
+
+    def _request_kwargs(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: list[Any],
+        tools: list[dict[str, Any]] | None,
+        system: Any,
+        extra: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": messages,
+        }
+        if system:
+            payload["system"] = system
+        if tools:
+            payload["tools"] = tools
+        safe_extra = {
+            key: value
+            for key, value in (extra or {}).items()
+            if key not in {"tools", "model", "max_tokens", "messages", "system"}
+        }
+        payload.update(safe_extra)
+        return payload
+
+    def _prepare_request(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: list[Any],
+        tools: list[dict[str, Any]] | None,
+        system: Any,
+        extra: dict[str, Any],
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        prepared = self._classic_tools(tools) if tools else []
+        request = self._request_kwargs(
+            model=model,
+            max_tokens=max_tokens,
+            messages=messages,
+            tools=prepared or None,
+            system=system,
+            extra=extra,
+        )
+        return request, prepared
+
+    def _retry_without_tools(self, request: dict[str, Any], prepared: list[dict[str, Any]], exc: BaseException) -> dict[str, Any]:
+        log_rejected_tool_index(prepared, exc)
+        retry = dict(request)
+        retry.pop("tools", None)
+        return retry
+
+    def _call_create(
+        self,
+        client: Any,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: list[Any],
+        tools: list[dict[str, Any]] | None,
+        system: Any,
+        extra: dict[str, Any],
+    ) -> Any:
+        request, prepared = self._prepare_request(
+            model=model,
+            max_tokens=max_tokens,
+            messages=messages,
+            tools=tools,
+            system=system,
+            extra=extra,
+        )
+        try:
+            return client.messages.create(**request)
+        except Exception as exc:
+            if prepared and is_input_schema_type_error(exc):
+                return client.messages.create(**self._retry_without_tools(request, prepared, exc))
+            if prepared:
+                try:
+                    return client.messages.create(**self._retry_without_tools(request, prepared, exc))
+                except Exception:
+                    raise exc
+            raise
+
+    def _stream_request(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: list[Any],
+        tools: list[dict[str, Any]] | None,
+        system: Any,
+        extra: dict[str, Any],
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        return self._prepare_request(
+            model=model,
+            max_tokens=max_tokens,
+            messages=messages,
+            tools=tools,
+            system=system,
+            extra=extra,
+        )
 
     def _build_chat_response(self, response: Any) -> ChatResponse:
         """Convert Anthropic SDK response into the shared ChatResponse shape."""
@@ -99,21 +212,17 @@ class AnthropicProvider(BaseProvider):
         # Convert messages to Anthropic format
         anthropic_messages = self._prepare_messages(messages)
 
-        # Make API call
         client = self._ensure_client()
-        extra_kwargs: dict[str, Any] = {}
-        if tools:
-            extra_kwargs["tools"] = tools
-
-        response = client.messages.create(
+        extra = {k: v for k, v in kwargs.items() if k not in ["model", "max_tokens", "tools"]}
+        response = self._call_create(
+            client,
             model=model,
             max_tokens=max_tokens,
             messages=anthropic_messages,
-            **({"system": system} if system else {}),
-            **extra_kwargs,
-            **{k: v for k, v in kwargs.items() if k not in ["model", "max_tokens", "tools"]},
+            tools=tools,
+            system=system,
+            extra=extra,
         )
-
         return self._build_chat_response(response)
 
     def chat_stream(
@@ -135,22 +244,35 @@ class AnthropicProvider(BaseProvider):
         model = self._get_model(**kwargs)
         max_tokens = kwargs.get("max_tokens", 4096)
 
-        # Convert messages
         anthropic_messages = self._prepare_messages(messages)
-
-        # Stream API call
         client = self._ensure_client()
-        extra_kwargs: dict[str, Any] = {}
-        if tools:
-            extra_kwargs["tools"] = tools
-
-        with client.messages.stream(
+        extra = {k: v for k, v in kwargs.items() if k not in ["model", "max_tokens", "tools"]}
+        request, prepared = self._stream_request(
             model=model,
             max_tokens=max_tokens,
             messages=anthropic_messages,
-            **extra_kwargs,
-            **{k: v for k, v in kwargs.items() if k not in ["model", "max_tokens", "tools"]},
-        ) as stream:
+            tools=tools,
+            system=None,
+            extra=extra,
+        )
+        yielded = False
+        active = request
+        try:
+            with client.messages.stream(**active) as stream:
+                for text in stream.text_stream:
+                    yielded = True
+                    yield text
+            return
+        except Exception as exc:
+            if yielded:
+                raise
+            if not prepared:
+                raise
+            if not is_input_schema_type_error(exc):
+                # Prefer a no-tools answer over failing the first streamed message.
+                pass
+            active = self._retry_without_tools(request, prepared, exc)
+        with client.messages.stream(**active) as stream:
             for text in stream.text_stream:
                 yield text
 
@@ -168,29 +290,53 @@ class AnthropicProvider(BaseProvider):
         anthropic_messages = self._prepare_messages(messages)
 
         client = self._ensure_client()
-        extra_kwargs: dict[str, Any] = {}
-        if tools:
-            extra_kwargs["tools"] = tools
-
-        streamed_text = ""
-        with client.messages.stream(
+        extra = {k: v for k, v in kwargs.items() if k not in ["model", "max_tokens", "tools"]}
+        request, prepared = self._stream_request(
             model=model,
             max_tokens=max_tokens,
             messages=anthropic_messages,
-            **({"system": system} if system else {}),
-            **extra_kwargs,
-            **{k: v for k, v in kwargs.items() if k not in ["model", "max_tokens", "tools"]},
-        ) as stream:
-            for text in stream.text_stream:
-                if not text:
-                    continue
-                streamed_text += text
-                if on_text_chunk is not None:
-                    on_text_chunk(text)
-            try:
-                final_message = stream.get_final_message()
-            except Exception:
-                final_message = None
+            tools=tools,
+            system=system,
+            extra=extra,
+        )
+        streamed_text = ""
+        final_message = None
+        emitted: list[str] = []
+
+        def _read_stream(req: dict[str, Any]) -> tuple[str, Any]:
+            text_out = ""
+            final = None
+            with client.messages.stream(**req) as stream:
+                for text in stream.text_stream:
+                    if not text:
+                        continue
+                    text_out += text
+                    emitted.append(text)
+                    if on_text_chunk is not None:
+                        on_text_chunk(text)
+                try:
+                    final = stream.get_final_message()
+                except Exception as final_exc:
+                    if is_input_schema_type_error(final_exc):
+                        raise
+                    final = None
+            return text_out, final
+
+        try:
+            streamed_text, final_message = _read_stream(request)
+        except Exception as exc:
+            if emitted:
+                return ChatResponse(
+                    content="".join(emitted),
+                    model=model,
+                    usage={},
+                    finish_reason="stop",
+                    tool_uses=None,
+                )
+            if not prepared:
+                raise
+            retry = self._retry_without_tools(request, prepared, exc)
+            streamed_text, final_message = _read_stream(retry)
 
         if final_message is not None:
             return self._build_chat_response(final_message)
@@ -202,6 +348,10 @@ class AnthropicProvider(BaseProvider):
             finish_reason="stop",
             tool_uses=None,
         )
+
+    def _prepare_messages(self, messages: list[MessageInput]) -> list[dict[str, Any]]:
+        """Convert history and stringify object-shaped tool_result.content."""
+        return sanitize_anthropic_messages(super()._prepare_messages(messages))
 
     def get_available_models(self) -> list[str]:
         """Get list of available Anthropic models.

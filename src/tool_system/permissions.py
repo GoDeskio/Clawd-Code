@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .errors import ToolPermissionError
+from .permission_handler import PermissionResult
 
 
 def _resolve_path(p: str | Path) -> Path:
@@ -69,4 +70,39 @@ class ToolPermissionContext:
             return resolved
         roots_str = ", ".join(str(r) for r in roots)
         raise ToolPermissionError(f"path is outside allowed working directories: {resolved} (allowed: {roots_str})")
+
+
+# Tools that leave the workspace or mutate the machine. Desktop mode asks
+# before these run unless the user granted the tool for the session.
+GATED_TOOL_NAMES = frozenset({
+    "bash",
+    "powershell",
+    "write",
+    "edit",
+    "notebookedit",
+    "webfetch",
+    "websearch",
+    "mcp",
+    "externalagent",
+    "remotetrigger",
+})
+
+
+def maybe_ask_for_gated_tool(
+    context: object,
+    tool_name: str,
+    message: str,
+    suggestion: str | None = None,
+) -> PermissionResult:
+    """Ask for consent when the context is in interactive desktop/gated mode."""
+    if not getattr(context, "gate_destructive_tools", False):
+        return PermissionResult.allow()
+    grants = getattr(context, "session_grants", None) or set()
+    lowered = tool_name.lower()
+    if lowered in grants or "*" in grants:
+        return PermissionResult.allow()
+    return PermissionResult.ask(
+        message=message,
+        suggestion=suggestion or f"Allow {tool_name} for the rest of this session",
+    )
 

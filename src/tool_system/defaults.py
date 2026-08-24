@@ -32,6 +32,7 @@ from .tools import (
     SendMessageTool,
     SendUserMessageTool,
     SkillTool,
+    SpawnWorkersTool,
     SleepTool,
     StructuredOutputTool,
     TeamCreateTool,
@@ -47,6 +48,7 @@ from .tools import (
     WebFetchTool,
     WebSearchTool,
 )
+from .tools.external_agent import ExternalAgentTool
 from .tools.agent import AgentTool
 from .tools.tool_search import ToolSearchTool
 
@@ -67,10 +69,12 @@ def build_default_registry(*, include_user_tools: bool = True) -> ToolRegistry:
             TaskStopTool(),
             ConfigTool(),
             MCPTool(),
+            ExternalAgentTool(),
             ListMcpResourcesTool(),
             ReadMcpResourceTool(),
             LSPTool(),
             SkillTool(),
+            SpawnWorkersTool(),
             BriefTool(),
             AskUserQuestionTool(),
             TodoWriteTool(),

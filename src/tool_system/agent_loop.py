@@ -158,12 +158,37 @@ def _call_provider_for_turn(
             return response, True
         except NotImplementedError:
             pass
-        except Exception:
-            # Preserve existing stable behavior if streaming is unsupported or fails.
-            pass
+        except Exception as exc:
+            from .schema_sanitize import is_input_schema_type_error, log_rejected_tool_index
 
-    response = provider.chat(api_messages, **call_kwargs)
-    return response, False
+            tools = call_kwargs.get("tools")
+            if tools and is_input_schema_type_error(exc):
+                log_rejected_tool_index(tools, exc)
+                fallback = {key: value for key, value in call_kwargs.items() if key != "tools"}
+                try:
+                    response = provider.chat_stream_response(
+                        api_messages,
+                        on_text_chunk=on_text_chunk,
+                        **fallback,
+                    )
+                    if isinstance(response, ChatResponse):
+                        return response, True
+                except Exception:
+                    pass
+
+    try:
+        response = provider.chat(api_messages, **call_kwargs)
+        return response, False
+    except Exception as exc:
+        from .schema_sanitize import is_input_schema_type_error, log_rejected_tool_index
+
+        tools = call_kwargs.get("tools")
+        if tools and is_input_schema_type_error(exc):
+            log_rejected_tool_index(tools, exc)
+            fallback = {key: value for key, value in call_kwargs.items() if key != "tools"}
+            response = provider.chat(api_messages, **fallback)
+            return response, False
+        raise
 
 
 def _build_effective_system_prompt(style_prompt: str, tool_context: ToolContext) -> str:
@@ -174,9 +199,15 @@ def _build_effective_system_prompt(style_prompt: str, tool_context: ToolContext)
         )
     except Exception:
         context_prompt = ""
-    if not context_prompt.strip():
-        return style_prompt
-    return f"{style_prompt}\n\n{context_prompt}"
+    memory_prompt = ""
+    try:
+        from src.agent.memory import build_memory_brief
+
+        memory_prompt = build_memory_brief(exclude_session_id=getattr(tool_context, "session_id", None))
+    except Exception:
+        memory_prompt = ""
+    parts = [style_prompt, context_prompt, memory_prompt]
+    return "\n\n".join(part for part in parts if str(part or "").strip())
 
 
 def summarize_tool_use(name: str, tool_input: dict[str, Any]) -> str:
@@ -247,6 +278,7 @@ def run_agent_loop(
     verbose: bool = False,
     on_event: ToolEventHandler | None = None,
     on_text_chunk: TextChunkHandler | None = None,
+    omit_tools: bool = False,
 ) -> AgentLoopResult:
     """Run agent loop: LLM -> tools -> LLM until no more tools or max turns.
 
@@ -260,18 +292,20 @@ def run_agent_loop(
         verbose: Whether to print tool calls/results
         on_event: Optional callback for tool events
         on_text_chunk: Optional callback for incremental user-visible text chunks
+        omit_tools: If True, call the provider with no tools (schema-400 fallback)
 
     Returns:
         AgentLoopResult with final text response, usage info, and turn count
     """
-    # Convert tools to schemas (Anthropic format)
-    tool_schemas = []
-    for spec in tool_registry.list_specs():
-        tool_schemas.append({
-            "name": spec.name,
-            "description": spec.description,
-            "input_schema": spec.input_schema,
-        })
+    # Convert tools to schemas (Anthropic format). Sanitize every schema so a
+    # missing input_schema.type cannot 400 the provider. Omit ExternalAgent/MCP
+    # unless the user connected one — Jonathan Ai chats standalone.
+    from .schema_sanitize import serialize_tools_for_provider
+
+    tool_schemas = [] if omit_tools else serialize_tools_for_provider(
+        tool_registry,
+        tool_context=tool_context,
+    )
 
     # For OpenAI/GLM, keep separate message list in OpenAI format
     openai_messages: list[dict[str, Any]] = []

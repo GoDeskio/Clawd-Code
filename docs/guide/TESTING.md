@@ -10,6 +10,7 @@ tests/
 ├── test_claude_code_tool_parity.py
 ├── test_config.py
 ├── test_context_system.py
+├── test_desktop_runtime.py
 ├── test_output_styles.py
 ├── test_porting_workspace.py
 ├── test_providers.py
@@ -47,6 +48,12 @@ python -m pytest tests/test_repl.py -q
 
 # Test context and agent loop
 python -m pytest tests/test_context_system.py tests/test_agent_loop.py -q
+
+# Test desktop host / agent wiring
+python -m pytest tests/test_desktop_runtime.py tests/test_permissions.py -q
+
+# Test install wizard and GoDesk-only updater
+python -m pytest tests/test_install_update.py -q
 ```
 
 ### Run Specific Test

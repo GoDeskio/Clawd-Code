@@ -28,6 +28,14 @@ class ToolContext:
     team: dict[str, Any] | None = None
     output_style_name: str | None = None
     output_style_dir: Path | None = None
+    session_id: str | None = None
+
+    # When True, destructive/network tools ask for consent before running.
+    # Desktop runtime enables this; the CLI REPL leaves it off so existing
+    # non-interactive scripts keep working.
+    gate_destructive_tools: bool = False
+    # Tool names the user approved for the rest of this session (lowercase).
+    session_grants: set[str] = field(default_factory=set)
 
     # Permission handler callback: called when a tool needs user consent.
     # Signature: (tool_name: str, message: str, suggestion: str | None)

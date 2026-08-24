@@ -17,6 +17,8 @@ except ModuleNotFoundError:  # pragma: no cover
     anthropic = _MissingAnthropic()
 
 from .base import BaseProvider, ChatResponse, MessageInput, TextChunkCallback
+from src.agent.conversation import sanitize_anthropic_messages
+from src.tool_system.schema_sanitize import sanitize_tools_for_api
 
 
 class MinimaxProvider(BaseProvider):
@@ -109,7 +111,7 @@ class MinimaxProvider(BaseProvider):
         client = self._ensure_client()
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            extra_kwargs["tools"] = tools
+            extra_kwargs["tools"] = sanitize_tools_for_api(tools)
 
         response = client.messages.create(
             model=model,
@@ -148,7 +150,7 @@ class MinimaxProvider(BaseProvider):
         client = self._ensure_client()
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            extra_kwargs["tools"] = tools
+            extra_kwargs["tools"] = sanitize_tools_for_api(tools)
 
         with client.messages.stream(
             model=model,
@@ -175,7 +177,7 @@ class MinimaxProvider(BaseProvider):
         client = self._ensure_client()
         extra_kwargs: dict[str, Any] = {}
         if tools:
-            extra_kwargs["tools"] = tools
+            extra_kwargs["tools"] = sanitize_tools_for_api(tools)
 
         streamed_text = ""
         with client.messages.stream(
@@ -207,6 +209,10 @@ class MinimaxProvider(BaseProvider):
             finish_reason="stop",
             tool_uses=None,
         )
+
+    def _prepare_messages(self, messages: list[MessageInput]) -> list[dict[str, Any]]:
+        """Convert history and stringify object-shaped tool_result.content."""
+        return sanitize_anthropic_messages(super()._prepare_messages(messages))
 
     def get_available_models(self) -> list[str]:
         """Get list of available Minimax models.

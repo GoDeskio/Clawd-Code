@@ -5,11 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.8] - 2026-08-23
+
+### Fixed
+- Windows desktop start no longer dies in `Session.load` with `UnicodeDecodeError` on session JSON. Session files are always opened and written as UTF-8 (`encoding='utf-8'`), so bytes such as `0x8F` that are undefined in cp1252 load correctly
+
+## [0.2.7] - 2026-08-23
+
+### Fixed
+- Anthropic `tool_result.content` is now always a string or a list of content blocks. Dict/object/list tool outputs (Read, Write, Glob, resumed session JSON) are `json.dumps`'d before `chat`, `chat_stream`, and `chat_stream_response`, so Anthropic no longer returns `Found an object, but tool_result content must either be a string or a list of content blocks`
+
+## [0.2.6] - 2026-08-23
+
+### Fixed
+- First desktop launch now auto-repairs the venv and installs missing pip packages (Electron/npm remains optional). `JonathanAi.exe`, Electron, and `clawd desktop` all run this bootstrap before chat starts
+- Auto-update tracks the **current branch** only. A feature-branch install is never treated as stale just because `main` moved, and apply never checks out `main`
+- If a desktop Anthropic turn still raises `tools.N.custom.input_schema.type`, the same user message is retried with tools omitted so the first reply still lands
+
+## [0.2.5] - 2026-08-23
+
+### Fixed
+- `/new` now creates a brand-new empty session (new id, empty messages, reset token meter). `/clear` keeps the same session but persists the empty transcript so restart does not restore wiped messages
+- Windows Setup no longer merges `origin/main` into an existing feature-branch install; it overlays this checkout and fetches the current branch only
+- Electron/npm install is best-effort: a failed `npm install` no longer aborts venv + pip setup. The browser UI still opens
+- Anthropic custom-wrapped / MCP dynamic tools flatten to `{name, description, input_schema:{type:object, properties}}`. Stream retry without tools only runs when no text has been emitted yet
+
+## [0.2.4] - 2026-08-23
+
+### Fixed
+- Desktop streaming (`chat_stream_response` / `chat_stream`) now sanitizes every tool to the classic Anthropic shape and retries the same turn with tools omitted on `tools.N.custom.input_schema.type` 400s, so the first message still answers
+- Agent loop retries without tools if the stream path still raises that 400
 
 ### Added
+- Internal multi-agent planner/workers (parallel isolated chats, shared memory only). No Cursor/Codex/MCP required. Desktop **Workers** button plus `SpawnWorkers` tool
+
+## [0.2.3] - 2026-08-23
+
+### Fixed
+- Windows `JonathanAi.exe` now probes `CLAWD_SOURCE_DIR`, the exe folder, `%USERPROFILE%\Jonathan\Jonathan-Ai`, then cwd. A Desktop shortcut pointing at the parent `Jonathan` folder still finds the venv.
+- Missing Electron is no longer an error: if `.venv\Scripts\pythonw.exe` exists, the app starts `pythonw -m src.cli desktop`.
+- Setup upgrades the existing Jonathan-Ai (or Clawd-Code) folder in place, writes `JonathanAi.exe` into that folder, deletes leftover parent-folder exes, and rewrites Desktop/Start Menu shortcuts to `%USERPROFILE%\Jonathan\Jonathan-Ai\JonathanAi.exe`. A second Setup run upgrades the same folder.
+
+## [0.2.2] - 2026-08-23
+
+### Added
+- Persistent desktop conversations: sessions restore on restart; sidebar lists all chats
+- New Chat always creates a unique empty session (new id, empty messages, reset token meter)
+- Shared agent memory under `~/.clawd/memory` (facts + compact conversation index) injected as a short brief each turn
+
+## [0.2.1] - 2026-08-23
+
+### Fixed
+- Anthropic 400 `tools.17.custom.input_schema.type` still fired after 0.2.0: MCP resource tools were not omitted (real names are `ListMcpResourcesTool` / `ReadMcpResourceTool`), which shifted index 17 to AskUserQuestion
+- Anthropic/OpenAI payloads now use only the classic tool shape `{name, description, input_schema:{type:object, properties, required?}}`; nested object schemas get `type`; anyOf/oneOf is flattened
+- The same Anthropic request is retried with tools omitted on this exact 400 so the user still gets a reply; tool index 17 is logged
+
+## [0.2.0] - 2026-08-23
+
+### Added
+- `VERSION` file (starts at 0.2.0), shown in the desktop header, Windows installer, and README
+- Conversation rename in the left sidebar (inline double-click / context menu); title is persisted with the session
+- Standalone desktop chat: Jonathan Ai is the agent. MCP / ExternalAgent / Cursor / Codex tools are omitted from the provider payload until something is connected
+- Tool schema sanitizer: every tool sent to Anthropic/OpenAI has `input_schema.type: object` (repairs or drops invalid schemas)
+
+### Fixed
+- Anthropic 400 `tools.17.custom.input_schema.type: Field required` — SkillTool (default registry index 17) previously sent `anyOf` without a top-level `type`
+
+### Added (earlier unreleased)
+- Windows desktop path: JonathanAi-Setup.exe wizard (Next/Install/Finish), JonathanAi.exe app, Desktop and Start Menu shortcuts named Jonathan Ai, robot sketch branding, glassmorphism dashboard
+- First-class GitHub and GitLab connectors: token or device/OAuth login, clone/pull/push, create repo/project, PR/MR, list remotes. Default GitHub owner is GoDeskio. Default branches are not pushed unless the operator names them.
+- MCP server and OpenAI-compatible agent connectors (add/list/enable/test/invoke) plus Cursor/Codex/local hook files and inbound localhost hook
+- Per-chat informational token usage (input, output, running total) persisted with the session — never a quota or paywall
+- First-class Hugging Face (Hub + Inference) and Local LLM connectors in Jonathan Ai settings and the install wizard
+- Local endpoint scan for Ollama, LM Studio, vLLM, llama.cpp, TGI, and custom loopback/LAN URLs
+- Desktop app: localhost Python host + chat UI, optional Electron shell
+- First-run install wizard (`./install.sh`, `install.ps1`, `python -m src.cli install`)
+- Local source default `~/Jonathan/Jonathan-Ai` with configurable path
+- User-facing product name **Jonathan Ai** (desktop, wizard, tray; repo remains GoDeskio/Clawd-Code)
+- Self-update from GoDeskio/Clawd-Code only (launch + interval, UI status)
+- Interactive permission prompts for gated desktop tools (Bash, Write, Edit, Web)
+- Session listing, first-run login UI, workspace picker, file/clipboard attach
 - Initial context injection pipeline for workspace snapshot, git status, and `CLAUDE.md`
-- Tests covering the new context system integration
+- Tests covering the new context system integration and desktop host wiring
 
 ### Changed
 - Skill frontmatter parsing now supports inline list syntax such as `arguments: [path]`
@@ -143,4 +220,13 @@ The focus was on building a solid foundation with clean architecture, comprehens
 
 ---
 
+[0.2.8]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.8
+[0.2.7]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.7
+[0.2.6]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.6
+[0.2.5]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.5
+[0.2.4]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.4
+[0.2.3]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.3
+[0.2.2]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.2
+[0.2.1]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.1
+[0.2.0]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.0
 [0.1.0]: https://github.com/GPT-AGI/Clawd-Code/releases/tag/v0.1.0

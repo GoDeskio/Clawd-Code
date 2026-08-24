@@ -107,16 +107,18 @@ class ClawdREPL:
         self.multiline_mode = False
 
         # Load configuration
+        from src.config import is_provider_ready
+
         config = get_provider_config(provider_name)
-        if not config.get("api_key"):
-            self.console.print("[red]Error: API key not configured.[/red]")
-            self.console.print("Run [bold]clawd login[/bold] to configure.")
+        if not is_provider_ready(provider_name, config):
+            self.console.print("[red]Error: provider is not configured.[/red]")
+            self.console.print("Run [bold]clawd login[/bold] to connect Hugging Face, a local LLM, or a cloud key.")
             sys.exit(1)
 
         # Initialize provider
         provider_class = get_provider_class(provider_name)
         self.provider = provider_class(
-            api_key=config["api_key"],
+            api_key=config.get("api_key") or "local",
             base_url=config.get("base_url"),
             model=config.get("default_model")
         )
@@ -1246,69 +1248,22 @@ class ClawdREPL:
                 traceback.print_exc()
 
     def _handle_relogin(self):
-        """Handle re-authentication when API key fails."""
-        from rich.prompt import Prompt
-        from src.config import set_api_key, set_default_provider
-        from src.providers import PROVIDER_INFO
+        """Handle re-authentication when a provider key or local endpoint fails."""
+        from src.providers.connect_flow import prompt_provider_connection
 
-        self.console.print("\n[bold blue]🔑 Reconfigure API Key[/bold blue]\n")
-
-        # Show available providers and defaults
-        provider_names = list(PROVIDER_INFO.keys())
-        self.console.print("[bold]Available providers:[/bold]")
-        for name, info in PROVIDER_INFO.items():
-            self.console.print(f"  [cyan]{name}[/cyan] - {info['label']} (default model: {info['default_model']})")
-        self.console.print()
-
-        # Select provider
-        provider = Prompt.ask(
-            "Select LLM provider",
-            choices=provider_names,
-            default=self.provider_name if self.provider_name in provider_names else "anthropic"
-        )
-
-        info = PROVIDER_INFO[provider]
-
-        # Input API Key
-        api_key = Prompt.ask(
-            f"Enter {provider.upper()} API Key",
-            password=True
-        )
-
-        if not api_key:
-            self.console.print("\n[red]Error: API Key cannot be empty[/red]")
+        self.console.print("\n[bold blue]🔑 Reconfigure provider[/bold blue]\n")
+        if prompt_provider_connection(self.console, default=self.provider_name) != 0:
             return
 
-        # Optional: Base URL (show default)
-        self.console.print(f"\n[dim]Default:[/dim] {info['default_base_url']}")
-        base_url = Prompt.ask(
-            f"{provider.upper()} Base URL",
-            default=info["default_base_url"]
-        )
-
-        # Optional: Default Model (show options)
-        self.console.print(f"\n[dim]Available models:[/dim] {', '.join(info['available_models'])}")
-        self.console.print(f"[dim]Default:[/dim] [bold]{info['default_model']}[/bold]")
-        default_model = Prompt.ask(
-            f"{provider.upper()} Default Model",
-            default=info["default_model"]
-        )
-
-        # Save configuration
-        set_api_key(provider, api_key=api_key, base_url=base_url, default_model=default_model)
-        set_default_provider(provider)
-
-        self.console.print(f"\n[green]✓ {provider.upper()} API Key updated successfully![/green]\n")
-
-        # Reinitialize provider
-        from src.config import get_provider_config
+        from src.config import get_default_provider, get_provider_config
         from src.providers import get_provider_class
 
+        provider = get_default_provider()
         config = get_provider_config(provider)
         provider_class = get_provider_class(provider)
 
         self.provider = provider_class(
-            api_key=config["api_key"],
+            api_key=config.get("api_key") or "local",
             base_url=config.get("base_url"),
             model=config.get("default_model")
         )

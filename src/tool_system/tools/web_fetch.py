@@ -10,6 +10,8 @@ from typing import Any
 
 from ..context import ToolContext
 from ..errors import ToolInputError, ToolPermissionError
+from ..permission_handler import PermissionResult
+from ..permissions import maybe_ask_for_gated_tool
 from ..protocol import ToolResult
 from ..registry import ToolSpec
 
@@ -52,6 +54,18 @@ class WebFetchTool:
             },
             is_read_only=True,
             max_result_size_chars=50_000,
+        )
+
+    def check_permissions(
+        self, tool_input: dict[str, Any], context: ToolContext
+    ) -> PermissionResult:
+        url = tool_input.get("url", "")
+        preview = url if isinstance(url, str) else ""
+        return maybe_ask_for_gated_tool(
+            context,
+            "WebFetch",
+            f"Fetch URL: {preview or '(missing)'}",
+            "Allow WebFetch for the rest of this session",
         )
 
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:

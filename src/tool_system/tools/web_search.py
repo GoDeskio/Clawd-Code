@@ -8,6 +8,8 @@ from typing import Any
 
 from ..context import ToolContext
 from ..errors import ToolInputError
+from ..permission_handler import PermissionResult
+from ..permissions import maybe_ask_for_gated_tool
 from ..protocol import ToolResult
 from ..registry import ToolSpec
 
@@ -39,6 +41,18 @@ class WebSearchTool:
             },
             is_read_only=True,
             max_result_size_chars=50_000,
+        )
+
+    def check_permissions(
+        self, tool_input: dict[str, Any], context: ToolContext
+    ) -> PermissionResult:
+        query = tool_input.get("query", "")
+        preview = query if isinstance(query, str) else ""
+        return maybe_ask_for_gated_tool(
+            context,
+            "WebSearch",
+            f"Search the web for: {preview or '(missing)'}",
+            "Allow WebSearch for the rest of this session",
         )
 
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:

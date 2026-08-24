@@ -16,6 +16,7 @@ from .misc import NotebookEditTool, PowerShellTool, REPLTool, RemoteTriggerTool,
 from .plan_mode import EnterPlanModeTool, ExitPlanModeTool
 from .read import FileReadTool
 from .send_user_message import SendUserMessageTool
+from .spawn_workers import SpawnWorkersTool
 from .sleep import SleepTool
 from .skill import SkillTool
 from .structured_output import StructuredOutputTool
@@ -58,6 +59,7 @@ __all__ = [
     "SendMessageTool",
     "SendUserMessageTool",
     "SkillTool",
+    "SpawnWorkersTool",
     "SleepTool",
     "StructuredOutputTool",
     "TeamCreateTool",

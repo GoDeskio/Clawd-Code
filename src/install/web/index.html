@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install Jonathan Ai</title>
+  <style>
+    :root { font-family: Palatino, "Iowan Old Style", serif; background: #10140f; color: #e8f0e4; }
+    body { max-width: 640px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-weight: 600; }
+    .muted { color: #93a38c; }
+    input, button, select { font: inherit; }
+    input, select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #2c362a; background: #1d241c; color: inherit; }
+    input[type="checkbox"] { width: auto; }
+    button { border: 0; border-radius: 10px; padding: 10px 14px; background: #8fd17a; color: #12210f; font-weight: 600; cursor: pointer; }
+    button.ghost { background: transparent; color: inherit; border: 1px solid #2c362a; }
+    button:disabled { opacity: 0.5; }
+    #log { background: #171d16; border: 1px solid #2c362a; border-radius: 12px; padding: 12px; min-height: 180px; white-space: pre-wrap; }
+    label { display: block; margin: 14px 0; }
+    .hidden { display: none !important; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .scan-item { display: block; width: 100%; text-align: left; margin: 6px 0; background: #1d241c; color: inherit; }
+  </style>
+</head>
+<body>
+  <h1>Install Jonathan Ai</h1>
+  <p class="muted">This wizard copies the GoDeskio/Clawd-Code source onto this computer, installs Python and desktop dependencies, and verifies Jonathan Ai can start a session. Tokens never go into git or the installer artifact. They stay in <code>~/.clawd/config.json</code> only.</p>
+  <label>Install folder
+    <input id="source-dir" />
+  </label>
+  <p class="muted" id="os-line"></p>
+  <label>
+    <input id="clone-source" type="checkbox" />
+    Clone GoDeskio/Clawd-Code into the Jonathan folder if it is not already there
+  </label>
+  <p class="muted">Unchecked copies this checkout. The remote is always <code>https://github.com/GoDeskio/Clawd-Code</code>.</p>
+  <button id="start">Install</button>
+  <h2>Progress</h2>
+  <div id="log">Waiting…</div>
+  <p id="done" class="muted"></p>
+
+  <section id="connectors" class="hidden">
+    <h2>Connect a model</h2>
+    <p class="muted">Optional. Hugging Face and Local LLM sit beside Anthropic / OpenAI / GLM. You can also do this later in Jonathan Ai settings — no reinstall.</p>
+    <label>Provider
+      <select id="provider">
+        <option value="huggingface">Hugging Face</option>
+        <option value="local">Local LLM</option>
+        <option value="anthropic">Anthropic Claude</option>
+        <option value="openai">OpenAI GPT</option>
+        <option value="glm">Zhipu GLM</option>
+        <option value="minimax">Minimax AI</option>
+      </select>
+    </label>
+    <p id="help" class="muted"></p>
+    <label id="key-label">Token / API key
+      <input id="api-key" type="password" autocomplete="off" />
+    </label>
+    <label>Base URL
+      <input id="base-url" />
+    </label>
+    <label>Default model
+      <input id="model" />
+    </label>
+    <div id="hf-actions" class="row">
+      <button id="hf-test" class="ghost" type="button">Test Hugging Face</button>
+    </div>
+    <div id="local-actions" class="row hidden">
+      <button id="local-scan" class="ghost" type="button">Scan local ports</button>
+    </div>
+    <div id="local-results"></div>
+    <p id="connect-status" class="muted"></p>
+    <button id="connect" type="button">Save connection on this machine</button>
+  </section>
+
+  <section id="forges" class="hidden">
+    <h2>GitHub &amp; GitLab</h2>
+    <p class="muted">Optional. Tokens stay on this machine. Jonathan Ai never pushes <code>main</code>/<code>master</code> unless you name that branch. New GitHub repos default to the <code>GoDeskio</code> org/user.</p>
+    <h3>GitHub</h3>
+    <label>Token
+      <input id="gh-token" type="password" autocomplete="off" />
+    </label>
+    <label>Owner / org
+      <input id="gh-owner" value="GoDeskio" />
+    </label>
+    <div class="row">
+      <button id="gh-save" type="button">Save GitHub token</button>
+      <button id="gh-repos" class="ghost" type="button">List repos</button>
+    </div>
+    <p id="gh-status" class="muted"></p>
+    <div id="gh-repos-list"></div>
+    <h3>GitLab</h3>
+    <label>Host
+      <input id="gl-host" value="https://gitlab.com" />
+    </label>
+    <label>Personal access token
+      <input id="gl-token" type="password" autocomplete="off" />
+    </label>
+    <label>Group / owner
+      <input id="gl-owner" />
+    </label>
+    <div class="row">
+      <button id="gl-save" type="button">Save GitLab token</button>
+      <button id="gl-projects" class="ghost" type="button">List projects</button>
+    </div>
+    <p id="gl-status" class="muted"></p>
+    <div id="gl-projects-list"></div>
+  </section>
+
+  <section id="other-agents" class="hidden">
+    <h2>Other agents &amp; MCP</h2>
+    <p class="muted">Add a real MCP server or an OpenAI-compatible agent URL you already run (Cursor / Codex / local). Do not invent fake agents. Optional tokens stay in <code>~/.clawd/config.json</code>.</p>
+    <h3>MCP server</h3>
+    <label>Name
+      <input id="mcp-name" />
+    </label>
+    <label>Command (stdio)
+      <input id="mcp-command" placeholder="npx" />
+    </label>
+    <label>Args
+      <input id="mcp-args" placeholder="-y @modelcontextprotocol/server-filesystem /tmp" />
+    </label>
+    <label>HTTP URL
+      <input id="mcp-url" />
+    </label>
+    <label>Optional token
+      <input id="mcp-token" type="password" autocomplete="off" />
+    </label>
+    <div class="row">
+      <button id="mcp-save" type="button">Add MCP server</button>
+      <button id="mcp-test" class="ghost" type="button">Test MCP</button>
+    </div>
+    <p id="mcp-status" class="muted"></p>
+    <h3>OpenAI-compatible agent</h3>
+    <label>Name
+      <input id="agent-name" />
+    </label>
+    <label>Base URL
+      <input id="agent-url" placeholder="http://127.0.0.1:3999/v1" />
+    </label>
+    <label>Optional API key
+      <input id="agent-key" type="password" autocomplete="off" />
+    </label>
+    <div class="row">
+      <button id="agent-save" type="button">Add agent</button>
+      <button id="agent-test" class="ghost" type="button">Test connection</button>
+    </div>
+    <p id="agent-status" class="muted"></p>
+  </section>
+
+  <script>
+    const log = document.getElementById("log");
+    const help = {
+      huggingface: "Create a token at https://huggingface.co/settings/tokens. Test it, then pick a Hub model such as Qwen/Qwen2.5-7B-Instruct. Token stays in ~/.clawd/config.json.",
+      local: "Scan Ollama (127.0.0.1:11434), LM Studio, vLLM, llama.cpp, or TGI. Custom URLs must be loopback or LAN — never WAN.",
+      anthropic: "Cloud key stays in ~/.clawd/config.json.",
+      openai: "Cloud key stays in ~/.clawd/config.json.",
+      glm: "Cloud key stays in ~/.clawd/config.json.",
+      minimax: "Cloud key stays in ~/.clawd/config.json.",
+    };
+    const urls = {
+      huggingface: "https://router.huggingface.co/v1",
+      local: "http://127.0.0.1:11434/v1",
+      anthropic: "https://api.anthropic.com",
+      openai: "https://api.openai.com/v1",
+      glm: "https://open.bigmodel.cn/api/paas/v4",
+      minimax: "https://api.minimaxi.com/anthropic",
+    };
+    function applyProvider() {
+      const name = document.getElementById("provider").value;
+      document.getElementById("help").textContent = help[name] || "";
+      document.getElementById("base-url").value = urls[name] || "";
+      document.getElementById("hf-actions").classList.toggle("hidden", name !== "huggingface");
+      document.getElementById("local-actions").classList.toggle("hidden", name !== "local");
+      document.getElementById("key-label").firstChild.textContent = name === "huggingface" ? "Hugging Face token" : name === "local" ? "Optional API key" : "API key";
+    }
+    async function boot() {
+      const defaults = await (await fetch("/api/defaults")).json();
+      document.getElementById("source-dir").value = defaults.source_dir;
+      document.getElementById("os-line").textContent = `Detected ${defaults.os.platform} · Python ${defaults.os.python}`;
+      applyProvider();
+    }
+    document.getElementById("provider").addEventListener("change", applyProvider);
+    document.getElementById("start").addEventListener("click", async () => {
+      const button = document.getElementById("start");
+      button.disabled = true;
+      log.textContent = "";
+      const res = await fetch("/api/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_dir: document.getElementById("source-dir").value,
+          clone: document.getElementById("clone-source").checked,
+        }),
+      });
+      const { job_id } = await res.json();
+      let after = 0;
+      const poll = async () => {
+        const data = await (await fetch(`/api/jobs/${job_id}?after=${after}`)).json();
+        for (const event of data.events || []) {
+          if (event.message) log.textContent += "• " + event.message + "\n";
+          if (event.error) log.textContent += "ERROR: " + event.error + "\n";
+          if (event.type === "done") {
+            document.getElementById("done").textContent = "Installed. Launch with start-desktop.sh in " + event.source_dir;
+            document.getElementById("connectors").classList.remove("hidden");
+            document.getElementById("forges").classList.remove("hidden");
+            document.getElementById("other-agents").classList.remove("hidden");
+          }
+        }
+        after += (data.events || []).length;
+        if (!data.done) setTimeout(poll, 400);
+        else button.disabled = false;
+      };
+      poll();
+    });
+    document.getElementById("hf-test").addEventListener("click", async () => {
+      const status = document.getElementById("connect-status");
+      status.textContent = "Testing Hugging Face…";
+      const res = await fetch("/api/connectors/hf/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: document.getElementById("api-key").value }),
+      });
+      const data = await res.json();
+      status.textContent = data.message || data.error || JSON.stringify(data);
+    });
+    document.getElementById("local-scan").addEventListener("click", async () => {
+      const box = document.getElementById("local-results");
+      box.textContent = "Scanning…";
+      const res = await fetch("/api/connectors/local/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      box.innerHTML = "";
+      for (const item of data.endpoints || []) {
+        const btn = document.createElement("button");
+        btn.className = "scan-item";
+        btn.type = "button";
+        btn.textContent = `${item.label} — ${item.base_url} — ${(item.models || []).join(", ") || (item.reachable ? "up" : "offline")}`;
+        btn.disabled = !item.reachable;
+        btn.addEventListener("click", () => {
+          document.getElementById("base-url").value = item.base_url;
+          if (item.models && item.models[0]) document.getElementById("model").value = item.models[0];
+        });
+        box.appendChild(btn);
+      }
+    });
+    async function postJson(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    }
+    document.getElementById("gh-save").addEventListener("click", async () => {
+      const data = await postJson("/api/connectors/github/login", {
+        token: document.getElementById("gh-token").value,
+        owner: document.getElementById("gh-owner").value,
+      });
+      document.getElementById("gh-status").textContent = data.ok
+        ? `Connected ${data.login || ""} · owner ${data.owner || "GoDeskio"}`
+        : (data.error || "failed");
+    });
+    document.getElementById("gh-repos").addEventListener("click", async () => {
+      const data = await (await fetch("/api/connectors/github/repos")).json();
+      const box = document.getElementById("gh-repos-list");
+      box.innerHTML = "";
+      for (const repo of data.repos || []) {
+        const row = document.createElement("div");
+        row.className = "scan-item";
+        row.textContent = repo.full_name || repo.clone_url;
+        box.appendChild(row);
+      }
+      if (data.error) document.getElementById("gh-status").textContent = data.error;
+    });
+    document.getElementById("gl-save").addEventListener("click", async () => {
+      const data = await postJson("/api/connectors/gitlab/login", {
+        token: document.getElementById("gl-token").value,
+        owner: document.getElementById("gl-owner").value,
+        host: document.getElementById("gl-host").value,
+      });
+      document.getElementById("gl-status").textContent = data.ok
+        ? `Connected ${data.login || ""} · ${data.host || ""}`
+        : (data.error || "failed");
+    });
+    document.getElementById("gl-projects").addEventListener("click", async () => {
+      const data = await (await fetch("/api/connectors/gitlab/projects")).json();
+      const box = document.getElementById("gl-projects-list");
+      box.innerHTML = "";
+      for (const repo of data.projects || []) {
+        const row = document.createElement("div");
+        row.className = "scan-item";
+        row.textContent = repo.full_name || repo.clone_url;
+        box.appendChild(row);
+      }
+      if (data.error) document.getElementById("gl-status").textContent = data.error;
+    });
+    document.getElementById("mcp-save").addEventListener("click", async () => {
+      const args = (document.getElementById("mcp-args").value || "").trim().split(/\s+/).filter(Boolean);
+      const data = await postJson("/api/connectors/mcp", {
+        name: document.getElementById("mcp-name").value,
+        command: document.getElementById("mcp-command").value,
+        args,
+        url: document.getElementById("mcp-url").value,
+        token: document.getElementById("mcp-token").value,
+      });
+      document.getElementById("mcp-status").textContent = data.ok || data.mcp ? "Saved on this machine." : (data.error || "failed");
+    });
+    document.getElementById("mcp-test").addEventListener("click", async () => {
+      const args = (document.getElementById("mcp-args").value || "").trim().split(/\s+/).filter(Boolean);
+      const data = await postJson("/api/connectors/mcp/test", {
+        name: document.getElementById("mcp-name").value,
+        command: document.getElementById("mcp-command").value,
+        args,
+        url: document.getElementById("mcp-url").value,
+        token: document.getElementById("mcp-token").value,
+      });
+      document.getElementById("mcp-status").textContent = data.ok
+        ? `Tools: ${(data.tools || []).join(", ") || "(none listed)"}`
+        : (data.error || "failed");
+    });
+    document.getElementById("agent-save").addEventListener("click", async () => {
+      const data = await postJson("/api/connectors/agents", {
+        name: document.getElementById("agent-name").value,
+        base_url: document.getElementById("agent-url").value,
+        api_key: document.getElementById("agent-key").value,
+      });
+      document.getElementById("agent-status").textContent = data.ok || data.agents ? "Saved on this machine." : (data.error || "failed");
+    });
+    document.getElementById("agent-test").addEventListener("click", async () => {
+      const data = await postJson("/api/connectors/agents/test", {
+        name: document.getElementById("agent-name").value,
+        base_url: document.getElementById("agent-url").value,
+        api_key: document.getElementById("agent-key").value,
+      });
+      const tools = (data.tools || []).map((item) => item.name || item).join(", ");
+      document.getElementById("agent-status").textContent = data.ok
+        ? `Reachable. Tools: ${tools || "(chat completions only)"}`
+        : (data.error || "failed");
+    });
+    document.getElementById("connect").addEventListener("click", async () => {
+      const status = document.getElementById("connect-status");
+      const res = await fetch("/api/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: document.getElementById("provider").value,
+          api_key: document.getElementById("api-key").value,
+          base_url: document.getElementById("base-url").value,
+          default_model: document.getElementById("model").value,
+        }),
+      });
+      const data = await res.json();
+      status.textContent = data.ok ? "Saved on this machine only. You can switch providers later without reinstalling." : (data.error || "failed");
+    });
+    boot();
+  </script>
+</body>
+</html>

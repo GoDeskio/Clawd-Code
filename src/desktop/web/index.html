@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jonathan Ai</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="/robot.png" type="image/png" />
+  <link rel="alternate icon" href="/favicon.ico" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="/robot.png" alt="Jonathan Ai robot" width="48" height="48" />
+        <div>
+          <strong>Jonathan Ai</strong>
+          <span class="muted" id="app-version">v0.2.8 · standalone</span>
+        </div>
+      </div>
+      <button id="new-chat" class="primary">New chat</button>
+      <div class="workspace-card">
+        <div class="label">Workspace</div>
+        <div id="workspace-path" class="path" title="">—</div>
+        <div class="row">
+          <button id="pick-workspace" class="ghost">Choose folder</button>
+        </div>
+        <div class="row">
+          <button id="open-repo" class="ghost">Open this repo</button>
+          <button id="pull-repo" class="ghost">Pull</button>
+          <button id="publish-repo" class="ghost">Create repo and push</button>
+        </div>
+        <p id="git-line" class="muted"></p>
+      </div>
+      <div class="section-title">Conversations</div>
+      <p class="muted sidebar-hint">Double-click or right-click to rename. Titles stay with the session.</p>
+      <nav id="session-list" class="session-list" aria-label="Conversation list"></nav>
+      <div id="session-menu" class="context-menu hidden" role="menu">
+        <button id="session-menu-rename" type="button" role="menuitem">Rename</button>
+      </div>
+      <div class="sidebar-foot">
+        <button id="open-connectors" class="ghost">Git &amp; agents</button>
+        <button id="open-settings" class="ghost">Provider &amp; model</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="chat-title">New chat</h1>
+          <p id="model-line" class="muted">Not configured</p>
+          <p id="usage-line" class="usage-chip" title="Token counts for this chat only. Informational — never a quota or paywall.">0 in · 0 out · 0 total (informational)</p>
+        </div>
+        <div class="top-actions">
+          <span id="update-status" class="muted">Checking updates…</span>
+          <button id="apply-update" class="ghost hidden">Update now</button>
+          <button id="save-session" class="ghost">Save</button>
+        </div>
+      </header>
+
+      <section id="transcript" class="transcript" aria-live="polite"></section>
+
+      <div id="permission-banner" class="permission hidden">
+        <div>
+          <strong id="perm-title">Permission required</strong>
+          <p id="perm-message" class="muted"></p>
+        </div>
+        <div class="row">
+          <button id="perm-deny" class="ghost">Deny</button>
+          <button id="perm-always" class="ghost">Always this session</button>
+          <button id="perm-allow" class="primary">Allow</button>
+        </div>
+      </div>
+
+      <footer class="composer">
+        <div id="drop-hint" class="drop-hint hidden">Drop files to attach</div>
+        <div id="attachments" class="chips"></div>
+        <div id="slash-palette" class="palette hidden"></div>
+        <textarea id="prompt" rows="3" placeholder="Message Jonathan Ai, or type / for commands and skills"></textarea>
+        <div class="composer-row">
+          <div class="row">
+            <button id="attach-files" class="ghost" title="Attach files">Attach</button>
+            <button id="attach-clipboard" class="ghost" title="Attach current clipboard text">Clipboard</button>
+            <button id="attach-screenshot" class="ghost hidden" title="Capture the current screen">Screenshot</button>
+            <input id="file-input" type="file" multiple hidden />
+          </div>
+          <button id="workers" class="ghost" title="Plan this into isolated internal workers">Workers</button>
+          <button id="send" class="primary">Send</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <div id="setup-modal" class="modal hidden">
+    <div class="dialog wide">
+      <h2>First-run setup</h2>
+      <p class="muted">Jonathan Ai is the agent. Chat works with one API key or a local LLM — MCP, Cursor, and Codex are optional and not required. Keys stay only in <code>~/.clawd/config.json</code> (mode 0600). They are never written into git or the installer.</p>
+      <label>Provider
+        <select id="setup-provider"></select>
+      </label>
+      <p id="setup-help" class="muted"></p>
+      <label id="setup-key-wrap"> <span id="setup-key-label">API key</span>
+        <input id="setup-key" type="password" autocomplete="off" />
+      </label>
+      <label>Base URL
+        <input id="setup-url" type="url" />
+      </label>
+      <label>Default model
+        <input id="setup-model" type="text" list="setup-model-list" />
+        <datalist id="setup-model-list"></datalist>
+      </label>
+      <div id="setup-hf" class="connector hidden">
+        <div class="row">
+          <button id="setup-hf-test" class="ghost" type="button">Test Hugging Face</button>
+          <button id="setup-hf-models" class="ghost" type="button">Load Hub models</button>
+          <button id="setup-hf-cache" class="ghost" type="button">Download / cache</button>
+        </div>
+        <p id="setup-hf-status" class="muted"></p>
+      </div>
+      <div id="setup-local" class="connector hidden">
+        <div class="row">
+          <button id="setup-local-scan" class="ghost" type="button">Scan local ports</button>
+          <button id="setup-local-models" class="ghost" type="button">List models</button>
+        </div>
+        <div id="setup-local-results" class="scan-list"></div>
+      </div>
+      <div class="row end">
+        <button id="setup-save" class="primary">Save and continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal hidden">
+    <div class="dialog wide">
+      <h2>Provider &amp; model</h2>
+      <p class="muted">Hugging Face and Local LLM sit beside Anthropic, OpenAI, GLM, and Minimax. Switching providers does not require a reinstall.</p>
+      <label>Active provider
+        <select id="settings-provider"></select>
+      </label>
+      <p id="settings-help" class="muted"></p>
+      <label id="settings-key-wrap"> <span id="settings-key-label">API key</span>
+        <input id="settings-key" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" />
+      </label>
+      <label>Base URL
+        <input id="settings-url" type="url" />
+      </label>
+      <label>Model
+        <input id="settings-model" type="text" list="settings-model-list" />
+        <datalist id="settings-model-list"></datalist>
+      </label>
+      <div id="settings-hf" class="connector hidden">
+        <div class="row">
+          <button id="settings-hf-test" class="ghost" type="button">Test Hugging Face</button>
+          <button id="settings-hf-models" class="ghost" type="button">Load Hub models</button>
+          <button id="settings-hf-cache" class="ghost" type="button">Download / cache</button>
+        </div>
+        <p id="settings-hf-status" class="muted"></p>
+      </div>
+      <div id="settings-local" class="connector hidden">
+        <div class="row">
+          <button id="settings-local-scan" class="ghost" type="button">Scan local ports</button>
+          <button id="settings-local-models" class="ghost" type="button">List models</button>
+        </div>
+        <div id="settings-local-results" class="scan-list"></div>
+      </div>
+      <p class="muted">Source and updates: <code>https://github.com/GoDeskio/Clawd-Code</code>. Default local tree: <code>~/Jonathan/Jonathan-Ai</code>.</p>
+      <div class="row end">
+        <button id="settings-close" class="ghost">Close</button>
+        <button id="settings-save" class="primary">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="connectors-modal" class="modal hidden">
+    <div class="dialog wide">
+      <h2>Git &amp; other agents</h2>
+      <p class="muted">Optional. Jonathan Ai chats on its own. Connect MCP or another agent only if you already run one. Tokens stay in <code>~/.clawd/config.json</code>. Jonathan Ai never pushes <code>main</code>/<code>master</code> unless you name that branch. Default GitHub owner is <code>GoDeskio</code>.</p>
+
+      <h3>GitHub</h3>
+      <p id="gh-status" class="muted">Not connected</p>
+      <label>Token
+        <input id="gh-token" type="password" autocomplete="off" />
+      </label>
+      <label>Owner / org
+        <input id="gh-owner" value="GoDeskio" />
+      </label>
+      <div class="row">
+        <button id="gh-save" class="primary" type="button">Save GitHub token</button>
+        <button id="gh-repos" class="ghost" type="button">List repos</button>
+      </div>
+      <label>OAuth App client ID (optional device login)
+        <input id="gh-client" />
+      </label>
+      <div class="row">
+        <button id="gh-device" class="ghost" type="button">Start GitHub device login</button>
+        <button id="gh-poll" class="ghost" type="button">Poll device login</button>
+      </div>
+      <p id="gh-device-status" class="muted"></p>
+      <div id="gh-repos-list" class="scan-list"></div>
+
+      <h3>GitLab</h3>
+      <p id="gl-status" class="muted">Not connected</p>
+      <label>Host
+        <input id="gl-host" value="https://gitlab.com" />
+      </label>
+      <label>Personal access token
+        <input id="gl-token" type="password" autocomplete="off" />
+      </label>
+      <label>Group / owner
+        <input id="gl-owner" />
+      </label>
+      <div class="row">
+        <button id="gl-save" class="primary" type="button">Save GitLab token</button>
+        <button id="gl-projects" class="ghost" type="button">List projects</button>
+      </div>
+      <label>Application ID (optional device login)
+        <input id="gl-client" />
+      </label>
+      <div class="row">
+        <button id="gl-device" class="ghost" type="button">Start GitLab device login</button>
+        <button id="gl-poll" class="ghost" type="button">Poll device login</button>
+      </div>
+      <p id="gl-device-status" class="muted"></p>
+      <div id="gl-projects-list" class="scan-list"></div>
+
+      <h3>MCP servers</h3>
+      <p class="muted">Add a real MCP server the user already has (stdio command or HTTP URL). Test lists its tools; Jonathan Ai can call them in a turn.</p>
+      <label>Name
+        <input id="mcp-name" />
+      </label>
+      <label>Command (stdio)
+        <input id="mcp-command" placeholder="npx" />
+      </label>
+      <label>Args (space-separated)
+        <input id="mcp-args" placeholder="-y @modelcontextprotocol/server-filesystem /tmp" />
+      </label>
+      <label>HTTP URL
+        <input id="mcp-url" />
+      </label>
+      <label>Optional token
+        <input id="mcp-token" type="password" autocomplete="off" />
+      </label>
+      <div class="row">
+        <button id="mcp-save" class="primary" type="button">Add MCP server</button>
+        <button id="mcp-test" class="ghost" type="button">Test MCP</button>
+      </div>
+      <p id="mcp-status" class="muted"></p>
+      <div id="mcp-list" class="scan-list"></div>
+
+      <h3>Other agents</h3>
+      <p class="muted">OpenAI-compatible agent URL (Cursor / Codex / local). Or drop <code>~/.clawd/hooks/cursor.json</code>. Other tools can POST <code>/api/hooks/inbound</code> on localhost with the desktop token.</p>
+      <label>Name
+        <input id="agent-name" />
+      </label>
+      <label>Base URL
+        <input id="agent-url" placeholder="http://127.0.0.1:3999/v1" />
+      </label>
+      <label>Optional API key
+        <input id="agent-key" type="password" autocomplete="off" />
+      </label>
+      <div class="row">
+        <button id="agent-save" class="primary" type="button">Add agent</button>
+        <button id="agent-test" class="ghost" type="button">Test connection</button>
+      </div>
+      <p id="agent-status" class="muted"></p>
+      <div id="agent-list" class="scan-list"></div>
+
+      <div class="row end">
+        <button id="connectors-close" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

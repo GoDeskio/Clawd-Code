@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clawd-codex"
-version = "0.1.0"
-description = "A complete Python reimplementation of Claude Code CLI - Drop-in replacement experience"
+version = "0.2.8"
+description = "Jonathan Ai — local desktop and CLI agent (Python Claude Code-style runtime)"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
@@ -27,6 +27,7 @@ dependencies = [
     "anthropic",
     "openai",
     "zhipuai",
+    "huggingface_hub>=0.24.0",
     "python-dotenv",
     "rich",
     "prompt-toolkit",
@@ -42,6 +43,11 @@ dev = [
 
 [project.scripts]
 clawd = "src.cli:main"
+clawd-desktop = "src.desktop.__main__:main"
+clawd-install = "src.install.__main__:main"
+jonathan-ai = "src.cli:main"
+jonathan-ai-desktop = "src.desktop.__main__:main"
+jonathan-ai-install = "src.install.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/GPT-AGI/Clawd-Codex"

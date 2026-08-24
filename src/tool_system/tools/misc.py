@@ -5,6 +5,8 @@ from typing import Any
 
 from ..context import ToolContext
 from ..errors import ToolInputError, ToolPermissionError
+from ..permission_handler import PermissionResult
+from ..permissions import maybe_ask_for_gated_tool
 from ..protocol import ToolResult
 from ..registry import ToolSpec
 
@@ -50,6 +52,16 @@ class RemoteTriggerTool:
             max_result_size_chars=100_000,
         )
 
+    def check_permissions(
+        self, tool_input: dict[str, Any], context: ToolContext
+    ) -> PermissionResult:
+        return maybe_ask_for_gated_tool(
+            context,
+            "RemoteTrigger",
+            "Trigger a remote action",
+            "Allow RemoteTrigger for the rest of this session",
+        )
+
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
         return ToolResult(name="RemoteTrigger", output={"error": "RemoteTrigger is not implemented"}, is_error=True)
 
@@ -70,6 +82,18 @@ class PowerShellTool:
             strict=True,
         )
 
+    def check_permissions(
+        self, tool_input: dict[str, Any], context: ToolContext
+    ) -> PermissionResult:
+        command = tool_input.get("command", "")
+        preview = command if isinstance(command, str) else ""
+        return maybe_ask_for_gated_tool(
+            context,
+            "PowerShell",
+            f"Run PowerShell command: {preview or '(empty)'}",
+            "Allow PowerShell for the rest of this session",
+        )
+
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
         if platform.system().lower() != "windows":
             return ToolResult(name="PowerShell", output={"error": "PowerShell is only supported on Windows"}, is_error=True)
@@ -84,6 +108,16 @@ class NotebookEditTool:
             input_schema={"type": "object", "additionalProperties": True},
             is_destructive=True,
             max_result_size_chars=100_000,
+        )
+
+    def check_permissions(
+        self, tool_input: dict[str, Any], context: ToolContext
+    ) -> PermissionResult:
+        return maybe_ask_for_gated_tool(
+            context,
+            "NotebookEdit",
+            "Edit a Jupyter notebook",
+            "Allow NotebookEdit for the rest of this session",
         )
 
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
