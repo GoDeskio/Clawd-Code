@@ -11,8 +11,14 @@ from typing import Callable
 Progress = Callable[[str], None]
 
 
-def _run(cmd: list[str], *, cwd: Path | None = None) -> None:
-    result = subprocess.run(cmd, cwd=str(cwd) if cwd else None, capture_output=True, text=True)
+def _run(cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+    result = subprocess.run(
+        cmd,
+        cwd=str(cwd) if cwd else None,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip()
         raise RuntimeError(f"{' '.join(cmd)} failed: {detail[-400:]}")
@@ -223,11 +229,23 @@ def install_desktop_deps(
             progress("npm is unavailable; Electron desktop dependencies could not be installed")
         return "failed"
     last: Exception | None = None
+    cache_root = source_dir / ".cache"
+    install_env = dict(os.environ)
+    install_env.update({
+        "NPM_CONFIG_CACHE": str(cache_root / "npm"),
+        "ELECTRON_CACHE": str(cache_root / "electron"),
+        "ELECTRON_BUILDER_CACHE": str(cache_root / "electron-builder"),
+    })
+    electron_binary = desktop / "node_modules" / "electron" / "dist" / (
+        "electron.exe" if os.name == "nt" else "electron"
+    )
     for attempt in range(1, retry + 1):
         try:
             if progress:
                 progress(f"Installing desktop shell packages (attempt {attempt}/{retry})")
-            _run([npm, "install"], cwd=desktop)
+            _run([npm, "install"], cwd=desktop, env=install_env)
+            if not electron_binary.is_file():
+                raise RuntimeError("npm completed without installing the Electron runtime binary")
             return "installed"
         except Exception as exc:
             last = exc

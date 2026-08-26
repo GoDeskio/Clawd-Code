@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import json
 import subprocess
 import tempfile
@@ -382,6 +383,27 @@ class TestUpdater(unittest.TestCase):
                 status = install_desktop_deps(source, retry=2, progress=notes.append)
             self.assertEqual(status, "failed")
             self.assertTrue(any("browser UI still works" in note for note in notes))
+
+    def test_electron_uses_app_cache_and_requires_runtime_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "app"
+            desktop = source / "desktop"
+            desktop.mkdir(parents=True)
+            (desktop / "package.json").write_text("{}", encoding="utf-8")
+            captured: dict[str, str] = {}
+
+            def install(_cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+                self.assertEqual(cwd, desktop)
+                captured.update(env or {})
+                binary = desktop / "node_modules" / "electron" / "dist" / ("electron.exe" if os.name == "nt" else "electron")
+                binary.parent.mkdir(parents=True)
+                binary.write_bytes(b"electron")
+
+            with patch("shutil.which", return_value="npm"), patch("src.install.deps._run", side_effect=install):
+                status = install_desktop_deps(source, retry=1)
+            self.assertEqual(status, "installed")
+            self.assertEqual(captured["ELECTRON_CACHE"], str(source / ".cache" / "electron"))
+            self.assertEqual(captured["NPM_CONFIG_CACHE"], str(source / ".cache" / "npm"))
 
     def test_wizard_html_covers_git_and_agents(self) -> None:
         html = (Path(__file__).resolve().parents[1] / "src" / "install" / "web" / "index.html").read_text(encoding="utf-8")
