@@ -245,6 +245,10 @@ def install_desktop_deps(
                 progress(f"Installing desktop shell packages (attempt {attempt}/{retry})")
             _run([npm, "install"], cwd=desktop, env=install_env)
             if not electron_binary.is_file():
+                if progress:
+                    progress("Electron package is present without its runtime; rebuilding it in the app cache")
+                _run([npm, "rebuild", "electron"], cwd=desktop, env=install_env)
+            if not electron_binary.is_file():
                 raise RuntimeError("npm completed without installing the Electron runtime binary")
             return "installed"
         except Exception as exc:

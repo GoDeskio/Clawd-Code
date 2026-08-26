@@ -405,6 +405,26 @@ class TestUpdater(unittest.TestCase):
             self.assertEqual(captured["ELECTRON_CACHE"], str(source / ".cache" / "electron"))
             self.assertEqual(captured["NPM_CONFIG_CACHE"], str(source / ".cache" / "npm"))
 
+    def test_electron_repairs_package_missing_its_downloaded_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "app"
+            desktop = source / "desktop"
+            desktop.mkdir(parents=True)
+            (desktop / "package.json").write_text("{}", encoding="utf-8")
+            commands: list[list[str]] = []
+
+            def install(command: list[str], **_kwargs: object) -> None:
+                commands.append(command)
+                if "rebuild" in command:
+                    binary = desktop / "node_modules" / "electron" / "dist" / ("electron.exe" if os.name == "nt" else "electron")
+                    binary.parent.mkdir(parents=True)
+                    binary.write_bytes(b"electron")
+
+            with patch("shutil.which", return_value="npm"), patch("src.install.deps._run", side_effect=install):
+                status = install_desktop_deps(source, retry=1)
+            self.assertEqual(status, "installed")
+            self.assertEqual(commands, [["npm", "install"], ["npm", "rebuild", "electron"]])
+
     def test_wizard_html_covers_git_and_agents(self) -> None:
         html = (Path(__file__).resolve().parents[1] / "src" / "install" / "web" / "index.html").read_text(encoding="utf-8")
         self.assertIn("GitHub", html)
