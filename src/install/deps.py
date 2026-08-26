@@ -235,6 +235,9 @@ def install_desktop_deps(
         "NPM_CONFIG_CACHE": str(cache_root / "npm"),
         "ELECTRON_CACHE": str(cache_root / "electron"),
         "ELECTRON_BUILDER_CACHE": str(cache_root / "electron-builder"),
+        # Electron 44's installer passes this exact npm-style setting to
+        # @electron/get; ELECTRON_CACHE alone is not read by that version.
+        "electron_config_cache": str(cache_root / "electron"),
     })
     electron_binary = desktop / "node_modules" / "electron" / "dist" / (
         "electron.exe" if os.name == "nt" else "electron"
@@ -246,8 +249,12 @@ def install_desktop_deps(
             _run([npm, "install"], cwd=desktop, env=install_env)
             if not electron_binary.is_file():
                 if progress:
-                    progress("Electron package is present without its runtime; rebuilding it in the app cache")
-                _run([npm, "rebuild", "electron"], cwd=desktop, env=install_env)
+                    progress("Electron package is present without its runtime; downloading it into the app cache")
+                node = shutil.which("node")
+                installer = desktop / "node_modules" / "electron" / "install.js"
+                if not node or not installer.is_file():
+                    raise RuntimeError("Electron runtime installer is unavailable")
+                _run([node, str(installer)], cwd=desktop, env=install_env)
             if not electron_binary.is_file():
                 raise RuntimeError("npm completed without installing the Electron runtime binary")
             return "installed"

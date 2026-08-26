@@ -403,6 +403,7 @@ class TestUpdater(unittest.TestCase):
                 status = install_desktop_deps(source, retry=1)
             self.assertEqual(status, "installed")
             self.assertEqual(captured["ELECTRON_CACHE"], str(source / ".cache" / "electron"))
+            self.assertEqual(captured["electron_config_cache"], str(source / ".cache" / "electron"))
             self.assertEqual(captured["NPM_CONFIG_CACHE"], str(source / ".cache" / "npm"))
 
     def test_electron_repairs_package_missing_its_downloaded_binary(self) -> None:
@@ -411,19 +412,22 @@ class TestUpdater(unittest.TestCase):
             desktop = source / "desktop"
             desktop.mkdir(parents=True)
             (desktop / "package.json").write_text("{}", encoding="utf-8")
+            installer = desktop / "node_modules" / "electron" / "install.js"
+            installer.parent.mkdir(parents=True)
+            installer.write_text("// installer", encoding="utf-8")
             commands: list[list[str]] = []
 
             def install(command: list[str], **_kwargs: object) -> None:
                 commands.append(command)
-                if "rebuild" in command:
+                if command[-1].endswith("install.js"):
                     binary = desktop / "node_modules" / "electron" / "dist" / ("electron.exe" if os.name == "nt" else "electron")
                     binary.parent.mkdir(parents=True)
                     binary.write_bytes(b"electron")
 
-            with patch("shutil.which", return_value="npm"), patch("src.install.deps._run", side_effect=install):
+            with patch("shutil.which", side_effect=lambda name: name), patch("src.install.deps._run", side_effect=install):
                 status = install_desktop_deps(source, retry=1)
             self.assertEqual(status, "installed")
-            self.assertEqual(commands, [["npm", "install"], ["npm", "rebuild", "electron"]])
+            self.assertEqual(commands, [["npm", "install"], ["node", str(installer)]])
 
     def test_wizard_html_covers_git_and_agents(self) -> None:
         html = (Path(__file__).resolve().parents[1] / "src" / "install" / "web" / "index.html").read_text(encoding="utf-8")

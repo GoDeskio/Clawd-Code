@@ -37,6 +37,7 @@ from .public_api_catalog import PublicApiCatalogTool
 from .read import FileReadTool
 from .repository import RepositoryTool
 from .send_user_message import SendUserMessageTool
+from .self_hosted_service import SelfHostedServiceTool
 from .shared_memory import SharedMemoryTool
 from .speech_studio import SpeechStudioTool
 from .spawn_workers import SpawnWorkersTool
@@ -108,6 +109,7 @@ __all__ = [
     "RemoteTriggerTool",
     "SendMessageTool",
     "SendUserMessageTool",
+    "SelfHostedServiceTool",
     "SharedMemoryTool",
     "SpeechStudioTool",
     "SkillTool",

@@ -32,6 +32,17 @@ does not include upstream React Native code, Android/iOS native modules,
 models, mobile application, paid Pro features, branding, service or runtime.
 See https://github.com/off-grid-ai/OGAM.
 
+## Awesome Selfhosted design reference
+
+The service-discovery and operator workflow at
+`awesome-selfhosted/awesome-selfhosted`, licensed CC BY-SA 3.0, was evaluated.
+Jonathan independently implements a generic lifecycle tool and concise
+operator skill; it does not copy or bundle the upstream catalog, descriptions,
+non-free list, logos, branding, generated site, or any listed application.
+Each discovered service remains subject to its own current license and official
+deployment documentation. See
+https://github.com/awesome-selfhosted/awesome-selfhosted.
+
 ## Local diffusion design reference
 
 Jonathan's local image requirements were informed by `lllyasviel/Fooocus`,

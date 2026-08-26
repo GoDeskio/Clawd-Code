@@ -74,6 +74,7 @@
 | Hook 系统 | 🟡 | 已有 Cursor/Codex/local agent hook 与 inbound POST；非通用 pre/post tool hook |
 | 权限系统 | ✅ | 路径沙箱 + 文档写入询问 + 桌面端对 Bash/Write/Edit/Web 的交互批准 |
 | 工具执行网关 | ✅ | v0.4.6：允许的工具动作在执行副作用前写入脱敏 preflight 审计记录，完成/拒绝/失败后再写结果；preflight 无法持久化时关闭执行 |
+| 自托管服务操作 | ✅ | v0.4.7：持久注册 Docker/Podman Compose、Windows service 与 systemd；固定参数、无 shell 拼接；状态/log、LAN health、可下载 backup、审批后 start/stop/restart/update；配套可见 operator skill |
 | 桌面应用 | ✅ | Electron/浏览器壳 + 本地 Python host；Windows 上为 JonathanAi.exe 与玻璃拟态仪表盘 |
 | 安装向导 | ✅ | Windows Setup exe 可见向导（Next/Install/Finish）+ Desktop/开始菜单快捷方式；默认源码目录 `~/Jonathan/Jonathan-Ai` |
 | 自更新 | ✅ | 仅从 GoDeskio/Clawd-Code 检查并快进更新 |

@@ -34,6 +34,7 @@ The Workers control now offers **Fast**, **Balanced**, and **Verified** modes. V
 - `AudioStudio`: generate deterministic original instrumental WAV beds and trim, normalize, or mix local PCM WAV files into conversation downloads without an account or cloud service.
 - `SkillManager` and `SharedMemory`: create/validate/package reusable `SKILL.md` files and search/export durable cross-conversation memory.
 - `LongHorizonControl`: coordinate durable goals across separate conversation agents with bounded turns, dependency-aware work, leases, judgment gates, evidence receipts, handoffs, and explicit continuation checks.
+- `SelfHostedService`: register and operate approved Docker/Podman Compose, Windows-service, or systemd applications; inspect status/logs, create downloadable backups, check local/LAN health, and run lifecycle/update actions without shell interpolation. The `self-hosted-service-operator` skill is visible in Jonathan's skill list.
 - `ECCIntegration`: synchronize, audit, import, update, enable/disable, and search ECC skills/agent templates; exchange unreviewed Memory Vault documents; and create reviewable skills from measured Git history.
 - `BusinessManager`: durable local customers, projects, tasks, invoices, income/expense ledger, dashboard, and downloadable JSON/CSV/HTML business reports.
 - `KronosForecast`: create built-in Mini/Small/Base probabilistic EWMA/Monte Carlo OHLCV research forecasts as downloadable CSV files; never places an order.
