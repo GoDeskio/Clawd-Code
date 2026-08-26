@@ -21,15 +21,26 @@ def _candidate_user_skills_dirs() -> list[Path]:
     env_primary = os.environ.get("CLAWD_SKILLS_DIR")
     env_ts = os.environ.get("CLAUDE_SKILLS_DIR")
     dirs: list[Path] = []
-    if env_primary:
-        dirs.append(Path(env_primary).expanduser().resolve())
-    if env_ts:
-        p = Path(env_ts).expanduser().resolve()
+    # Legacy hidden folders load first. The canonical visible library loads
+    # later and therefore wins when a user intentionally replaces a skill.
+    for d in (Path.home() / ".claude" / "skills", Path.home() / ".clawd" / "skills"):
+        p = d.expanduser().resolve()
         if p not in dirs:
             dirs.append(p)
-    # Defaults
-    for d in (Path.home() / ".clawd" / "skills", Path.home() / ".claude" / "skills"):
-        p = d.expanduser().resolve()
+    try:
+        from .library import user_skill_library
+
+        visible = user_skill_library(create=True)
+        if visible not in dirs:
+            dirs.append(visible)
+    except Exception:
+        pass
+    if env_primary:
+        p = Path(env_primary).expanduser().resolve()
+        if p not in dirs:
+            dirs.append(p)
+    if env_ts:
+        p = Path(env_ts).expanduser().resolve()
         if p not in dirs:
             dirs.append(p)
     return dirs
@@ -62,7 +73,12 @@ def clear_skill_registry() -> None:
     _REGISTRY.clear()
 
 
-def load_skills_from_dir(base_dir: str | Path, *, loaded_from: str = "skills") -> List[PromptSkill]:
+def load_skills_from_dir(
+    base_dir: str | Path,
+    *,
+    loaded_from: str = "skills",
+    include_names: set[str] | None = None,
+) -> List[PromptSkill]:
     base = Path(base_dir).expanduser().resolve()
     if not base.exists() or not base.is_dir():
         return []
@@ -72,6 +88,8 @@ def load_skills_from_dir(base_dir: str | Path, *, loaded_from: str = "skills") -
         if not entry.is_dir():
             continue
         skill_name = entry.name
+        if include_names is not None and skill_name not in include_names:
+            continue
         md_path = entry / "SKILL.md"
         if not md_path.exists():
             continue
@@ -131,6 +149,11 @@ def get_all_skills(
     user_skills_dir: str | Path | None = None,
 ) -> Sequence[PromptSkill]:
     clear_skill_registry()
+    # Built-in library is registered first; user and project skills can
+    # intentionally override a bundled skill with the same name.
+    bundled_dir = Path(__file__).resolve().parent / "bundled"
+    for s in load_skills_from_dir(bundled_dir, loaded_from="bundled"):
+        _REGISTRY.register(s)
     if user_skills_dir is not None:
         user_dirs = [Path(user_skills_dir).expanduser().resolve()]
     else:
@@ -144,6 +167,21 @@ def get_all_skills(
         managed_dir = Path(managed_env).expanduser().resolve()
         for s in load_skills_from_dir(managed_dir, loaded_from="managed"):
             _REGISTRY.register(s)
+
+    # ECC may contain hundreds of entries. Keep the entire managed catalog on
+    # disk for offline use, but parse only the explicitly enabled subset.
+    try:
+        from src.integrations.ecc import ecc_managed_dir, enabled_skill_names
+
+        ecc_dir = ecc_managed_dir() / "skills"
+        enabled = enabled_skill_names()
+        if enabled:
+            for s in load_skills_from_dir(ecc_dir, loaded_from="ecc", include_names=enabled):
+                _REGISTRY.register(s)
+    except Exception:
+        # An optional integration must never prevent the agent runtime from
+        # opening or loading the built-in/user skill library.
+        pass
 
     if project_root is not None:
         pr = Path(project_root).expanduser().resolve()

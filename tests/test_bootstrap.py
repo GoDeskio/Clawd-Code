@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.install.bootstrap import ensure_runtime_deps, resolve_source
+from src.install.bootstrap import ensure_runtime_deps, resolve_source, runtime_ready_marker
 
 
 class TestBootstrap(unittest.TestCase):
@@ -34,12 +34,27 @@ class TestBootstrap(unittest.TestCase):
             ) as pip, patch(
                 "src.install.bootstrap.install_desktop_deps", return_value="skipped"
             ), patch(
+                "src.install.bootstrap.install_blender_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_ecc_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_kronos_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_personal_finance_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_code_memory_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_procoder_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_drawai_dep", return_value="ready"
+            ), patch(
                 "src.install.bootstrap.write_install_record"
             ):
                 result = ensure_runtime_deps(root, skip_desktop=True)
             self.assertTrue(result["ok"])
             self.assertEqual(result["pip"], "ok")
             pip.assert_not_called()
+            self.assertTrue(runtime_ready_marker(root, "0.4.6").is_file())
 
     def test_installs_pip_when_imports_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -56,6 +71,20 @@ class TestBootstrap(unittest.TestCase):
                 "src.install.bootstrap.install_python_deps"
             ) as pip, patch(
                 "src.install.bootstrap.install_desktop_deps", return_value="skipped"
+            ), patch(
+                "src.install.bootstrap.install_blender_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_ecc_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_kronos_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_personal_finance_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_code_memory_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_procoder_dep", return_value="ready"
+            ), patch(
+                "src.install.bootstrap.install_drawai_dep", return_value="ready"
             ), patch(
                 "src.install.bootstrap.write_install_record"
             ):

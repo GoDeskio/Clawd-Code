@@ -13,6 +13,7 @@ try:
     except Exception:  # pragma: no cover
         FuzzyCompleter = None  # type: ignore
     from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.output import DummyOutput
 except ModuleNotFoundError:  # pragma: no cover
     class FileHistory:  # type: ignore
         def __init__(self, *args, **kwargs):
@@ -42,6 +43,9 @@ except ModuleNotFoundError:  # pragma: no cover
 
         def prompt(self, *args, **kwargs):
             raise EOFError()
+
+    class DummyOutput:  # type: ignore
+        pass
 
 try:
     from rich.console import Console, Group
@@ -175,7 +179,7 @@ class ClawdREPL:
                     buf.insert_text("/")
                     buf.start_completion(select_first=False)
 
-        self.prompt_session = PromptSession(
+        prompt_kwargs = dict(
             history=FileHistory(str(history_file)),
             auto_suggest=AutoSuggestFromHistory(),
             completer=self.completer,
@@ -185,6 +189,9 @@ class ClawdREPL:
             key_bindings=self.bindings,
             complete_while_typing=True,
         )
+        if sys.platform.startswith("win") and not getattr(sys.stdout, "isatty", lambda: False)():
+            prompt_kwargs["output"] = DummyOutput()
+        self.prompt_session = PromptSession(**prompt_kwargs)
 
     def _ask_user_questions(self, questions: list[dict]) -> dict[str, str]:
         # Stop the Rich status spinner if running, so we can get clean input

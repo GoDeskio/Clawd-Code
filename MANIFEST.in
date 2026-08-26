@@ -1,12 +1,14 @@
 include README.md
 include VERSION
 include LICENSE
+include THIRD_PARTY_NOTICES.md
 include CLAUDE.md
 include MVP_PLAN.md
 recursive-include src *.py
 recursive-include src *.json
 recursive-include src/desktop/web *
 recursive-include src/install/web *
+recursive-include src/skills/bundled *
 include desktop/package.json
 include desktop/main.js
 include desktop/preload.js

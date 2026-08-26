@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import threading
 import uuid
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 from dataclasses import dataclass, field
 
-from .conversation import Conversation
+from .conversation import Conversation, sanitize_legacy_binary_upload_text
 
 
 def empty_token_usage() -> dict:
-    return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "estimated": False}
 
 
 def merge_token_usage(current: dict | None, delta: dict | None) -> dict:
@@ -25,6 +28,7 @@ def merge_token_usage(current: dict | None, delta: dict | None) -> dict:
     totals["input_tokens"] = int(totals.get("input_tokens") or 0) + max(inp, 0)
     totals["output_tokens"] = int(totals.get("output_tokens") or 0) + max(out, 0)
     totals["total_tokens"] = totals["input_tokens"] + totals["output_tokens"]
+    totals["estimated"] = bool(totals.get("estimated") or extra.get("estimated"))
     return totals
 
 
@@ -36,19 +40,12 @@ def session_dir() -> Path:
 
 
 def _read_json_file(path: Path) -> dict:
-    """Read session/memory JSON as UTF-8. Never use the Windows locale (cp1252)."""
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    """Read session JSON as UTF-8 and require an object payload."""
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
     if not isinstance(data, dict):
         raise json.JSONDecodeError("session JSON must be an object", "", 0)
     return data
-
-
-def _write_json_file(path: Path, data: dict) -> None:
-    """Write session JSON as UTF-8 so non-ASCII tool results and titles survive Windows."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def _message_text(content) -> str:
@@ -85,6 +82,7 @@ class Session:
     title: str = "New chat"
     custom_title: bool = False
     token_usage: dict = field(default_factory=empty_token_usage)
+    media_items: list[dict] = field(default_factory=list)
 
     def preview_title(self) -> str:
         derived = _title_from_conversation(self.conversation)
@@ -126,19 +124,71 @@ class Session:
         self.token_usage = merge_token_usage(self.token_usage, usage)
         return dict(self.token_usage)
 
+    def record_artifact(self, artifact: dict | None, *, caption: str = "Generated file") -> dict | None:
+        """Attach a safe, persistent artifact descriptor to this conversation."""
+        if not isinstance(artifact, dict) or not artifact.get("name"):
+            return None
+        allowed = {
+            "id", "name", "size", "updated_at", "download_url", "view_url",
+            "media_type", "is_image",
+        }
+        item = {key: artifact[key] for key in allowed if key in artifact}
+        item["caption"] = str(caption or "Generated file")
+        item["timestamp"] = datetime.now().isoformat()
+        identity = str(item.get("id") or item.get("name"))
+        for existing in self.media_items:
+            if str(existing.get("id") or existing.get("name")) == identity:
+                return existing
+        self.media_items.append(item)
+        return item
+
     def export_messages(self) -> list[dict]:
-        """User-visible messages for the desktop transcript (no tool dumps)."""
+        """User-visible rich transcript, including images and downloadable artifacts."""
         rows: list[dict] = []
         for msg in self.conversation.messages:
             if getattr(msg, "_is_internal", False):
                 continue
-            text = _message_text(msg.content)
-            if not text.strip():
-                continue
             if msg.role not in {"user", "assistant", "system"}:
                 continue
-            rows.append({"role": msg.role, "content": text, "timestamp": msg.timestamp})
-        return rows
+            if isinstance(msg.content, str):
+                visible = sanitize_legacy_binary_upload_text(msg.content)
+                if visible.strip():
+                    rows.append({"role": msg.role, "content": visible, "timestamp": msg.timestamp})
+                continue
+            blocks: list[dict] = []
+            visible_text = _message_text(msg.content)
+            attachment_names = re.findall(r"\[(?:image|screenshot) attachment: ([^\]]+)\]", visible_text)
+            image_index = 0
+            for block in msg.content or []:
+                block_type = getattr(block, "type", "")
+                if block_type == "text" and str(getattr(block, "text", "")).strip():
+                    display_text = getattr(block, "display_text", None)
+                    if display_text is None or str(display_text).strip():
+                        blocks.append({"type": "text", "text": str(block.text if display_text is None else display_text)})
+                elif block_type == "image" and isinstance(getattr(block, "source", None), dict):
+                    source = dict(block.source)
+                    media_type = str(source.get("media_type") or "image/png")
+                    extension = {"image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}.get(media_type, "png")
+                    name = attachment_names[image_index] if image_index < len(attachment_names) else f"uploaded-image-{image_index + 1}.{extension}"
+                    blocks.append({"type": "image", "source": source, "name": name})
+                    image_index += 1
+                elif block_type == "attachment" and str(getattr(block, "download_url", "")):
+                    blocks.append({
+                        "type": "attachment",
+                        "name": str(getattr(block, "name", "attachment")),
+                        "download_url": str(block.download_url),
+                        "media_type": str(getattr(block, "media_type", "application/octet-stream")),
+                        "size": int(getattr(block, "size", 0) or 0),
+                    })
+            if blocks:
+                rows.append({"role": msg.role, "content": blocks, "timestamp": msg.timestamp})
+        for item in self.media_items:
+            rows.append({
+                "role": "assistant",
+                "content": [{"type": "artifact", **dict(item)}],
+                "timestamp": str(item.get("timestamp") or item.get("updated_at") or ""),
+            })
+        return sorted(rows, key=lambda row: str(row.get("timestamp") or ""))
 
     def save(self):
         """Save session to disk."""
@@ -159,9 +209,23 @@ class Session:
             "title": self.title,
             "custom_title": self.custom_title,
             "token_usage": merge_token_usage(self.token_usage, None),
+            "media_items": self.media_items,
         }
 
-        _write_json_file(session_file, session_data)
+        temp_file = session_file.with_name(
+            f"{session_file.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
+        try:
+            temp_file.write_text(
+                json.dumps(session_data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temp_file, session_file)
+        finally:
+            try:
+                temp_file.unlink()
+            except FileNotFoundError:
+                pass
 
     @classmethod
     def load(cls, session_id: str) -> Optional['Session']:
@@ -188,6 +252,7 @@ class Session:
             title=data.get("title") or _title_from_conversation(conversation),
             custom_title=bool(data.get("custom_title")),
             token_usage=merge_token_usage(data.get("token_usage"), None),
+            media_items=[dict(item) for item in data.get("media_items") or [] if isinstance(item, dict)],
         )
 
     @classmethod

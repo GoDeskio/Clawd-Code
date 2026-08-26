@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 from .registry import ToolRegistry
 from .context import ToolContext
-from ..agent.conversation import Conversation, TextContentBlock, ToolUseContentBlock
+from ..agent.conversation import AttachmentContentBlock, Conversation, ImageContentBlock, TextContentBlock, ToolUseContentBlock
 from ..context_system import build_context_prompt
 from ..outputStyles import resolve_output_style
 from ..providers.base import BaseProvider, ChatResponse
@@ -17,7 +17,7 @@ from ..providers.minimax_provider import MinimaxProvider
 
 
 def _is_anthropic_provider(provider: BaseProvider) -> bool:
-    return isinstance(provider, (AnthropicProvider, MinimaxProvider))
+    return isinstance(provider, (AnthropicProvider, MinimaxProvider)) or getattr(provider, "protocol_family", "") == "anthropic"
 
 
 def _build_openai_tool_result_content(result_output: Any) -> str:
@@ -206,8 +206,156 @@ def _build_effective_system_prompt(style_prompt: str, tool_context: ToolContext)
         memory_prompt = build_memory_brief(exclude_session_id=getattr(tool_context, "session_id", None))
     except Exception:
         memory_prompt = ""
-    parts = [style_prompt, context_prompt, memory_prompt]
+    device_prompt = ""
+    if tool_context.permission_context.full_system_access:
+        device_prompt = (
+            "The user has explicitly enabled persistent Full Device & Network Access. You may use DeviceControl, "
+            "Terminal, SystemAdmin, Read, Write, Edit, web, repository, connector, and installed CLI tools across "
+            "the signed-in operating-system account without asking again. Never claim you lack filesystem or command "
+            "access. Keep actions relevant to the request and report important system changes. OS ACL and UAC prompts still apply."
+        )
+    parts = [style_prompt, _efficiency_prompt(), device_prompt, _build_skill_library_prompt(tool_context), context_prompt, memory_prompt]
     return "\n\n".join(part for part in parts if str(part or "").strip())
+
+
+def _build_lightweight_system_prompt(style_prompt: str, tool_context: ToolContext) -> str:
+    """Small prompt for ordinary local conversation without workspace tools."""
+    memory_prompt = ""
+    try:
+        from src.agent.memory import build_memory_brief
+
+        memory_prompt = build_memory_brief(exclude_session_id=getattr(tool_context, "session_id", None))
+    except Exception:
+        memory_prompt = ""
+    instruction = (
+        "You are Jonathan Ai. Answer the user's message directly and accurately. "
+        "Do not claim to have run tools or changed files in this lightweight chat turn."
+    )
+    return "\n\n".join(
+        part for part in (instruction, style_prompt, _efficiency_prompt(), _build_skill_library_prompt(tool_context), memory_prompt)
+        if str(part or "").strip()
+    )
+
+
+def _efficiency_prompt() -> str:
+    """Short workflow discipline derived from measured Benjamin Plus principles."""
+    return (
+        "Work efficiently without reducing correctness: gather independent repository facts in one reconnaissance pass; "
+        "use bounded slices for inspection but never truncate data being transformed; probe required dependencies together; "
+        "run the user's stated verification exactly; and wait in substantial intervals for long-running work instead of polling repeatedly. "
+        "Efficiency never outranks safety, correctness, or an explicit deliverable."
+    )
+
+
+def _build_skill_library_prompt(tool_context: ToolContext) -> str:
+    """Tell every independent agent about real, editable user skills."""
+    try:
+        from src.skills.library import user_skill_library
+        from src.skills.loader import load_skills_from_dir
+
+        root = user_skill_library()
+        skills = load_skills_from_dir(root, loaded_from="user")
+    except Exception:
+        return ""
+    rows = [f"- {skill.name}: {skill.description}" for skill in skills[:24]]
+    catalog = "\n".join(rows) if rows else "- (no user skills yet)"
+    return (
+        "Jonathan Ai has a real shared skill library. Do not say that you cannot create operational files. "
+        "When the user asks you to learn, or completed work yields a proven reusable workflow, use SkillManager "
+        "to create or update a user-scoped SKILL.md, then validate it. Use Skill to execute a relevant skill. "
+        "Do not save credentials, raw chat history, speculative advice, or one-off details as skills. "
+        f"The user can edit the same files at: {root}\nEditable skills:\n{catalog}"
+    )
+
+
+def _bounded_text_history(messages: list[Any], *, max_messages: int = 10, max_chars: int = 8_000) -> list[Any]:
+    """Keep recent chat context bounded so small local models stay responsive."""
+    selected: list[Any] = []
+    used = 0
+    for message in reversed(messages[-max_messages:]):
+        content = getattr(message, "content", "")
+        if not isinstance(content, str):
+            continue
+        size = len(content)
+        if selected and used + size > max_chars:
+            break
+        selected.append(message)
+        used += size
+    selected.reverse()
+    return selected
+
+
+def _bounded_action_history(messages: list[Any], *, max_messages: int = 28, max_images: int = 2) -> list[Any]:
+    """Bound provider context without deleting the durable session transcript."""
+    selected = [message for message in messages if not getattr(message, "_is_internal", False)][-max_messages:]
+    # Never begin a request with an orphaned tool result/assistant tool-use pair.
+    while selected:
+        first = selected[0]
+        content = getattr(first, "content", "")
+        has_tool_result = isinstance(content, list) and any(
+            getattr(block, "type", "") == "tool_result" for block in content
+        )
+        has_tool_use = isinstance(content, list) and any(
+            getattr(block, "type", "") == "tool_use" for block in content
+        )
+        if getattr(first, "role", "") == "user" and not has_tool_result:
+            break
+        if not has_tool_result and not has_tool_use and getattr(first, "role", "") == "system":
+            break
+        selected.pop(0)
+
+    # Keep only the newest image blocks. Older pixels remain safely persisted
+    # in the session and visible in the transcript.
+    keep: set[int] = set()
+    remaining = max_images
+    for message in reversed(selected):
+        content = getattr(message, "content", "")
+        if not isinstance(content, list):
+            continue
+        for block in reversed(content):
+            if isinstance(block, ImageContentBlock) and remaining > 0:
+                keep.add(id(block))
+                remaining -= 1
+    if remaining == max_images:
+        return selected
+
+    from ..agent.conversation import Message
+
+    prepared: list[Any] = []
+    for message in selected:
+        content = getattr(message, "content", "")
+        if not isinstance(content, list):
+            prepared.append(message)
+            continue
+        blocks = []
+        removed = False
+        for block in content:
+            if isinstance(block, ImageContentBlock) and id(block) not in keep:
+                removed = True
+                continue
+            blocks.append(block)
+        if removed:
+            blocks.append(TextContentBlock(text="[Older image pixels remain in the saved transcript but were omitted from this request for speed.]"))
+        prepared.append(Message(role=message.role, content=blocks, timestamp=message.timestamp))
+    return prepared
+
+
+def _strip_openai_images(messages: list[dict[str, Any]]) -> None:
+    """Do not resend multi-megabyte pixels after the model has inspected them."""
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        stripped: list[dict[str, Any]] = []
+        removed = False
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "image":
+                removed = True
+                continue
+            stripped.append(block)
+        if removed:
+            stripped.append({"type": "text", "text": "[Image pixels were supplied on the first model turn.]"})
+            message["content"] = stripped
 
 
 def summarize_tool_use(name: str, tool_input: dict[str, Any]) -> str:
@@ -279,6 +427,8 @@ def run_agent_loop(
     on_event: ToolEventHandler | None = None,
     on_text_chunk: TextChunkHandler | None = None,
     omit_tools: bool = False,
+    lightweight: bool = False,
+    selected_tool_names: set[str] | frozenset[str] | None = None,
 ) -> AgentLoopResult:
     """Run agent loop: LLM -> tools -> LLM until no more tools or max turns.
 
@@ -293,6 +443,8 @@ def run_agent_loop(
         on_event: Optional callback for tool events
         on_text_chunk: Optional callback for incremental user-visible text chunks
         omit_tools: If True, call the provider with no tools (schema-400 fallback)
+        lightweight: Use a small prompt/recent history for ordinary local chat
+        selected_tool_names: Optional initial tool subset; ToolSearch can expand it
 
     Returns:
         AgentLoopResult with final text response, usage info, and turn count
@@ -302,9 +454,11 @@ def run_agent_loop(
     # unless the user connected one — Jonathan Ai chats standalone.
     from .schema_sanitize import serialize_tools_for_provider
 
-    tool_schemas = [] if omit_tools else serialize_tools_for_provider(
+    selected_names = set(selected_tool_names) if selected_tool_names is not None else None
+    tool_schemas = [] if omit_tools or lightweight else serialize_tools_for_provider(
         tool_registry,
         tool_context=tool_context,
+        include_names=selected_names,
     )
 
     # For OpenAI/GLM, keep separate message list in OpenAI format
@@ -313,28 +467,63 @@ def run_agent_loop(
     style_name = getattr(tool_context, "output_style_name", None)
     style_dir = getattr(tool_context, "output_style_dir", None)
     style_prompt = resolve_output_style(style_name, style_dir).prompt
-    effective_system_prompt = _build_effective_system_prompt(style_prompt, tool_context)
+    effective_system_prompt = (
+        _build_lightweight_system_prompt(style_prompt, tool_context)
+        if lightweight
+        else _build_effective_system_prompt(style_prompt, tool_context)
+    )
 
     # Seed OpenAI messages from initial conversation messages
-    for msg in conversation.messages:
+    history = _bounded_text_history(conversation.messages) if lightweight else _bounded_action_history(conversation.messages)
+    for msg in history:
         if isinstance(msg.content, str):
             openai_messages.append({"role": msg.role, "content": msg.content})
         else:
-            # If there are already block messages, we are probably Anthropic; leave as is
-            pass
+            # User image messages are persisted in provider-neutral Anthropic
+            # block syntax. Keep their text and pixels for OpenAI-compatible
+            # providers (Ollama, LM Studio, vLLM, OpenAI). Previously every
+            # block message was dropped here, so local models literally never
+            # received uploaded images.
+            blocks: list[dict[str, Any]] = []
+            provider_safe = True
+            for block in msg.content:
+                if isinstance(block, TextContentBlock):
+                    blocks.append({"type": "text", "text": block.text})
+                elif isinstance(block, ImageContentBlock):
+                    blocks.append({"type": "image", "source": dict(block.source)})
+                elif isinstance(block, AttachmentContentBlock):
+                    continue
+                else:
+                    provider_safe = False
+                    break
+            if provider_safe and blocks:
+                openai_messages.append({"role": msg.role, "content": blocks})
 
     # Track usage across all turns
-    total_usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
+    total_usage: dict[str, Any] = {"input_tokens": 0, "output_tokens": 0}
     turn_count = 0
 
     for turn in range(max_turns):
         if _is_anthropic_provider(provider):
-            api_messages = conversation.get_messages()
+            bounded = _bounded_action_history(conversation.messages)
+            api_messages = Conversation(messages=bounded).get_messages()
+            if turn > 0:
+                for message in api_messages:
+                    content = message.get("content")
+                    if isinstance(content, list) and any(block.get("type") == "image" for block in content if isinstance(block, dict)):
+                        message["content"] = [
+                            block for block in content
+                            if not isinstance(block, dict) or block.get("type") != "image"
+                        ] + [{"type": "text", "text": "[Image pixels were supplied on the first model turn.]"}]
         else:
             # Use OpenAI formatted messages for non-Anthropic
+            if turn > 0:
+                _strip_openai_images(openai_messages)
             api_messages = openai_messages
 
         call_kwargs: dict[str, Any] = {"tools": tool_schemas}
+        if lightweight:
+            call_kwargs["max_tokens"] = 768
         if _is_anthropic_provider(provider):
             call_kwargs["system"] = effective_system_prompt
         else:
@@ -350,9 +539,20 @@ def run_agent_loop(
         turn_count += 1
 
         # Collect usage info
-        if response.usage:
-            total_usage["input_tokens"] += response.usage.get("input_tokens", 0)
-            total_usage["output_tokens"] += response.usage.get("output_tokens", 0)
+        reported_input = int((response.usage or {}).get("input_tokens") or 0)
+        reported_output = int((response.usage or {}).get("output_tokens") or 0)
+        if reported_input > 0 or reported_output > 0:
+            total_usage["input_tokens"] += reported_input
+            total_usage["output_tokens"] += reported_output
+        else:
+            # Some local OpenAI-compatible servers omit usage from streaming
+            # responses. Keep their per-session/per-agent tracker useful with a
+            # deterministic approximation (roughly four UTF-8 characters per
+            # token) while preserving provider-reported counts when available.
+            serialized_input = json.dumps(api_messages, ensure_ascii=False, default=str)
+            total_usage["input_tokens"] += max(1, (len(serialized_input) + 3) // 4)
+            total_usage["output_tokens"] += max(1, (len(response.content or "") + 3) // 4)
+            total_usage["estimated"] = True
 
         # Build assistant content for Anthropic or just text for OpenAI
         final_assistant_content = response.content or ""
@@ -433,6 +633,16 @@ def run_agent_loop(
                 call = ToolCall(name=tool_name, input=tool_input, tool_use_id=tool_id)
                 result = tool_registry.dispatch(call, tool_context)
                 result_output = result.output
+                if tool_name.lower() == "toolsearch" and selected_names is not None and isinstance(result_output, dict):
+                    matches = result_output.get("matches")
+                    if isinstance(matches, list):
+                        selected_names.update(str(item) for item in matches if str(item).strip())
+                        selected_names.add("ToolSearch")
+                        tool_schemas = serialize_tools_for_provider(
+                            tool_registry,
+                            tool_context=tool_context,
+                            include_names=selected_names,
+                        )
                 if tool_name.lower() == "sendusermessage" and isinstance(result_output, dict):
                     msg = result_output.get("message")
                     if isinstance(msg, str):

@@ -55,7 +55,7 @@ def run_cli(args: argparse.Namespace) -> int:
         )
     except Exception:
         pass
-    if args.launch:
+    if args.launch or result.get("restart_required"):
         from .launch import launch_jonathan_ai
 
         launch_jonathan_ai(source)

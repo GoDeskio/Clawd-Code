@@ -37,9 +37,30 @@ class TestMultiAgent(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertGreaterEqual(len(result["workers"]), 2)
             self.assertNotEqual(result["workers"][0]["worker_id"], result["workers"][1]["worker_id"])
+            self.assertEqual(result["mode"], "balanced")
+            self.assertEqual(result["usage"]["total_tokens"], len(result["workers"]) * 2)
             for call in provider.chat.call_args_list:
                 kwargs = call.kwargs
                 self.assertFalse(kwargs.get("tools"))
+
+    def test_verified_mode_adds_independent_review_and_usage(self) -> None:
+        provider = MagicMock()
+        provider.chat.return_value = ChatResponse(
+            content="verified final",
+            model="test",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            finish_reason="stop",
+        )
+        result = run_internal_workers(provider=provider, goal="Implement then test", mode="verified")
+        self.assertEqual(result["mode"], "verified")
+        self.assertEqual(result["answer"], "verified final")
+        self.assertTrue(result["review"])
+        self.assertGreaterEqual(provider.chat.call_count, 3)
+        self.assertGreater(result["usage"]["total_tokens"], 3)
+
+    def test_unknown_worker_mode_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown worker mode"):
+            run_internal_workers(provider=MagicMock(), goal="work", mode="unbounded")
 
     def test_registry_includes_spawn_workers_classic_schema(self) -> None:
         from src.tool_system.schema_sanitize import serialize_tools_for_provider

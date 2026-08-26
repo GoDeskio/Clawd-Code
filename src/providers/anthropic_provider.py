@@ -70,7 +70,10 @@ class AnthropicProvider(BaseProvider):
             "messages": messages,
         }
         if system:
-            payload["system"] = system
+            # Keep Jonathan's stable prefix eligible for Anthropic prompt
+            # caching without inserting a proxy or rewriting any content.
+            payload["system"] = ([{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+                                 if isinstance(system, str) else system)
         if tools:
             payload["tools"] = tools
         safe_extra = {
@@ -132,11 +135,6 @@ class AnthropicProvider(BaseProvider):
         except Exception as exc:
             if prepared and is_input_schema_type_error(exc):
                 return client.messages.create(**self._retry_without_tools(request, prepared, exc))
-            if prepared:
-                try:
-                    return client.messages.create(**self._retry_without_tools(request, prepared, exc))
-                except Exception:
-                    raise exc
             raise
 
     def _stream_request(
@@ -269,8 +267,7 @@ class AnthropicProvider(BaseProvider):
             if not prepared:
                 raise
             if not is_input_schema_type_error(exc):
-                # Prefer a no-tools answer over failing the first streamed message.
-                pass
+                raise
             active = self._retry_without_tools(request, prepared, exc)
         with client.messages.stream(**active) as stream:
             for text in stream.text_stream:
@@ -335,6 +332,8 @@ class AnthropicProvider(BaseProvider):
                 )
             if not prepared:
                 raise
+            if not is_input_schema_type_error(exc):
+                raise
             retry = self._retry_without_tools(request, prepared, exc)
             streamed_text, final_message = _read_stream(retry)
 
@@ -350,7 +349,7 @@ class AnthropicProvider(BaseProvider):
         )
 
     def _prepare_messages(self, messages: list[MessageInput]) -> list[dict[str, Any]]:
-        """Convert history and stringify object-shaped tool_result.content."""
+        """Convert history and normalize Anthropic tool-result content."""
         return sanitize_anthropic_messages(super()._prepare_messages(messages))
 
     def get_available_models(self) -> list[str]:

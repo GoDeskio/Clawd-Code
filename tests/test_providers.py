@@ -7,8 +7,10 @@ from unittest.mock import MagicMock, patch
 
 from src.providers import get_provider_class
 from src.providers.anthropic_provider import AnthropicProvider
+from src.tool_system.schema_sanitize import is_input_schema_type_error
 from src.providers.glm_provider import GLMProvider
 from src.providers.openai_provider import OpenAIProvider
+from src.providers.openai_compatible import _openai_multimodal_messages
 from src.providers.base import ChatMessage, ChatResponse
 
 
@@ -26,6 +28,18 @@ class TestChatMessage(unittest.TestCase):
         msg = ChatMessage(role="user", content="Hello")
         result = msg.to_dict()
         self.assertEqual(result, {"role": "user", "content": "Hello"})
+
+    def test_anthropic_image_block_converts_for_openai(self):
+        result = _openai_multimodal_messages([{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "inspect"},
+                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "abc"}},
+            ],
+        }])
+        image = result[0]["content"][1]
+        self.assertEqual(image["type"], "image_url")
+        self.assertEqual(image["image_url"]["url"], "data:image/png;base64,abc")
 
 
 class TestChatResponse(unittest.TestCase):
@@ -129,6 +143,15 @@ class TestAnthropicProvider(unittest.TestCase):
         )
 
     @patch("src.providers.anthropic_provider.anthropic.Anthropic")
+    def test_chat_marks_system_prompt_as_cacheable_without_rewriting_it(self, mock_anthropic):
+        mock_response = MagicMock(content=[], model="claude-sonnet-4-6", usage=MagicMock(input_tokens=1, output_tokens=1), stop_reason="end_turn")
+        mock_anthropic.return_value.messages.create.return_value = mock_response
+        AnthropicProvider(api_key="test_key").chat([{"role": "user", "content": "Hi"}], system="stable instructions")
+        system = mock_anthropic.return_value.messages.create.call_args.kwargs["system"]
+        self.assertEqual(system[0]["text"], "stable instructions")
+        self.assertEqual(system[0]["cache_control"], {"type": "ephemeral"})
+
+    @patch("src.providers.anthropic_provider.anthropic.Anthropic")
     def test_chat_stream_response_with_tool_use(self, mock_anthropic):
         """Structured streaming returns final text and tool uses."""
         mock_client = MagicMock()
@@ -167,6 +190,112 @@ class TestAnthropicProvider(unittest.TestCase):
         self.assertEqual(response.content, "Hello world")
         self.assertEqual(response.finish_reason, "tool_use")
         self.assertEqual(response.tool_uses[0]["name"], "Read")
+
+    def test_schema_retry_classifier_requires_400_and_missing_type(self):
+        self.assertTrue(is_input_schema_type_error(RuntimeError(
+            "Error code: 400 - tools.17.custom.input_schema.type: Field required"
+        )))
+        self.assertFalse(is_input_schema_type_error(RuntimeError(
+            "Error code: 500 - tools.17.custom.input_schema.type: Field required"
+        )))
+        self.assertFalse(is_input_schema_type_error(RuntimeError(
+            "Error code: 400 - rate limit exceeded"
+        )))
+        try:
+            raise RuntimeError(
+                "Error code: 400 - tools.17.custom.input_schema.type: Field required"
+            )
+        except RuntimeError:
+            try:
+                raise RuntimeError("no final message")
+            except RuntimeError as later_error:
+                self.assertFalse(is_input_schema_type_error(later_error))
+
+    @patch("src.providers.anthropic_provider.anthropic.Anthropic")
+    def test_chat_stream_retries_only_schema_400(self, mock_anthropic):
+        mock_client = MagicMock()
+        failed_stream = MagicMock()
+        failed_stream.__enter__.side_effect = RuntimeError(
+            "Error code: 400 - tools.17.custom.input_schema.type: Field required"
+        )
+        retry_stream = MagicMock()
+        retry_stream.__enter__.return_value = retry_stream
+        retry_stream.__exit__.return_value = False
+        retry_stream.text_stream = iter(["fallback answer"])
+        mock_client.messages.stream.side_effect = [failed_stream, retry_stream]
+        mock_anthropic.return_value = mock_client
+
+        provider = AnthropicProvider(api_key="test_key")
+        chunks = list(provider.chat_stream(
+            [ChatMessage(role="user", content="Hi")],
+            tools=[{"name": "Read", "input_schema": {"type": "object"}}],
+        ))
+
+        self.assertEqual(chunks, ["fallback answer"])
+        self.assertEqual(mock_client.messages.stream.call_count, 2)
+        self.assertIn("tools", mock_client.messages.stream.call_args_list[0].kwargs)
+        self.assertNotIn("tools", mock_client.messages.stream.call_args_list[1].kwargs)
+
+    @patch("src.providers.anthropic_provider.anthropic.Anthropic")
+    def test_chat_stream_does_not_retry_unrelated_error(self, mock_anthropic):
+        mock_client = MagicMock()
+        failed_stream = MagicMock()
+        failed_stream.__enter__.side_effect = RuntimeError("Error code: 401 - invalid API key")
+        mock_client.messages.stream.return_value = failed_stream
+        mock_anthropic.return_value = mock_client
+
+        provider = AnthropicProvider(api_key="test_key")
+        with self.assertRaisesRegex(RuntimeError, "invalid API key"):
+            list(provider.chat_stream(
+                [ChatMessage(role="user", content="Hi")],
+                tools=[{"name": "Read", "input_schema": {"type": "object"}}],
+            ))
+        self.assertEqual(mock_client.messages.stream.call_count, 1)
+
+    @patch("src.providers.anthropic_provider.anthropic.Anthropic")
+    def test_chat_stream_response_retries_only_schema_400(self, mock_anthropic):
+        mock_client = MagicMock()
+        failed_stream = MagicMock()
+        failed_stream.__enter__.side_effect = RuntimeError(
+            "Error code: 400 - tools.17.custom.input_schema.type: Field required"
+        )
+        retry_stream = MagicMock()
+        retry_stream.__enter__.return_value = retry_stream
+        retry_stream.__exit__.return_value = False
+        retry_stream.text_stream = iter(["fallback answer"])
+        retry_stream.get_final_message.side_effect = RuntimeError("no final message")
+        mock_client.messages.stream.side_effect = [failed_stream, retry_stream]
+        mock_anthropic.return_value = mock_client
+
+        provider = AnthropicProvider(api_key="test_key")
+        chunks: list[str] = []
+        response = provider.chat_stream_response(
+            [ChatMessage(role="user", content="Hi")],
+            tools=[{"name": "Read", "input_schema": {"type": "object"}}],
+            on_text_chunk=chunks.append,
+        )
+
+        self.assertEqual(response.content, "fallback answer")
+        self.assertEqual(chunks, ["fallback answer"])
+        self.assertEqual(mock_client.messages.stream.call_count, 2)
+        self.assertIn("tools", mock_client.messages.stream.call_args_list[0].kwargs)
+        self.assertNotIn("tools", mock_client.messages.stream.call_args_list[1].kwargs)
+
+    @patch("src.providers.anthropic_provider.anthropic.Anthropic")
+    def test_chat_stream_response_does_not_retry_unrelated_error(self, mock_anthropic):
+        mock_client = MagicMock()
+        failed_stream = MagicMock()
+        failed_stream.__enter__.side_effect = RuntimeError("Error code: 429 - rate limit")
+        mock_client.messages.stream.return_value = failed_stream
+        mock_anthropic.return_value = mock_client
+
+        provider = AnthropicProvider(api_key="test_key")
+        with self.assertRaisesRegex(RuntimeError, "rate limit"):
+            provider.chat_stream_response(
+                [ChatMessage(role="user", content="Hi")],
+                tools=[{"name": "Read", "input_schema": {"type": "object"}}],
+            )
+        self.assertEqual(mock_client.messages.stream.call_count, 1)
 
 
 class TestOpenAIProvider(unittest.TestCase):

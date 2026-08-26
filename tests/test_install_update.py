@@ -13,6 +13,12 @@ from src.install.constants import CANONICAL_HTTPS
 from src.install.python_env import detect_os, ensure_venv, find_system_python, venv_is_usable
 from src.install.record import read_install_record, write_install_record
 from src.install.deps import install_desktop_deps
+from src.install.runtime_process import (
+    process_record_path,
+    read_process_record,
+    stop_running_app,
+    write_process_record,
+)
 from src.install.source import (
     UntrustedSourceError,
     assert_allowed_source_url,
@@ -30,6 +36,58 @@ class TestJonathanPath(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             dest = default_source_dir(home=Path(tmp))
             self.assertEqual(dest, Path(tmp) / "Jonathan" / "Jonathan-Ai")
+
+
+class TestRuntimeProcessRecord(unittest.TestCase):
+    def test_record_is_scoped_to_install_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "Jonathan" / "Jonathan-Ai"
+            root.mkdir(parents=True)
+            write_process_record(root, owner_pid=99991, backend_pid=99992, kind="electron")
+            record = read_process_record(root)
+            self.assertEqual(record["source_dir"], str(root.resolve()))
+            self.assertEqual(record["owner_pid"], 99991)
+            self.assertIsNone(read_process_record(root.parent))
+
+    def test_windows_stop_targets_only_recorded_process_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_process_record(root, owner_pid=99991, backend_pid=99992, kind="electron")
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            image = str(root / "desktop" / "node_modules" / "electron" / "dist" / "electron.exe")
+            with patch("src.install.runtime_process._pid_is_running", return_value=(True, image)), patch(
+                "src.install.runtime_process.shutil.which", return_value="taskkill.exe"
+            ), patch("src.install.runtime_process.subprocess.run", return_value=completed) as run:
+                result = stop_running_app(root)
+            self.assertTrue(result["was_running"])
+            self.assertTrue(result["stopped"])
+            taskkill_calls = [
+                call.args[0]
+                for call in run.call_args_list
+                if call.args and isinstance(call.args[0], list) and "/PID" in call.args[0]
+            ]
+            self.assertTrue(taskkill_calls)
+            self.assertIn("99991", taskkill_calls[-1])
+            self.assertFalse(process_record_path(root).exists())
+
+    def test_reused_pid_outside_install_root_is_never_killed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_process_record(root, owner_pid=99991, kind="electron")
+            with patch(
+                "src.install.runtime_process._pid_is_running",
+                return_value=(True, r"C:\OtherApp\electron.exe"),
+            ), patch("src.install.runtime_process.subprocess.run") as run:
+                result = stop_running_app(root)
+            self.assertFalse(result["was_running"])
+            self.assertIn("unexpected executable", result["error"])
+            kill_calls = [
+                call.args[0]
+                for call in run.call_args_list
+                if call.args and isinstance(call.args[0], list) and "/PID" in call.args[0]
+            ]
+            self.assertEqual(kill_calls, [])
+            self.assertTrue(process_record_path(root).exists())
 
 
 class TestSourceAllowlist(unittest.TestCase):
@@ -191,6 +249,20 @@ class TestWizardAndVerify(unittest.TestCase):
             ), patch(
                 "src.install.wizard.install_desktop_deps", return_value="skipped"
             ), patch(
+                "src.install.wizard.install_blender_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_ecc_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_kronos_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_personal_finance_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_code_memory_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_procoder_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_drawai_dep", return_value="ready"
+            ), patch(
                 "src.install.wizard.verify_agent_session", return_value={"ok": True, "session_id": "s"}
             ):
                 result = InstallWizard().run_sync(
@@ -270,6 +342,15 @@ class TestUpdater(unittest.TestCase):
             updater = Updater(repo)
             with self.assertRaises(RuntimeError):
                 updater.apply()
+
+    def test_allow_dirty_cannot_bypass_update_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            (repo / "dirty.txt").write_text("must survive\n", encoding="utf-8")
+            updater = Updater(repo)
+            with self.assertRaises(RuntimeError):
+                updater.apply(allow_dirty=True)
+            self.assertEqual((repo / "dirty.txt").read_text(encoding="utf-8"), "must survive\n")
 
     def test_install_record_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

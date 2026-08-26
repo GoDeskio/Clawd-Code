@@ -10,8 +10,8 @@
 
 ***
 
-[![GitHub stars](https://img.shields.io/github/stars/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GPT-AGI/Clawd-Code/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GPT-AGI/Clawd-Code/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GoDeskio/Clawd-Code/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GoDeskio/Clawd-Code/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 
@@ -53,7 +53,7 @@
 - ✅ **Удобство использования** — Простая настройка, интерактивный REPL, полная документация
 - ✅ **Постоянное улучшение** — Улучшенная обработка ошибок, тестирование, документация
 
-**Версия 0.2.8 — Jonathan Ai.** Десктопное приложение само является агентом. Чаты сохраняются на диск; New Chat открывает пустую ветку. Общая память (`~/.clawd/memory`) переносит факты между чатами. MCP, Cursor и Codex необязательны. Объектные tool_result сериализуются в строку. Переименовывайте чаты в боковой панели. Схемы инструментов отправляются в классическом виде Anthropic (`input_schema.type`). При 400 schema тот же запрос повторяется без tools.
+**Версия 0.3.0 — Jonathan Ai.** Десктопное приложение само является агентом и включает инструменты изображений, Blender 3D, системного администрирования, аудита, репозиториев, навыков и общей памяти.
 
 **🚀 Попробуйте сейчас! Форкните, изменяйте, сделайте своим! Pull requests приветствуются!**
 
@@ -122,7 +122,7 @@ clawd config       # Просмотреть настройки
 ### Установка
 
 ```bash
-git clone https://github.com/GPT-AGI/Clawd-Code.git
+git clone https://github.com/GoDeskio/Clawd-Code.git
 cd Clawd-Code
 
 # Создать venv (рекомендуется uv)

@@ -4,11 +4,12 @@ import platform
 from typing import Any
 
 from ..context import ToolContext
-from ..errors import ToolInputError, ToolPermissionError
+from ..errors import ToolInputError
 from ..permission_handler import PermissionResult
 from ..permissions import maybe_ask_for_gated_tool
 from ..protocol import ToolResult
 from ..registry import ToolSpec
+from .terminal import run_terminal_command
 
 
 class SendMessageTool:
@@ -97,7 +98,8 @@ class PowerShellTool:
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
         if platform.system().lower() != "windows":
             return ToolResult(name="PowerShell", output={"error": "PowerShell is only supported on Windows"}, is_error=True)
-        raise ToolPermissionError("PowerShell execution is not enabled in this build")
+        output = run_terminal_command({**tool_input, "shell": "powershell"}, context)
+        return ToolResult(name="PowerShell", output=output, is_error=output["exit_code"] != 0)
 
 
 class NotebookEditTool:

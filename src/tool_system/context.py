@@ -29,6 +29,13 @@ class ToolContext:
     output_style_name: str | None = None
     output_style_dir: Path | None = None
     session_id: str | None = None
+    # Desktop-only read bridge for explicitly viewing another conversation agent.
+    instance_reader: Callable[[str, str], Any] | None = None
+    # Desktop bridge for persistent named agents and their local mailboxes.
+    agent_roster: Callable[[str, dict[str, Any]], Any] | None = None
+    # Desktop-only bridge that copies generated files into the download shelf.
+    artifact_publisher: Callable[[str | Path, str | None], Any] | None = None
+    audit_logger: Callable[[dict[str, Any]], Any] | None = None
 
     # When True, destructive/network tools ask for consent before running.
     # Desktop runtime enables this; the CLI REPL leaves it off so existing
@@ -56,6 +63,7 @@ class ToolContext:
                 workspace_root=self.workspace_root,
                 additional_working_directories=self.permission_context.additional_working_directories,
                 allow_docs=self.permission_context.allow_docs,
+                full_system_access=self.permission_context.full_system_access,
             )
 
     def mark_file_read(self, path: Path) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import tempfile
 import unittest
 from pathlib import Path
@@ -49,6 +50,21 @@ class TestMemory(unittest.TestCase):
         add_fact("api_key=supersecretvalue123", source_session="x")
         brief = build_memory_brief()
         self.assertNotIn("supersecretvalue123", brief)
+
+    def test_parallel_workers_do_not_lose_index_entries(self) -> None:
+        from src.agent.memory import list_conversation_index, upsert_conversation_index
+
+        def write(index: int) -> None:
+            upsert_conversation_index(
+                session_id=f"worker-{index}",
+                title=f"Worker {index}",
+                summary=f"Result {index}",
+            )
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(write, range(16)))
+        ids = {row["session_id"] for row in list_conversation_index()}
+        self.assertTrue({f"worker-{index}" for index in range(16)}.issubset(ids))
 
 
 if __name__ == "__main__":

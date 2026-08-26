@@ -6,14 +6,55 @@
 
 **A local desktop and CLI agent, built as a Python reimplementation of Claude Code**
 
-**Version 0.2.8** — Jonathan Ai is itself the AI agent. Chats persist on disk and survive restart. New Chat starts a blank thread. Shared memory (`~/.clawd/memory`) lets facts from one chat inform another. Internal workers can plan a goal in parallel without Cursor, Codex, or MCP. Session JSON is always UTF-8 (Windows no longer decodes as cp1252). Anthropic tool results that are objects are stringified so resumed chats do not 400. A first Anthropic chat — including desktop streaming — retries without tools if a schema 400 still appears. First launch repairs the venv and pip packages automatically. The Windows launcher finds `%USERPROFILE%\Jonathan\Jonathan-Ai`.
+**Version 0.4.6** — Jonathan Ai adds a complete, audited Everything Claude Code (ECC) catalog integration, evidence-backed skill learning, and a built-in probabilistic OHLCV forecasting engine. The app keeps the full ECC catalog offline while lazily enabling only selected skills so startup and prompts remain fast. Git-history learning produces sanitized, confidence-scored `SKILL.md` drafts that require review, and market forecasts produce downloadable research CSVs without placing trades.
+
+Every conversation also writes a redacted, tamper-evident append-only runtime ledger under `~/.clawd/events`. Provider context can stay bounded for speed without deleting job, tool, permission, completion, usage, or artifact evidence. Token counts remain persisted per conversation and agent and are informational only—there is no quota, payment, or purchase path.
+
+When a project contains `DESIGN.md`, Jonathan loads its UTF-8 visual system into a separate bounded context section for every conversation agent. This keeps project colors, typography, components, layout, responsive rules, and design constraints persistent without copying a third-party brand catalog into the application.
+
+The Device & System card also shows an earned-autonomy profile for each conversation and gated tool. It counts only distinct human decisions, uses a conservative Wilson confidence bound, and caps terminal, write, device, repository, and trading actions at approval-required. Recommendations are visible evidence—not authority—and can never enable a tool or full-device access without the user's explicit grant.
+
+Tool execution is audit-gated: after policy and user approval, Jonathan writes a secret-redacted `started` record before invoking the tool and a second record with success, refusal, or failure. If the preflight audit cannot be persisted, the side effect does not run.
+
+The 0.4.6 shell uses a quiet, neutral desktop system: compact native typography, solid surfaces, low-decoration hierarchy, consistent radii, clear focus rings, semantic state colors, and reduced-motion support. It keeps the dense operational layout instead of applying oversized website spacing.
+
+Pydantic AI was evaluated for typed outputs, broad model adapters, durable execution, evaluations, and telemetry. Jonathan keeps its existing single runtime for this release; adding a second agent loop would duplicate session, permission, provider, and tool state. Its strongest capabilities remain candidates for narrow future adapters rather than a wholesale dependency.
+
+The Workers control now offers **Fast**, **Balanced**, and **Verified** modes. Verified uses an additional independent model pass to challenge the worker outputs against the original goal and synthesize the final response; Fast avoids that latency for small jobs. These modes are explicit because deeper orchestration costs more time and provider tokens, and every worker/reviewer token is added to the owning conversation's informational total.
+
+### Media, 3D, and administrator tools
+
+- `ImageStudio`: create and convert PNG/JPEG/WebP/BMP/GIF/TIFF/PDF, add/remove text, inpaint, composite, crop, resize, rotate, flip, or call a configured OpenAI-compatible image endpoint.
+- `ThreeDStudio`: make colored GLB/GLTF/OBJ/STL/PLY assets locally; use Blender for textures, BLEND/FBX/USD, advanced conversion, and high-definition Eevee/Cycles renders. The common `MLB` typo is accepted and corrected to `.glb`.
+- `Artifact`: publish any file to the conversation download shelf, or safely ZIP a directory.
+- `SystemAdmin`: inventory, monitor, evaluate, report, control approved processes/services, and install approved packages. Every tool action is written to a secret-redacted audit ledger at `~/.clawd/audit/actions.jsonl`.
+- `Repository`: inspect, clone, fetch, pull, and push GitHub/GitLab repositories without merging; protected branches require explicit authorization.
+- `AudioStudio`: generate deterministic original instrumental WAV beds and trim, normalize, or mix local PCM WAV files into conversation downloads without an account or cloud service.
+- `SkillManager` and `SharedMemory`: create/validate/package reusable `SKILL.md` files and search/export durable cross-conversation memory.
+- `ECCIntegration`: synchronize, audit, import, update, enable/disable, and search ECC skills/agent templates; exchange unreviewed Memory Vault documents; and create reviewable skills from measured Git history.
+- `BusinessManager`: durable local customers, projects, tasks, invoices, income/expense ledger, dashboard, and downloadable JSON/CSV/HTML business reports.
+- `KronosForecast`: create built-in Mini/Small/Base probabilistic EWMA/Monte Carlo OHLCV research forecasts as downloadable CSV files; never places an order.
+- `PersonalFinanceVault`: manage built-in SQLite accounts, transactions, categories, recurring items, budgets, goals, assets, reports, and currencies; no container, subscription, or payment is required.
+- `CodeMemory`: build an incremental local code graph, search durable notes, find symbol usages, explain dependencies, and trace paths through the project using a Jonathan-owned SQLite database with no cloud account or Claude hooks.
+- `Procoder`: run Jonathan's built-in fail-closed changed-file gate, detected project tests, secret/conflict hygiene, release readiness, and related engineering reports; it never installs hooks or edits the project.
+- `EditableGraphics`: vectorize an uploaded raster diagram into editable SVG, native PowerPoint shapes, OCR text, a review PNG, and a JSON package with no separate model pack.
+- `CharacterStudio`: generate deterministic animated SVG character rigs and editable JSON recipes from a seed without a model or API.
+- `FinanceMarkets`: current/delayed quotes, price history, RSI/moving averages, multi-symbol screens, portfolio valuation, and timed watchlist reports.
+- `Trading`: optional Alpaca paper/live brokerage connection. Credentials are entered directly in Connect Tools; paper is the default, and every order submission or cancellation requires a fresh approval.
+- `PublicApiCatalog`: search Jonathan's audited offline starter index by category, authentication, HTTPS, or CORS, inspect the provider's documentation, and—with approval—create a persistent connector card. Provider terms, credentials, quotas, and data policies still apply.
+- `writing-polish` skill: opt-in two-pass editing for surface clarity and document structure, calibrated to supplied voice samples while preserving facts, citations, uncertainty, and honest authorship.
+- `interface-art-direction` skill: set deliberate layout-variance, motion-intensity, and information-density controls for new interfaces or evidence-based redesigns, with accessibility and responsive verification built in.
+- `react-performance-review` skill: diagnose request waterfalls, client bundle cost, rendering boundaries, rerenders, expensive hot paths, and loading behavior using reproducible before/after evidence.
+- `screenshot-to-interface` skill: turn an uploaded screenshot or mockup into maintainable code in the project's existing stack, then render and compare desktop/narrow previews before packaging the result.
+- `SpeechStudio`: record only when the user clicks Voice, transcribe/translate locally with a Whisper-family model, and synthesize responses to downloadable WAV with the device voice engine.
+- `ContentReach`: check public channel readiness, read RSS/Atom feeds, and retrieve public YouTube metadata/captions without silently reusing browser cookies.
 
 *From TypeScript Source → Rebuilt in Python with ❤️*
 
 ***
 
-[![GitHub stars](https://img.shields.io/github/stars/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GPT-AGI/Clawd-Code/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GPT-AGI/Clawd-Code/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GoDeskio/Clawd-Code/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GoDeskio/Clawd-Code/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 
@@ -193,7 +234,7 @@ clawd desktop      # Start the desktop host
 
 The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session.
 
-**Chat on first run with only a local model or one API key.** After install, open Jonathan Ai, pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM, and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are not required and are omitted from the provider request until you connect one. Tokens stay on this machine. The product version is **0.2.8** (see the `VERSION` file, UI header, and Windows installer).
+**Chat on first run with only a local model or one API key.** After install, Jonathan first discovers installed local runtimes and connects a reachable model automatically when no working provider exists. The installer prepares the built-in code memory, forecasting, engineering-gate, finance, and editable-graphics engines; only the audited ECC catalog needs an optional online source sync. You can pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are omitted from provider requests until connected. Tokens stay on this machine. The product version is **0.4.6**.
 
 **Windows (real desktop app):**
 
@@ -337,7 +378,11 @@ Treat any OpenAI-compatible server as the **Local LLM** provider:
 | Hugging Face TGI (self-hosted) | `http://127.0.0.1:3000/v1` |
 | Custom | loopback or LAN URL + optional API key |
 
-On first run and in settings, **Scan local ports** probes those addresses, lists available models, and lets you pick a default. Custom URLs that resolve to the public internet are rejected. Local endpoints are never bound or advertised on the WAN by Jonathan Ai.
+On first run and in settings, **Scan local ports** also inventories installed runtimes and common model stores, starts a known Ollama/LM Studio service when needed, lists available models, and connects the first reachable model. Custom URLs that resolve to the public internet are rejected. Local endpoints are never bound or advertised on the WAN by Jonathan Ai. Credentials are scoped to their endpoint, so an Ollama credential is not sent to LM Studio.
+
+#### Jonathan local image generation
+
+Open **Connect tools → Local diffusion** to verify Jonathan's built-in Diffusers engine, generate or edit an image from an uploaded source, and publish outputs directly into the conversation. The installer supplies its Python packages; the first generation downloads the configured model (`stabilityai/sdxl-turbo` by default) into Jonathan's private cache. It uses CUDA when available and otherwise runs on CPU. Fooocus informed the product requirements, but Jonathan does not clone, launch, or depend on Fooocus, Gradio, or an upstream service.
 
 #### GitHub and GitLab
 
@@ -387,7 +432,7 @@ python -m src.desktop --port 8765
 
 This binds `http://127.0.0.1:8765/` only, serves the chat UI, and opens a browser. Use `--no-browser` in CI.
 
-The dashboard is a glassmorphism prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), frosted chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.2.8** and the token meter (informational only). Conversations persist in the sidebar; New Chat is always empty. Shared memory is local only (`~/.clawd/memory`). Jonathan Ai is the agent — no second AI connection is required.
+The dashboard is a glassmorphism prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), frosted chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.4.6** and the token meter (informational only). Conversations persist in the sidebar; New Chat is always empty. Shared memory is local only (`~/.clawd/memory`). User-authored skills are visible under `Jonathan-Ai/Skills`; managed ECC content is stored below `Skills/.managed/ecc` and only enabled entries are loaded. Jonathan Ai is the agent — no second AI connection is required.
 
 **Option B — Electron desktop shell (tray, notifications, folder picker)**
 
@@ -414,8 +459,7 @@ Desktop extras on top of the CLI:
 - **New Chat** always opens a brand-new empty conversation (new id, empty transcript, reset token meter). Previous chats stay in the sidebar and survive restart.
 - Shared agent memory in `~/.clawd/memory` (facts + compact titles/summaries of other chats). Threads stay isolated; the model only sees a short brief, not full dumps.
 - Standalone agent: send message → stream reply → show tools → new chat → rename chat → informational token meter. **Workers** plans a goal into isolated internal workers (shared memory only). No required Cursor/Codex/MCP connection.
-- Windows session JSON (0.2.8): `Session.load` / `save` always use `encoding='utf-8'` so a UTF-8 byte such as `0x8F` no longer crashes desktop start under cp1252.
-- Anthropic 400 fix (0.2.7): `tool_result.content` that is a dict/object/list is `json.dumps`'d before `chat`, `chat_stream`, and `chat_stream_response`, including resumed sessions that already stored object-shaped tool results. Schema 400s (`tools.N.custom.input_schema.type`) still retry the same turn without tools.
+- Anthropic 400 fix (0.2.7): `tool_result.content` dicts and ordinary lists are JSON-encoded before `chat`, `chat_stream`, and `chat_stream_response`, including old persisted sessions. Valid content-block lists are preserved. Unrelated 400/401/429 errors are not hidden by the tool-schema fallback.
 - Anthropic 400 fix (0.2.6): desktop streaming (`chat_stream_response`) and `chat()` send only `{name, description, input_schema:{type:object, properties}}`, including MCP/dynamic and custom-wrapped tools. If Anthropic still returns `tools.N.custom.input_schema.type: Field required`, the same turn retries with tools omitted so the first message still answers. First launch auto-installs missing venv/pip/Electron when possible. `/new` always opens a new empty session. Setup never merges `main` into this branch.
 - Workspace/folder picker (Electron dialog, or a path prompt in the browser)
 - Approve / deny / always-allow-this-session permission prompts
@@ -488,6 +532,36 @@ Example:
 - Tool limits: `allowed-tools` controls which tools the skill can use.
 - Arguments: use `$ARGUMENTS`, `$0`, `$1`, or named args like `$path` (from `arguments`).
 - Placeholder syntax: use `$path`, not `${path}`.
+
+#### ECC catalog and automatic skill learning
+
+Open **Skills library → ECC catalog** to synchronize the official `affaan-m/ECC` repository, run a full security scan, import the complete skills/agent-template catalog, and enable or disable individual skills. Jonathan records the exact upstream revision and MIT provenance. The complete catalog remains on disk, but only enabled entries are parsed into agent context; this avoids duplicate hooks and large prompt/startup costs.
+
+#### Native local market forecasting
+
+Open **Connect tools → Market forecasts** or use `KronosForecast` with a timestamped CSV containing a close column (OHLCV columns are accepted). Jonathan's built-in engine estimates recency-weighted log-return drift and volatility, generates bounded Monte Carlo paths, and exports median/P10/P90 forecast CSVs. It requires no cloned repository or model download. Results are research artifacts, not investment advice or automatic trading signals; validate them with walk-forward tests, transaction costs, slippage, portfolio constraints, and independent risk controls.
+
+#### Private personal finance vault
+
+Open **Connect tools → Personal finance vault** or use `PersonalFinanceVault`. Jonathan stores accounts, transactions, categories, recurring flags, budgets, savings goals, assets, and currency-separated totals in `~/.clawd/finance/personal-finance.sqlite`. It is an embedded UTF-8/WAL SQLite engine: no Docker, remote service, bank credential, subscription, or cloned finance application is required.
+
+#### Local code graph and durable code memory
+
+Open **Connect tools → Code memory** or use `CodeMemory`. Jonathan's built-in Python/SQLite engine incrementally scans supported source files, indexes symbols/calls/imports, performs live text search, and stores only explicitly requested notes in `~/.clawd/code_memory/jonathan-code-memory.sqlite`. No Node helper, Claude installer, hook, cloned repository, remote database, or account is used. Existing UTF-8 chat/session and shared-memory systems remain authoritative.
+
+Benjamin Plus was evaluated and adopted as a compact native workflow discipline in Jonathan's system prompt. Fullstack Agent was evaluated but not embedded because it is a setup script for a separate Claude/Obsidian stack. Procoder, DrawAI, Kindergrimm, and Scroll Craft were used only as licensed design references: their useful capabilities were rewritten as Jonathan's built-in engineering gate, editable-graphics engine, procedural character studio, and scroll-storytelling skill.
+
+OmniRoute informed Jonathan's in-process transient retry/circuit-breaker layer, but no gateway or cross-provider auto-fallback is installed: changing providers remains explicit so prompts, credentials, privacy boundaries, and possible charges cannot move unexpectedly. Task Observer informed the correction/failure/repeated-workflow review queue in automated skill learning; observations are sanitized, confidence scored, and never silently activated. Anthropic's Claude plugin catalog was evaluated, but its Claude-specific marketplace and hooks duplicate Jonathan's audited `SKILL.md`, MCP, connector, and agent systems and are not bundled.
+
+Headroom's provider-cache analysis informed a native Anthropic prompt-cache marker on Jonathan's system prefix. Jonathan does not install Headroom, route traffic through a proxy, compress user intent, discard turns, or add a retrieval service; the persistent UTF-8 transcript remains authoritative.
+
+Anthropic's community plugin marketplace was also evaluated. It is a directory of third-party sources rather than an application engine, and its entries have independent licenses, credentials, hooks, and runtime requirements. Jonathan does not bulk-install it; users connect MCP/external tools explicitly and enable reviewed skills individually.
+
+YuE and ACE-Step UI were evaluated for full-song generation. Both are valuable optional GPU systems, but their multi-gigabyte model stacks and hardware/runtime requirements would make a standard desktop install slower and less reliable. Jonathan therefore ships an always-available native `AudioStudio` baseline for original procedural WAV generation and editing. Users with a separately approved local music server can connect it through Jonathan's existing external/MCP connector; no cloned music UI is required.
+
+**Learn from project** analyzes up to 200 local Git commits. It measures commit prefixes, frequently changed areas, file types, co-change pairs, and test placement. Repository text and commit messages are sanitized as untrusted evidence, possible secrets are redacted, and the result is saved as a confidence-scored draft. Review the draft in the editor and click **Validate & save** before it becomes active. Jonathan never silently overwrites a user skill or automatically turns a draft into executable policy.
+
+Memory Vault export writes inspectable `ecc.memory.v1` Markdown under `~/.clawd/memory/vault`. Imported vault entries remain `unreviewed` context, reject credential/instruction-override patterns, and do not grant tools or permissions.
 
 
 
@@ -622,14 +696,14 @@ If you find this useful, please **star** ⭐ the repo!
 
 **本地桌面与 CLI Agent，基于真实 Claude Code 源码的 Python 重实现**
 
-**版本 0.2.8** — Jonathan Ai 本身就是 AI Agent。会话会持久化；New Chat 总是空线程。跨会话记忆只存在本机 `~/.clawd/memory`。MCP / Cursor / Codex 均为可选。会话 JSON 始终按 UTF-8 读写，避免 Windows cp1252 解码失败。对象形状的 tool_result 会序列化为字符串，避免 Anthropic 400。若仍因工具 schema 返回 400，同一轮会去掉 tools 重试。Windows 启动器会在 `%USERPROFILE%\Jonathan\Jonathan-Ai` 找到 venv；若提示找不到 Electron/venv，请再运行 Setup 原地升级。
+**版本 0.3.0** — Jonathan Ai 本身就是 AI Agent。会话会持久化；New Chat 总是空线程。跨会话记忆只存在本机 `~/.clawd/memory`。MCP / Cursor / Codex 均为可选。新增图像、Blender 3D、系统管理、审计、仓库和技能工具。Windows 会话使用原子 UTF-8 持久化。启动器会在 `%USERPROFILE%\Jonathan\Jonathan-Ai` 找到 venv。
 
 *从 TypeScript 源码 → 用 Python 重建 ❤️*
 
 ***
 
-[![GitHub stars](https://img.shields.io/github/stars/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GPT-AGI/Clawd-Code/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GPT-AGI/Clawd-Code/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GoDeskio/Clawd-Code/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GoDeskio/Clawd-Code/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 
@@ -811,7 +885,7 @@ clawd desktop      # 启动桌面 host
 ### 安装
 
 ```bash
-git clone https://github.com/GPT-AGI/Clawd-Code.git
+git clone https://github.com/GoDeskio/Clawd-Code.git
 cd Clawd-Code
 
 # 创建虚拟环境（推荐使用 uv）
@@ -881,7 +955,7 @@ Windows：双击 `packaging/windows/bin/JonathanAi-Setup.exe`，向导点 Next /
 ./install.sh --yes
 # 默认源码目录：~/Jonathan/Jonathan-Ai
 # 只从 https://github.com/GoDeskio/Clawd-Code 安装与更新
-# 版本 0.2.8：会话 JSON 用 UTF-8；对象 tool_result 序列化为字符串；会话持久化；/new 与 New Chat 均为空线程；跨会话记忆在 ~/.clawd/memory；首次启动自动补依赖；Setup 原地升级且不合并 main
+# 版本 0.3.0：图像与 Blender 3D、系统管理与审计、仓库自动化、自建技能、持久共享记忆；Setup 原地升级且不合并 main
 # 安装后可在向导或桌面设置中连接 Hugging Face / 本地 LLM / GitHub / GitLab / MCP，无需重装
 # Token 只保存在 ~/.clawd/config.json，不会写入安装包或 git
 # 聊天窗口的 token 计数只做展示，不是付费墙
@@ -903,7 +977,7 @@ python -m src.cli desktop          # Python host + 浏览器 UI
 cd desktop && npm install && npm start   # Electron 壳
 ```
 
-密钥不会写入 Git。桌面端复用现有 agent loop、工具、skills 与会话。Jonathan Ai 本身就是 Agent：发送消息、流式回复、显示工具、新建/重命名会话、信息性 token 计数、provider 设置。不需要第二个 AI 连接。头部显示版本 **0.2.8**。内部 Workers 可并行拆任务，不需要其它 Agent。桌面流式请求若遇 Anthropic schema 400 会去掉 tools 重试。对象 tool_result 会先转成字符串。会话会留在侧栏，New Chat 总是新的空对话。若桌面快捷方式仍指向上级 Jonathan 文件夹，请再运行 Setup。
+密钥不会写入 Git。桌面端复用现有 agent loop、工具、skills 与会话。Jonathan Ai 本身就是 Agent：发送消息、流式回复、显示工具、新建/重命名会话、信息性 token 计数、provider 设置。不需要第二个 AI 连接。头部显示版本 **0.3.0**。内部 Workers 可并行拆任务，不需要其它 Agent。会话会留在侧栏，New Chat 总是新的空对话。
 
 ***
 

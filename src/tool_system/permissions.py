@@ -27,6 +27,9 @@ class ToolPermissionContext:
     workspace_root: Path | None = None
     additional_working_directories: tuple[Path, ...] = ()
     allow_docs: bool = False
+    # Set only after the desktop user explicitly grants persistent device access.
+    # The operating system's own ACL/UAC boundaries still apply.
+    full_system_access: bool = False
 
     @classmethod
     def from_iterables(
@@ -37,6 +40,7 @@ class ToolPermissionContext:
         workspace_root: str | Path | None = None,
         additional_working_directories: Iterable[str | Path] | None = None,
         allow_docs: bool = False,
+        full_system_access: bool = False,
     ) -> "ToolPermissionContext":
         return cls(
             deny_names=frozenset(name.lower() for name in (deny_names or [])),
@@ -46,6 +50,7 @@ class ToolPermissionContext:
                 _resolve_path(p) for p in (additional_working_directories or [])
             ),
             allow_docs=allow_docs,
+            full_system_access=full_system_access,
         )
 
     def blocks_tool(self, tool_name: str) -> bool:
@@ -63,6 +68,8 @@ class ToolPermissionContext:
 
     def ensure_path_allowed(self, path: str | Path) -> Path:
         resolved = _resolve_path(path)
+        if self.full_system_access:
+            return resolved
         roots = self.allowed_roots()
         if not roots:
             return resolved
@@ -85,6 +92,7 @@ GATED_TOOL_NAMES = frozenset({
     "mcp",
     "externalagent",
     "remotetrigger",
+    "devicecontrol",
 })
 
 

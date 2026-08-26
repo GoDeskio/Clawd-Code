@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import re
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -85,9 +87,10 @@ class BashTool:
         if "\x00" in command:
             raise ToolInputError("command contains NUL byte")
 
-        for pat in _DANGEROUS_PATTERNS:
-            if pat.search(command):
-                raise ToolPermissionError("refusing to run potentially dangerous command")
+        if not context.permission_context.full_system_access:
+            for pat in _DANGEROUS_PATTERNS:
+                if pat.search(command):
+                    raise ToolPermissionError("refusing to run potentially dangerous command without Full Device & Network Access")
 
         explicit_cwd = tool_input.get("cwd")
         if explicit_cwd is not None:
@@ -110,8 +113,18 @@ class BashTool:
         if not isinstance(timeout_s, int) or timeout_s < 1 or timeout_s > 600:
             raise ToolInputError("timeout_s must be an integer between 1 and 600")
 
+        executable = shutil.which("bash")
+        if not executable and os.name == "nt":
+            candidates = [
+                Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "bin" / "bash.exe",
+                Path(os.environ.get("LocalAppData", "")) / "Programs" / "Git" / "bin" / "bash.exe",
+            ]
+            executable = str(next((path for path in candidates if str(path) and path.is_file()), ""))
+        if not executable:
+            return ToolResult(name="Bash", output={"error": "Bash is not installed or was not found on PATH"}, is_error=True)
+
         completed = subprocess.run(
-            ["bash", "-lc", command],
+            [executable, "-lc", command],
             cwd=str(cwd),
             capture_output=True,
             text=True,

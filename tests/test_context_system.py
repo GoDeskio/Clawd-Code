@@ -39,6 +39,15 @@ class TestContextSystem(unittest.TestCase):
             ctx = collect_git_context(tmp)
             self.assertFalse(ctx.available)
 
+    def test_build_context_prompt_loads_bounded_utf8_design_md(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "DESIGN.md").write_text("# Visual system\nAccent: café coral\n", encoding="utf-8")
+            prompt = build_context_prompt(root)
+            self.assertIn("## Project Design System", prompt)
+            self.assertIn("Accent: café coral", prompt)
+            self.assertIn("DESIGN.md", prompt)
+
     def test_agent_loop_injects_context_prompt_for_non_anthropic(self) -> None:
         registry = build_default_registry(include_user_tools=False)
         with tempfile.TemporaryDirectory() as tmp:

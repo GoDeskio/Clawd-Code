@@ -10,11 +10,14 @@ from unittest.mock import patch
 
 from src.config import (
     get_default_config,
+    get_local_runtime_credential,
     has_configured_provider,
     is_provider_ready,
     load_config,
+    public_config,
     set_api_key,
     set_default_provider,
+    set_local_runtime_credential,
 )
 from src.desktop.runtime import DesktopRuntime
 from src.providers import PROVIDER_INFO, get_provider_class
@@ -90,6 +93,15 @@ class TestLocalEndpoints(unittest.TestCase):
 
         names = list_local_models("http://127.0.0.1:11434", probe=probe)
         self.assertEqual(names, ["llama3.2:latest"])
+
+    def test_endpoint_credentials_are_scoped_and_not_public(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, patch("pathlib.Path.home", return_value=Path(tmp)):
+            url = "http://127.0.0.1:11434/v1"
+            set_local_runtime_credential(url, "test-local-secret", device_key="ssh-ed25519 test-public")
+            self.assertEqual(get_local_runtime_credential(url)["api_key"], "test-local-secret")
+            dumped = json.dumps(public_config())
+            self.assertNotIn("test-local-secret", dumped)
+            self.assertNotIn("test-public", dumped)
 
 
 class TestHuggingFaceConnect(unittest.TestCase):
@@ -170,7 +182,10 @@ class TestReadinessAndSwitching(unittest.TestCase):
     def test_local_login_on_desktop(self) -> None:
         workspace = self.home / "ws"
         workspace.mkdir()
-        runtime = DesktopRuntime(workspace=workspace)
+        with patch("src.desktop.runtime.discover_local_environment", return_value={
+            "runtimes": [], "endpoints": [], "selected": None, "auto_started": False,
+        }):
+            runtime = DesktopRuntime(workspace=workspace)
         self.assertTrue(runtime.needs_setup())
         status = runtime.login("local", "", base_url="http://127.0.0.1:11434/v1", default_model="llama3.2")
         self.assertFalse(status["needs_setup"])

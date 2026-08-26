@@ -17,14 +17,27 @@ if ((Test-Path $Setup) -and -not $unattended) {
 }
 
 function Find-Python {
-    foreach ($name in @("pythonw", "python", "python3", "py")) {
+    foreach ($name in @("python", "python3", "py")) {
         $cmd = Get-Command $name -ErrorAction SilentlyContinue
         if (-not $cmd) { continue }
-        if ($name -eq "pythonw") { return $cmd.Source }
         & $cmd.Source -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" 2>$null
         if ($LASTEXITCODE -eq 0) { return $cmd.Source }
     }
-    throw "Python 3.10+ is required. Install it from https://www.python.org/downloads/ and re-run JonathanAi-Setup.exe"
+
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if ($winget) {
+        Write-Host "Python 3.12 is missing; installing it with Windows Package Manager (Fooocus Python 3.10 is installed separately)..."
+        & $winget.Source install --id Python.Python.3.12 -e --source winget --silent --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -eq 0) {
+            foreach ($candidate in @(
+                (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
+                (Join-Path $env:ProgramFiles "Python312\python.exe")
+            )) {
+                if (Test-Path $candidate) { return $candidate }
+            }
+        }
+    }
+    throw "Python 3.10+ could not be installed automatically. Install it from https://www.python.org/downloads/ and re-run JonathanAi-Setup.exe"
 }
 
 $Py = Find-Python
@@ -40,7 +53,8 @@ if (Test-Path (Join-Path $Here "src\cli.py")) {
 
 Set-Location $Here
 if ($unattended) {
-    & $Py -m src.install --source-dir $Dest @extra --yes --launch @args
+    $forwardArgs = @($args | Where-Object { $_ -notin @("--yes", "-Yes", "/Y", "--launch") })
+    & $Py -m src.install --source-dir $Dest @extra --yes --launch @forwardArgs
 } else {
     & $Py -m src.install --source-dir $Dest @extra --gui
 }

@@ -2,7 +2,7 @@ appId: io.godesk.jonathanai
 productName: Jonathan Ai
 copyright: MIT
 directories:
-  output: ../packaging/windows/bin/electron
+  output: ../packaging/windows/build/electron
 files:
   - main.js
   - preload.js
@@ -16,4 +16,6 @@ win:
     - target: dir
       arch:
         - x64
-electronVersion: 36.0.0
+electronVersion: 44.0.0
+electronDownload:
+  cache: ../packaging/windows/build/cache/electron

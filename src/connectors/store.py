@@ -12,6 +12,7 @@ DEFAULT_GITLAB_HOST = "https://gitlab.com"
 
 SECRET_FORGE_FIELDS = ("token",)
 SECRET_ITEM_FIELDS = ("token", "api_key")
+SECRET_SERVICE_FIELDS = ("password", "api_key", "bearer_token", "client_secret", "access_token", "refresh_token")
 
 
 def _empty_connectors() -> dict[str, Any]:
@@ -20,6 +21,7 @@ def _empty_connectors() -> dict[str, Any]:
         "gitlab": {"token": "", "owner": "", "host": DEFAULT_GITLAB_HOST, "login": "", "auth": ""},
         "mcp": [],
         "agents": [],
+        "services": [],
     }
 
 
@@ -33,7 +35,7 @@ def read_connectors() -> dict[str, Any]:
         item = raw.get(name)
         if isinstance(item, dict):
             base[name].update({k: item.get(k, base[name].get(k, "")) for k in base[name]})
-    for key in ("mcp", "agents"):
+    for key in ("mcp", "agents", "services"):
         items = raw.get(key)
         if isinstance(items, list):
             base[key] = [item for item in items if isinstance(item, dict)]
@@ -100,6 +102,31 @@ def public_connectors(connectors: dict[str, Any] | None = None) -> dict[str, Any
                 "has_token": bool(str(item.get("api_key") or "").strip()),
             }
             for item in data.get("agents") or []
+            if isinstance(item, dict)
+        ],
+        "services": [
+            {
+                "id": item.get("id"),
+                "name": item.get("name") or "External service",
+                "base_url": item.get("base_url") or "",
+                "auth_type": item.get("auth_type") or "none",
+                "configured": bool(
+                    item.get("auth_type") == "none"
+                    or item.get("password")
+                    or item.get("api_key")
+                    or item.get("bearer_token")
+                    or item.get("access_token")
+                ),
+                "username": item.get("username") or "",
+                "api_key_header": item.get("api_key_header") or "X-API-Key",
+                "authorization_url": item.get("authorization_url") or "",
+                "token_url": item.get("token_url") or "",
+                "client_id": item.get("client_id") or "",
+                "scopes": item.get("scopes") or "",
+                "has_password": bool(item.get("password")),
+                "has_secret": any(bool(item.get(field)) for field in SECRET_SERVICE_FIELDS),
+            }
+            for item in data.get("services") or []
             if isinstance(item, dict)
         ],
         "hooks": {
@@ -228,4 +255,56 @@ def save_agent(
             break
     else:
         agents.append(item)
+    return write_connectors(data)
+
+
+def save_external_service(
+    *,
+    name: str,
+    base_url: str,
+    auth_type: str = "none",
+    service_id: str | None = None,
+    **fields: Any,
+) -> dict[str, Any]:
+    if not name.strip():
+        raise ValueError("service name is required")
+    if not base_url.strip():
+        raise ValueError("service base URL is required")
+    allowed_auth = {"none", "basic", "password", "api_key", "bearer", "oauth2"}
+    auth = auth_type.strip().lower() or "none"
+    if auth not in allowed_auth:
+        raise ValueError(f"unsupported authentication type: {auth_type}")
+    data = read_connectors()
+    item: dict[str, Any] = {
+        "id": service_id or uuid.uuid4().hex[:12],
+        "name": name.strip(),
+        "base_url": base_url.strip().rstrip("/"),
+        "auth_type": auth,
+    }
+    for field in (
+        "username", "password", "api_key", "api_key_header", "bearer_token",
+        "authorization_url", "token_url", "client_id", "client_secret", "scopes",
+        "access_token", "refresh_token",
+    ):
+        item[field] = str(fields.get(field) or "").strip()
+    services = data["services"]
+    for index, existing in enumerate(services):
+        if existing.get("id") == item["id"] or existing.get("name") == item["name"]:
+            item["id"] = existing.get("id") or item["id"]
+            for secret in SECRET_SERVICE_FIELDS:
+                if not item.get(secret):
+                    item[secret] = existing.get(secret) or ""
+            services[index] = item
+            break
+    else:
+        services.append(item)
+    return write_connectors(data)
+
+
+def remove_external_service(service_id: str) -> dict[str, Any]:
+    data = read_connectors()
+    before = len(data["services"])
+    data["services"] = [item for item in data["services"] if item.get("id") != service_id and item.get("name") != service_id]
+    if len(data["services"]) == before:
+        raise ValueError(f"unknown external service: {service_id}")
     return write_connectors(data)

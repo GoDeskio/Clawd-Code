@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from html.parser import HTMLParser
 import ipaddress
 import re
 import socket
@@ -16,7 +17,33 @@ from ..protocol import ToolResult
 from ..registry import ToolSpec
 
 
-_TAG_RE = re.compile(r"<[^>]+>")
+class _VisibleTextParser(HTMLParser):
+    """Extract user-visible text while dropping executable/hidden document regions."""
+
+    SKIP = {"script", "style", "noscript", "template", "svg", "canvas", "head"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.depth = 0
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        lowered = tag.lower()
+        if self.depth or lowered in self.SKIP:
+            self.depth += 1
+            return
+        values = {key.lower(): (value or "").lower() for key, value in attrs}
+        style = values.get("style", "")
+        if "hidden" in values or values.get("aria-hidden") == "true" or "display:none" in style.replace(" ", "") or "visibility:hidden" in style.replace(" ", ""):
+            self.depth = 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.depth:
+            self.depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self.depth and data.strip():
+            self.parts.append(data)
 
 
 def _is_private_host(hostname: str) -> bool:
@@ -36,16 +63,16 @@ def _is_private_host(hostname: str) -> bool:
 
 
 def _html_to_text(raw: str) -> str:
-    without_tags = _TAG_RE.sub(" ", raw)
-    without_tags = re.sub(r"\s+", " ", without_tags).strip()
-    return html.unescape(without_tags)
+    parser = _VisibleTextParser()
+    parser.feed(raw)
+    return re.sub(r"\s+", " ", html.unescape(" ".join(parser.parts))).strip()
 
 
 class WebFetchTool:
     def spec(self) -> ToolSpec:
         return ToolSpec(
             name="WebFetch",
-            description="Fetch a URL and return extracted text content.",
+            description="Fetch a public URL and return visible text while dropping scripts, styles, templates, hidden elements, and private-network targets.",
             input_schema={
                 "type": "object",
                 "additionalProperties": False,

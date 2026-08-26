@@ -10,8 +10,8 @@
 
 ***
 
-[![GitHub stars](https://img.shields.io/github/stars/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GPT-AGI/Clawd-Code/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GPT-AGI/Clawd-Code/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GoDeskio/Clawd-Code/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GoDeskio/Clawd-Code/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 
@@ -53,7 +53,7 @@
 - ✅ **उपयोगकर्ता अनुकूल** — आसान सेटअप, इंटरैक्टिव REPL, व्यापक दस्तावेज़
 - ✅ **निरंतर सुधार** — उन्नत त्रुटि हैंडलिंग, परीक्षण, दस्तावेज़ीकरण
 
-**संस्करण 0.2.8 — Jonathan Ai.** डेस्कटॉप ऐप स्वयं एजेंट है। चैट डिस्क पर रहते हैं; New Chat हमेशा खाली थ्रेड खोलता है। साझा मेमोरी (`~/.clawd/memory`) एक चैट के तथ्य दूसरी में लाती है। MCP, Cursor और Codex वैकल्पिक हैं। ऑब्जेक्ट रूप के tool_result स्ट्रिंग बन जाते हैं। साइडबार में चैट का नाम बदलें। टूल स्कीमा क्लासिक Anthropic रूप में भेजे जाते हैं (`input_schema.type`)। schema 400 पर वही अनुरोध tools के बिना दोहराया जाता है।
+**संस्करण 0.3.0 — Jonathan Ai.** डेस्कटॉप ऐप स्वयं एजेंट है और अब इमेज, Blender 3D, सिस्टम प्रशासन, ऑडिट, रिपॉज़िटरी, कौशल और साझा मेमोरी टूल शामिल करता है।
 
 **🚀 अभी आज़माएं! इसे फोर्क करें, संशोधित करें, अपना बनाएं! Pull requests का स्वागत है!**
 
@@ -122,7 +122,7 @@ clawd config       # सेटिंग्स देखें
 ### इंस्टॉल करें
 
 ```bash
-git clone https://github.com/GPT-AGI/Clawd-Code.git
+git clone https://github.com/GoDeskio/Clawd-Code.git
 cd Clawd-Code
 
 # venv बनाएं (uv अनुशंसित)

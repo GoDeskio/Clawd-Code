@@ -8,8 +8,13 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
+import shutil
 import socket
+import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -48,6 +53,24 @@ LOCAL_PRESETS: tuple[dict[str, Any], ...] = (
         "label": "Hugging Face TGI",
         "urls": ("http://127.0.0.1:3000/v1", "http://127.0.0.1:8080"),
         "default_url": "http://127.0.0.1:3000/v1",
+    },
+    {
+        "id": "localai",
+        "label": "LocalAI",
+        "urls": ("http://127.0.0.1:8080/v1",),
+        "default_url": "http://127.0.0.1:8080/v1",
+    },
+    {
+        "id": "koboldcpp",
+        "label": "KoboldCpp",
+        "urls": ("http://127.0.0.1:5001/v1",),
+        "default_url": "http://127.0.0.1:5001/v1",
+    },
+    {
+        "id": "jan",
+        "label": "Jan",
+        "urls": ("http://127.0.0.1:1337/v1",),
+        "default_url": "http://127.0.0.1:1337/v1",
     },
 )
 
@@ -280,3 +303,208 @@ def scan_local_endpoints(
                 "error": str(exc),
             })
     return found
+
+
+def _windows_hidden() -> dict[str, Any]:
+    if os.name != "nt":
+        return {}
+    startup = subprocess.STARTUPINFO()
+    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startup.wShowWindow = 0
+    return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0), "startupinfo": startup}
+
+
+def _known_executable(name: str, candidates: list[Path]) -> Path | None:
+    found = shutil.which(name)
+    if found:
+        return Path(found)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _command_json(command: list[str], *, timeout: int = 20) -> Any:
+    result = subprocess.run(
+        command, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=timeout, **_windows_hidden(),
+    )
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or "command failed").strip())
+    raw = result.stdout.strip()
+    return json.loads(raw) if raw else None
+
+
+def _model_files(root: Path, *, limit: int = 100) -> list[str]:
+    if not root.is_dir():
+        return []
+    results: list[str] = []
+    extensions = {".gguf", ".bin", ".safetensors", ".onnx", ".pth", ".pt"}
+    try:
+        for path in root.rglob("*"):
+            if path.is_file() and path.suffix.lower() in extensions:
+                results.append(str(path))
+                if len(results) >= limit:
+                    break
+    except OSError:
+        pass
+    return results
+
+
+def discover_installed_runtimes() -> list[dict[str, Any]]:
+    """Inventory known local model applications and on-disk model stores.
+
+    This does not execute model files or contact the internet. CLI JSON is used
+    when a known local application provides it; otherwise only paths are read.
+    """
+    home = Path.home()
+    local = Path(os.environ.get("LOCALAPPDATA", ""))
+    programs = Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+    specs = [
+        {
+            "id": "ollama", "label": "Ollama", "command": "ollama",
+            "executables": [local / "Programs" / "Ollama" / "ollama.exe", programs / "Ollama" / "ollama.exe"],
+            "model_dirs": [home / ".ollama" / "models"],
+        },
+        {
+            "id": "lmstudio", "label": "LM Studio", "command": "lms",
+            "executables": [home / ".lmstudio" / "bin" / "lms.exe", local / "LM-Studio" / "bin" / "lms.exe"],
+            "model_dirs": [home / ".lmstudio" / "models", home / ".cache" / "lm-studio" / "models"],
+        },
+        {
+            "id": "jan", "label": "Jan", "command": "jan",
+            "executables": [local / "Programs" / "jan" / "Jan.exe", local / "Programs" / "Jan" / "Jan.exe"],
+            "model_dirs": [home / ".jan" / "models", home / "jan" / "models"],
+        },
+        {
+            "id": "gpt4all", "label": "GPT4All", "command": "gpt4all",
+            "executables": [local / "nomic.ai" / "GPT4All" / "GPT4All.exe", programs / "GPT4All" / "GPT4All.exe"],
+            "model_dirs": [home / ".cache" / "gpt4all", local / "nomic.ai" / "GPT4All"],
+        },
+        {
+            "id": "llamacpp", "label": "llama.cpp", "command": "llama-server",
+            "executables": [home / "llama.cpp" / "llama-server.exe", local / "llama.cpp" / "llama-server.exe"],
+            "model_dirs": [],
+        },
+        {
+            "id": "koboldcpp", "label": "KoboldCpp", "command": "koboldcpp",
+            "executables": [home / "KoboldCpp" / "koboldcpp.exe", local / "KoboldCpp" / "koboldcpp.exe"],
+            "model_dirs": [],
+        },
+    ]
+    inventory: list[dict[str, Any]] = []
+    for spec in specs:
+        executable = _known_executable(str(spec["command"]), list(spec["executables"]))
+        model_files: list[str] = []
+        cli_models: list[dict[str, Any]] = []
+        if spec["id"] == "lmstudio" and executable:
+            try:
+                payload = _command_json([str(executable), "ls", "--json"])
+                if isinstance(payload, list):
+                    cli_models = [item for item in payload if isinstance(item, dict)]
+            except Exception:
+                pass
+        elif spec["id"] == "ollama" and executable:
+            try:
+                payload = _command_json([str(executable), "list", "--json"])
+                if isinstance(payload, list):
+                    cli_models = [item for item in payload if isinstance(item, dict)]
+            except Exception:
+                pass
+        for directory in spec["model_dirs"]:
+            model_files.extend(_model_files(Path(directory), limit=max(0, 100 - len(model_files))))
+            if len(model_files) >= 100:
+                break
+        installed = bool(executable or cli_models or model_files or any(Path(path).exists() for path in spec["model_dirs"]))
+        if not installed:
+            continue
+        inventory.append({
+            "id": spec["id"], "label": spec["label"], "installed": True,
+            "executable": str(executable) if executable else "",
+            "models": cli_models,
+            "model_files": model_files,
+        })
+
+    # Hugging Face caches can be consumed by several runtimes, so report them
+    # independently without pretending a cache is itself a reachable server.
+    hf_root = home / ".cache" / "huggingface" / "hub"
+    hf_models = []
+    if hf_root.is_dir():
+        try:
+            hf_models = [path.name for path in hf_root.iterdir() if path.is_dir() and path.name.startswith("models--")][:100]
+        except OSError:
+            pass
+    if hf_models:
+        inventory.append({
+            "id": "huggingface-cache", "label": "Hugging Face model cache", "installed": True,
+            "executable": "", "models": [{"modelKey": name.replace("models--", "").replace("--", "/")} for name in hf_models],
+            "model_files": [],
+        })
+    return inventory
+
+
+def _runtime_model_key(runtime: dict[str, Any]) -> str:
+    for model in runtime.get("models") or []:
+        if not isinstance(model, dict) or model.get("type") == "embedding":
+            continue
+        value = model.get("modelKey") or model.get("key") or model.get("name") or model.get("model")
+        if value:
+            return str(value)
+    return ""
+
+
+def _start_known_runtime(runtime: dict[str, Any]) -> None:
+    executable = str(runtime.get("executable") or "")
+    if not executable:
+        return
+    runtime_id = runtime.get("id")
+    if runtime_id == "lmstudio":
+        subprocess.run([executable, "server", "start"], capture_output=True, timeout=45, **_windows_hidden())
+        model = _runtime_model_key(runtime)
+        if model:
+            subprocess.run(
+                [executable, "load", model, "--yes"], capture_output=True, timeout=300,
+                **_windows_hidden(),
+            )
+    elif runtime_id == "ollama":
+        subprocess.Popen(
+            [executable, "serve"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, **_windows_hidden(),
+        )
+
+
+def discover_local_environment(
+    extra_urls: list[str] | None = None,
+    *,
+    auto_start: bool = False,
+    timeout: float = 0.6,
+) -> dict[str, Any]:
+    """Find installed runtimes and connectable local endpoints.
+
+    When ``auto_start`` is true, only recognized Ollama/LM Studio executables
+    are launched, and both remain bound to their own localhost defaults.
+    """
+    runtimes = discover_installed_runtimes()
+    endpoints = scan_local_endpoints(extra_urls, timeout=timeout)
+    if auto_start and not any(item.get("reachable") and item.get("models") for item in endpoints):
+        for runtime in runtimes:
+            if runtime.get("id") not in {"ollama", "lmstudio"}:
+                continue
+            try:
+                _start_known_runtime(runtime)
+            except Exception:
+                continue
+            for _ in range(20):
+                time.sleep(0.25)
+                endpoints = scan_local_endpoints(extra_urls, timeout=max(timeout, 0.8))
+                if any(item.get("reachable") and item.get("models") for item in endpoints):
+                    break
+            if any(item.get("reachable") and item.get("models") for item in endpoints):
+                break
+    selected = next((item for item in endpoints if item.get("reachable") and item.get("models")), None)
+    return {
+        "runtimes": runtimes,
+        "endpoints": endpoints,
+        "selected": selected,
+        "auto_started": bool(auto_start and selected),
+    }

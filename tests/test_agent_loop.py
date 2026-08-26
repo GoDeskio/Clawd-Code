@@ -5,11 +5,11 @@ from unittest.mock import MagicMock
 from pathlib import Path
 import tempfile
 
-from src.agent.conversation import Conversation
+from src.agent.conversation import Conversation, ImageContentBlock, TextContentBlock
 from src.providers.base import ChatResponse
 from src.tool_system.defaults import build_default_registry
 from src.tool_system.context import ToolContext
-from src.tool_system.agent_loop import run_agent_loop, AgentLoopResult
+from src.tool_system.agent_loop import _build_effective_system_prompt, _build_lightweight_system_prompt, run_agent_loop, AgentLoopResult
 
 
 class TestAgentLoop(unittest.TestCase):
@@ -25,6 +25,14 @@ class TestAgentLoop(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         self.temp_dir.cleanup()
+
+    def test_efficiency_guidance_is_in_every_prompt_lane(self):
+        full = _build_effective_system_prompt("Be helpful.", self.context)
+        light = _build_lightweight_system_prompt("Be helpful.", self.context)
+        for prompt in (full, light):
+            self.assertIn("reconnaissance pass", prompt)
+            self.assertIn("never truncate data being transformed", prompt)
+            self.assertIn("Efficiency never outranks", prompt)
 
     def test_agent_loop_calls_tool(self):
         """Test agent loop correctly dispatches a tool call from mocked LLM."""
@@ -82,6 +90,60 @@ class TestAgentLoop(unittest.TestCase):
         hello_py = self.workspace / "hello.py"
         self.assertTrue(hello_py.exists())
         self.assertEqual(hello_py.read_text(), "print('hello world')")
+
+    def test_openai_compatible_turn_keeps_uploaded_image_blocks(self):
+        conversation = Conversation()
+        conversation.add_user_message([
+            TextContentBlock(text="Describe this upload"),
+            ImageContentBlock(source={"type": "base64", "media_type": "image/png", "data": "YWJj"}),
+        ])
+        provider = MagicMock()
+        provider.chat_stream_response.side_effect = NotImplementedError()
+        provider.chat.return_value = ChatResponse(
+            content="I can see the image.", model="local-vision", usage={}, finish_reason="stop",
+        )
+
+        run_agent_loop(
+            conversation=conversation,
+            provider=provider,
+            tool_registry=self.registry,
+            tool_context=self.context,
+            max_turns=1,
+            verbose=False,
+        )
+
+        sent = provider.chat.call_args.args[0]
+        user = next(message for message in sent if message.get("role") == "user")
+        self.assertTrue(any(block.get("type") == "image" for block in user["content"]))
+
+    def test_openai_followup_tool_turn_does_not_resend_image_bytes(self):
+        conversation = Conversation()
+        conversation.add_user_message([
+            TextContentBlock(text="Inspect this image and look up a tool"),
+            ImageContentBlock(source={"type": "base64", "media_type": "image/png", "data": "YWJj"}),
+        ])
+        provider = MagicMock()
+        provider.chat_stream_response.side_effect = NotImplementedError()
+        provider.chat.side_effect = [
+            ChatResponse(content="", model="local-vision", usage={}, finish_reason="tool_use", tool_uses=[{
+                "id": "toolu_search", "name": "ToolSearch", "input": {"query": "image inspect"},
+            }]),
+            ChatResponse(content="Done.", model="local-vision", usage={}, finish_reason="stop"),
+        ]
+        run_agent_loop(
+            conversation=conversation,
+            provider=provider,
+            tool_registry=self.registry,
+            tool_context=self.context,
+            max_turns=2,
+            selected_tool_names={"ToolSearch"},
+        )
+        second_messages = provider.chat.call_args_list[1].args[0]
+        image_blocks = [
+            block for message in second_messages for block in (message.get("content") or [])
+            if isinstance(message.get("content"), list) and isinstance(block, dict) and block.get("type") == "image"
+        ]
+        self.assertEqual(image_blocks, [])
 
     def test_agent_loop_creates_hello_world(self):
         """Test agent loop creates hello.py and writes print('hello world')."""
@@ -298,6 +360,33 @@ class TestAgentLoop(unittest.TestCase):
         self.assertEqual("".join(chunks), "Hello from fallback!")
         self.assertEqual(result.response_text, "Hello from fallback!")
         provider.chat.assert_called_once()
+
+    def test_agent_loop_estimates_usage_when_local_provider_omits_it(self):
+        """Local servers without streaming usage still produce useful token totals."""
+        conversation = Conversation()
+        conversation.add_user_message("Say hello")
+
+        provider = MagicMock()
+        provider.chat.return_value = ChatResponse(
+            content="Hello from a local model!",
+            model="local-model",
+            usage={},
+            finish_reason="stop",
+            tool_uses=None,
+        )
+
+        result = run_agent_loop(
+            conversation=conversation,
+            provider=provider,
+            tool_registry=self.registry,
+            tool_context=self.context,
+            stream=False,
+            verbose=False,
+        )
+
+        self.assertGreater(result.usage["input_tokens"], 0)
+        self.assertGreater(result.usage["output_tokens"], 0)
+        self.assertTrue(result.usage["estimated"])
 
 
 if __name__ == "__main__":

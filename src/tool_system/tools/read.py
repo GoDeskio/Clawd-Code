@@ -6,6 +6,8 @@ import mimetypes
 from pathlib import Path
 from typing import Any
 
+from src.file_content import RICH_DOCUMENT_SUFFIXES, extract_rich_text
+
 from ..context import ToolContext
 from ..errors import ToolExecutionError, ToolInputError
 from ..protocol import ToolResult
@@ -70,8 +72,8 @@ class FileReadTool:
         suffix = path.suffix.lower()
         if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
             return self._read_image(path, context)
-        if suffix == ".pdf":
-            return self._read_pdf(path, context, pages=pages)
+        if suffix in RICH_DOCUMENT_SUFFIXES:
+            return self._read_rich_document(path, context, pages=pages)
         if suffix == ".ipynb":
             return self._read_notebook(path, context)
 
@@ -131,17 +133,20 @@ class FileReadTool:
             },
         )
 
-    def _read_pdf(self, path: Path, context: ToolContext, *, pages: str | None) -> ToolResult:
+    def _read_rich_document(self, path: Path, context: ToolContext, *, pages: str | None) -> ToolResult:
         if pages is not None and pages.strip():
             return ToolResult(name="Read", output={"error": "PDF page-range reads are not supported in this build; omit pages to read the full PDF"}, is_error=True)
-        data = path.read_bytes()
-        if len(data) > 5 * 1024 * 1024:
-            return ToolResult(name="Read", output={"error": f"pdf too large to inline: {path} ({len(data)} bytes)"}, is_error=True)
-        encoded = base64.b64encode(data).decode("ascii")
+        supported, text, note = extract_rich_text(path, max_chars=1_000_000)
+        if not supported:
+            return ToolResult(name="Read", output={"error": f"unsupported document: {path}"}, is_error=True)
         context.mark_file_read(path)
+        kind = "pdf" if path.suffix.lower() == ".pdf" else "document"
         return ToolResult(
             name="Read",
-            output={"type": "pdf", "file": {"filePath": str(path), "base64": encoded, "originalSize": len(data)}},
+            output={"type": kind, "file": {
+                "filePath": str(path), "content": text, "note": note,
+                "originalSize": path.stat().st_size,
+            }},
         )
 
     def _read_notebook(self, path: Path, context: ToolContext) -> ToolResult:

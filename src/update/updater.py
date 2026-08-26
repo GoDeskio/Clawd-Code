@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from src.install.constants import CANONICAL_HTTPS, UPDATE_INTERVAL_S
-from src.install.deps import install_python_deps
+from src.install.deps import install_fooocus_dep, install_python_deps
 from src.install.python_env import venv_python
 from src.install.record import read_install_record, resolve_source_dir, write_install_record
 from src.install.source import (
@@ -91,8 +91,11 @@ class Updater:
 
     def apply(self, *, allow_dirty: bool = False) -> dict[str, Any]:
         self._guard_tree()
-        if self.is_dirty() and not allow_dirty:
-            raise RuntimeError("working tree has local changes; refusing to auto-update")
+        # Never let an automatic update overwrite local work. ``allow_dirty``
+        # remains in the signature for compatibility but intentionally grants
+        # no bypass; users must commit/stash their changes themselves.
+        if self.is_dirty():
+            raise RuntimeError("working tree has local changes; refusing to auto-update (commit or stash first)")
         local_branch = current_branch(self.source_dir)
         if not local_branch or local_branch == "HEAD":
             raise RuntimeError("detached HEAD; refusing auto-update")
@@ -108,6 +111,7 @@ class Updater:
         python = venv_python(self.source_dir)
         if python.exists():
             install_python_deps(python, self.source_dir, retry=3)
+        install_fooocus_dep(self.source_dir)
         new_sha = current_commit(self.source_dir)
         write_install_record(
             source_dir=self.source_dir,

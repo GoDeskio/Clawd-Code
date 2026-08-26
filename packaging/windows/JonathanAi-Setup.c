@@ -11,6 +11,9 @@
 #include <shellapi.h>
 #include <commctrl.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
 
 #pragma comment(lib, "shell32")
 #pragma comment(lib, "shlwapi")
@@ -28,6 +31,7 @@ static int g_page = 0;
 static wchar_t g_root[MAX_PATH];
 static wchar_t g_payload[MAX_PATH];
 static int g_ok = 0;
+static int g_restart_after_install = 0;
 
 static void append_log(const wchar_t *line) {
     int len = GetWindowTextLengthW(g_log);
@@ -106,6 +110,46 @@ static BOOL run_hidden(const wchar_t *exe, wchar_t *cmdline, const wchar_t *cwd)
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
     return code == 0;
+}
+
+static int stop_recorded_app(const wchar_t *dest) {
+    wchar_t record[MAX_PATH], cmd[256], image[MAX_PATH], *name;
+    char data[4096], *marker, *colon;
+    HANDLE file, process;
+    DWORD read = 0, image_len = MAX_PATH, exit_code = 0;
+    unsigned long pid;
+    join(record, dest, L".jonathan-ai-processes.json");
+    file = CreateFileW(record, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) return 0;
+    ZeroMemory(data, sizeof(data));
+    ReadFile(file, data, sizeof(data) - 1, &read, NULL);
+    CloseHandle(file);
+    marker = strstr(data, "\"owner_pid\"");
+    colon = marker ? strchr(marker, ':') : NULL;
+    pid = colon ? strtoul(colon + 1, NULL, 10) : 0;
+    if (pid <= 4 || pid == GetCurrentProcessId()) return 0;
+    process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return 0;
+    image[0] = 0;
+    if (!GetExitCodeProcess(process, &exit_code) || exit_code != STILL_ACTIVE ||
+        !QueryFullProcessImageNameW(process, 0, image, &image_len)) {
+        CloseHandle(process);
+        return 0;
+    }
+    CloseHandle(process);
+    name = PathFindFileNameW(image);
+    if (_wcsnicmp(image, dest, lstrlenW(dest)) != 0 ||
+        (image[lstrlenW(dest)] != L'\\' && image[lstrlenW(dest)] != L'/')) return 0;
+    if (lstrcmpiW(name, L"electron.exe") != 0 &&
+        lstrcmpiW(name, L"JonathanAi.exe") != 0 &&
+        lstrcmpiW(name, L"python.exe") != 0 &&
+        lstrcmpiW(name, L"pythonw.exe") != 0) return 0;
+    append_log(L"Stopping the running Jonathan Ai process tree for upgrade…");
+    wsprintfW(cmd, L"taskkill.exe /PID %lu /T /F", pid);
+    if (!run_hidden(L"C:\\Windows\\System32\\taskkill.exe", cmd, dest)) return 0;
+    DeleteFileW(record);
+    return 1;
 }
 
 static BOOL create_shortcut(const wchar_t *link, const wchar_t *target, const wchar_t *workdir, const wchar_t *icon) {
@@ -190,9 +234,10 @@ static DWORD WINAPI install_thread(LPVOID param) {
     }
     append_log(L"Using existing Jonathan-Ai folder when present (upgrade in place)…");
     SHCreateDirectoryExW(NULL, dest, NULL);
+    g_restart_after_install = stop_recorded_app(dest);
 
     join(srccli, g_payload, L"src\\cli.py");
-    if (exists(srccli)) {
+    if (exists(srccli) && lstrcmpiW(g_payload, dest) != 0) {
         append_log(L"Replacing app files from this checkout…");
         wsprintfW(cmd, L"cmd.exe /C xcopy /E /I /Y /Q \"%s\" \"%s\"", g_payload, dest);
         run_hidden(L"C:\\Windows\\System32\\cmd.exe", cmd, g_payload);
@@ -230,9 +275,22 @@ static DWORD WINAPI install_thread(LPVOID param) {
     if (!run_hidden(python, cmd, dest)) {
         wsprintfW(cmd, L"py -3 -m src.install --source-dir \"%s\" --from-local \"%s\" --yes", dest, dest);
         if (!run_hidden(L"py", cmd, dest)) {
-            append_log(L"ERROR: Python install step failed.");
-            PostMessageW(g_main, WM_APP + 2, 0, 0);
-            return 1;
+            wchar_t localapp[MAX_PATH];
+            append_log(L"Python is missing; installing Python 3.12 automatically…");
+            lstrcpynW(cmd, L"winget.exe install --id Python.Python.3.12 -e --source winget --silent --accept-package-agreements --accept-source-agreements", 2048);
+            if (run_hidden(L"winget.exe", cmd, dest) &&
+                GetEnvironmentVariableW(L"LOCALAPPDATA", localapp, MAX_PATH) > 0) {
+                join(python, localapp, L"Programs\\Python\\Python312\\python.exe");
+                wsprintfW(cmd, L"\"%s\" -m src.install --source-dir \"%s\" --from-local \"%s\" --yes", python, dest, dest);
+                if (!run_hidden(python, cmd, dest)) python[0] = 0;
+            } else {
+                python[0] = 0;
+            }
+            if (!python[0]) {
+                append_log(L"ERROR: Python install step failed.");
+                PostMessageW(g_main, WM_APP + 2, 0, 0);
+                return 1;
+            }
         }
     }
 
@@ -243,6 +301,11 @@ static DWORD WINAPI install_thread(LPVOID param) {
     if (!exists(icon)) join(icon, g_root, L"jonathan-ai.ico");
     append_log(L"Rewriting Desktop and Start Menu shortcuts to Jonathan-Ai\\JonathanAi.exe…");
     make_shortcuts(dest, launcher, icon);
+    if (g_restart_after_install) {
+        append_log(L"Restarting the app that was running before this upgrade…");
+        ShellExecuteW(NULL, L"open", launcher, NULL, dest, SW_SHOWNORMAL);
+        SendMessageW(g_launch_check, BM_SETCHECK, BST_UNCHECKED, 0);
+    }
     append_log(L"Done. Second Setup runs upgrade this same folder.");
     g_ok = 1;
     PostMessageW(g_main, WM_APP + 1, 0, 0);
@@ -264,11 +327,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
         InitCommonControlsEx(&icc);
         CreateWindowW(L"STATIC", L"Jonathan Ai", WS_CHILD | WS_VISIBLE,
             24, 16, 400, 28, hwnd, NULL, NULL, NULL);
-        CreateWindowW(L"STATIC", L"Windows desktop installer  0.2.8", WS_CHILD | WS_VISIBLE,
+        CreateWindowW(L"STATIC", L"Windows desktop installer  0.4.6", WS_CHILD | WS_VISIBLE,
             24, 44, 400, 20, hwnd, NULL, NULL, NULL);
 
         g_welcome = CreateWindowW(L"STATIC",
-            L"This wizard installs or upgrades Jonathan Ai 0.2.8 in place.\r\n\r\n"
+            L"This wizard installs or upgrades Jonathan Ai 0.4.6 in place.\r\n\r\n"
             L"It reuses %USERPROFILE%\\Jonathan\\Jonathan-Ai (or an existing Clawd-Code folder).\r\n"
             L"A second run upgrades that same folder — it does not create a parallel install.\r\n\r\n"
             L"Shortcuts are rewritten to Jonathan-Ai\\JonathanAi.exe.\r\n"
@@ -366,7 +429,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1));
     if (!wc.hIcon) wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     RegisterClassW(&wc);
-    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.2.8",
+    g_main = CreateWindowW(L"JonathanAiSetup", L"Install Jonathan Ai 0.4.6",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 640, 460, NULL, NULL, inst, NULL);
     ShowWindow(g_main, show);
