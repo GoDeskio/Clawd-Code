@@ -36,7 +36,7 @@
 | 交互式 REPL | ✅ | 支持交互式输出、历史记录、Tab 补全、多行输入 |
 | Slash Commands | ✅ | 已支持 `/help`、`/clear`、`/save`、`/load`、`/multiline`、`/exit` |
 | 多 Provider 抽象 | ✅ | 已支持 Anthropic / OpenAI / GLM / Minimax / Hugging Face / Local LLM |
-| 本机 AI 自动发现 | ✅ | v0.3.2：扫描 Ollama / LM Studio / Jan / GPT4All / llama.cpp / KoboldCpp / Hugging Face 缓存与常用回环端口；无可用云配置时自动启动并连接已安装模型 |
+| 本机 AI 自动发现 | ✅ | v0.4.7：扫描 Ollama / LM Studio / Jan / GPT4All / llama.cpp / KoboldCpp / Hugging Face 缓存与常用回环端口；显示模型存储、运行时 RAM、可用系统 RAM 与保守 fit 提示；无可用云配置时自动启动并连接已安装模型 |
 | Jonathan 本地图像引擎 | ✅ | v0.4.6：内置 Diffusers 文生图/图生图；自动安装依赖、首次下载模型、CUDA/CPU、输出下载与 Image Studio 本地回退；不依赖 Fooocus/Gradio |
 | Audio Studio | ✅ | v0.4.6：内置原创程序化 WAV 生成、裁剪、标准化、混音和会话下载；重型歌曲模型可通过显式外部/MCP 连接使用 |
 | Voice / Speech Studio | ✅ | v0.4.6：会话内用户主动麦克风录音、本地 Whisper 系列多语言转写/翻译、首次使用下载所选模型、本机语音合成与 WAV 下载；不后台监听、不要求付费 API |
@@ -44,6 +44,7 @@
 | 会话持久化 | ✅ | 支持保存/加载本地会话；重启后侧栏仍在；New Chat 新建空线程；桌面左侧可重命名 |
 | 独立桌面 Agent | ✅ | v0.3.0：每个对话拥有隔离且可并行运行的 Agent；完整终端与 PATH CLI；图像生成/编辑/文字移除；Blender 高精度材质 3D 与 GLB/GLTF/OBJ/STL/FBX/BLEND/USD；任意文件下载；系统监控、资源评估、进程/服务/包管理；UTF-8 脱敏审计日志；GitHub/GitLab 仓库自动化；自建 SKILL.md；可搜索共享记忆；原子 UTF-8 会话；New Chat 空线程；实时预览；Setup 原地升级且不合并 main |
 | 可验证内部协作 | ✅ | v0.4.6：Fast/Balanced/Verified 三种显式模式；Verified 由未参与创作的独立 Agent 检查目标、冲突和缺失证据；所有 worker/reviewer token 计入所属会话且不构成配额 |
+| 长程目标控制 | ✅ | v0.4.7：跨会话持久目标、工作区 scope、依赖 todo、Agent claim/lease、人工/证据 gate、UTF-8 evidence receipt、handoff、turn budget 与 fail-closed continuation；无需第二 Agent runtime |
 | ECC 技能与 Agent 目录 | ✅ | v0.4.6：完整目录同步、MIT 来源/版本记录、导入前安全扫描、全部离线索引、按需启用避免上下文膨胀、可实例化 Agent 模板与 Memory Vault 互操作 |
 | 自动技能学习 | ✅ | v0.4.6：本地 Git 历史测量、项目隔离、敏感信息/提示注入清洗、置信度 instinct、UTF-8 SKILL.md 草稿、用户审核后才激活 |
 | 写作润色技能 | ✅ | v0.4.6：可选的表层与结构双重编辑、样本文风校准、含义/事实/引用保留，不承诺规避检测器或虚假作者身份 |

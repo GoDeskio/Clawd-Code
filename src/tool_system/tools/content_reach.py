@@ -42,7 +42,7 @@ def _rss(url: str, limit: int) -> dict[str, Any]:
         import feedparser
     except ImportError as exc:
         raise ToolInputError("RSS support is not installed. Run Jonathan's dependency repair and retry.") from exc
-    parsed = feedparser.parse(url, request_headers={"User-Agent": "JonathanAi/0.4.6"})
+    parsed = feedparser.parse(url, request_headers={"User-Agent": "JonathanAi/0.4.7"})
     if getattr(parsed, "bozo", False) and not getattr(parsed, "entries", []):
         raise ToolInputError(f"RSS/Atom feed could not be parsed: {getattr(parsed, 'bozo_exception', 'unknown error')}")
     entries = []
@@ -98,7 +98,7 @@ def _youtube(url: str, language: str) -> dict[str, Any]:
     preferred = next((item for item in candidates if item.get("ext") == "json3"), None) or next((item for item in candidates if item.get("ext") in {"vtt", "srv3", "ttml"}), None)
     transcript = ""
     if preferred and preferred.get("url"):
-        request = urllib.request.Request(str(preferred["url"]), headers={"User-Agent": "Mozilla/5.0 JonathanAi/0.4.6"})
+        request = urllib.request.Request(str(preferred["url"]), headers={"User-Agent": "Mozilla/5.0 JonathanAi/0.4.7"})
         with urllib.request.urlopen(request, timeout=30) as response:
             transcript = _caption_text(response.read(5_000_000), response.headers.get("Content-Type", ""))
     return {

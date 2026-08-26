@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.7] - 2026-08-25
+
+- Evaluated Apache-2.0/MIT LoopX and adopted its strongest non-duplicative idea as Jonathan's independent `LongHorizonControl`: durable objectives, workspace scope, bounded turns, dependency-aware todos, agent claims with expiring leases, explicit human/evidence gates, UTF-8 evidence receipts, handoffs, and fail-closed continuation/closure decisions. No upstream source, dashboard, adapter, PWA/Tauri shell, branding, service, or runtime is bundled.
+- Evaluated `cporter202/scraping-apis-for-devs`. It is an unlicensed catalog of thousands of changing third-party listings, predominantly paid Apify actors, rather than a scraping engine or API implementation. Jonathan's audited `PublicApiCatalog`, connectors, `ContentReach`, WebFetch and browser tools already cover safe discovery and retrieval, so no catalog mirror, vendor listing, credential flow, actor, branding or automatic scraper is bundled.
+- Evaluated MIT OGAM. Jonathan already covers its local/LAN model discovery, GGUF-capable runtimes, vision, Whisper, diffusion, attachments, retrieval, tool loops and user approval; the useful non-duplicative resource-awareness principle is now native in the local-model connector, with stored model bytes, live runtime RAM, available system RAM and conservative fit guidance. No React Native app, Android/iOS native module, mobile model bundle, paid Pro feature, branding or upstream runtime is included.
+- Updated product, desktop, installer, documentation and test version surfaces for 0.4.7.
+
 ## [0.4.6] - 2026-08-25
 
 - Evaluated Apache-2.0 Awesome LLM Apps as an agent/RAG/MCP cookbook. Its templates duplicate Jonathan's provider, agent-team, retrieval, skill and connector foundations, so no second framework, demo application, prompt pack or upstream runtime is bundled.

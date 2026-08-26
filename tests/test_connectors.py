@@ -32,6 +32,7 @@ from src.providers.huggingface_connect import (
 from src.providers.huggingface_provider import HuggingFaceProvider
 from src.providers.local_endpoints import (
     RemoteEndpointError,
+    _memory_fit_label,
     assert_local_or_lan_url,
     list_local_models,
     scan_local_endpoints,
@@ -58,6 +59,13 @@ class TestProviderRegistry(unittest.TestCase):
 
 
 class TestLocalEndpoints(unittest.TestCase):
+    def test_local_model_memory_fit_is_conservative(self) -> None:
+        gib = 1024 ** 3
+        self.assertEqual(_memory_fit_label(2 * gib, 8 * gib), "comfortable")
+        self.assertEqual(_memory_fit_label(6 * gib, 8 * gib), "tight")
+        self.assertEqual(_memory_fit_label(9 * gib, 8 * gib), "insufficient")
+        self.assertEqual(_memory_fit_label(0, 8 * gib), "unknown")
+
     def test_rejects_wan_hosts(self) -> None:
         with self.assertRaises(RemoteEndpointError):
             assert_local_or_lan_url("https://huggingface.co")

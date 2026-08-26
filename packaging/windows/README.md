@@ -1,6 +1,6 @@
 # Jonathan Ai for Windows
 
-**Version 0.4.6** — Jonathan Ai adds the audited ECC skills/agent catalog, lazy skill activation, Memory Vault interchange, evidence-backed Git-history skill drafts, native market forecasting, personal finance, code graph/memory, engineering-gate, editable-graphics and character engines, a tamper-evident runtime event ledger, and earned-autonomy evidence profiles to the standard upgrade-in-place wizard.
+**Version 0.4.7** — Jonathan Ai adds durable long-horizon objectives, bounded turns, dependency-aware todos, cross-agent claims/leases, judgment gates, evidence receipts and handoffs to the existing standard upgrade-in-place wizard, while retaining the audited ECC catalog, native media/business/finance/engineering engines, event ledger, and earned-autonomy evidence profiles.
 
 `JonathanAi.exe` looks for the app in this order: `CLAWD_SOURCE_DIR`, the exe folder, `%USERPROFILE%\Jonathan\Jonathan-Ai`, then the current working directory. A working `.venv` is enough to open the UI; Electron is optional. If a Desktop click still says it cannot find Electron or the venv, run `JonathanAi-Setup.exe` again — it upgrades that same `Jonathan-Ai` folder in place and rewrites shortcuts to `%USERPROFILE%\Jonathan\Jonathan-Ai\JonathanAi.exe`.
 

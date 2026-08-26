@@ -6,7 +6,7 @@ RequestExecutionLevel user
 SetCompressor zlib
 
 !define PRODUCT_NAME "Jonathan Ai"
-!define PRODUCT_VERSION "0.4.6"
+!define PRODUCT_VERSION "0.4.7"
 !define PRODUCT_PUBLISHER "GoDeskio"
 !define PRODUCT_WEB "https://github.com/GoDeskio/Clawd-Code"
 !define PRODUCT_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\JonathanAi"

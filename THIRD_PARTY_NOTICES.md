@@ -4,6 +4,34 @@ Jonathan Ai includes or adapts selected permissively licensed reference material
 Product and company names are not used as Jonathan branding; attribution below is
 retained because the licenses require it.
 
+## LoopX design reference
+
+Jonathan's independent `LongHorizonControl` was informed by the durable-state,
+bounded-turn, judgment-gate, claim/lease and evidence-receipt architecture in
+`huangruiteng/loopx`, offered under Apache-2.0 and MIT licenses. Jonathan does
+not include or require upstream source, prompts, adapters, dashboard, PWA,
+Tauri shell, branding, package, service or runtime. See
+https://github.com/huangruiteng/loopx.
+
+## Scraping API catalog evaluation
+
+`cporter202/scraping-apis-for-devs` was evaluated as a discovery source. It is
+a large directory of changing third-party offerings—predominantly hosted
+Apify actors—and does not show a top-level software license. Jonathan does not
+copy the catalog, descriptions, links, branding, actors, credential flows, or
+vendor dependencies. Safe API discovery remains in Jonathan's audited native
+catalog and explicit connectors. See
+https://github.com/cporter202/scraping-apis-for-devs.
+
+## OGAM design reference
+
+Jonathan's local-model resource display was informed by the visible model
+residency and memory-fit concepts in `off-grid-ai/OGAM`, licensed under MIT.
+Jonathan independently measures its already supported desktop runtimes and
+does not include upstream React Native code, Android/iOS native modules,
+models, mobile application, paid Pro features, branding, service or runtime.
+See https://github.com/off-grid-ai/OGAM.
+
 ## Local diffusion design reference
 
 Jonathan's local image requirements were informed by `lllyasviel/Fooocus`,

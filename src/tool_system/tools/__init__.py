@@ -26,6 +26,7 @@ from .vision_analyze import VisionAnalyzeTool
 from .fooocus import FooocusTool
 from .lsp import LSPTool
 from .kronos_forecast import KronosForecastTool
+from .long_horizon_control import LongHorizonControlTool
 from .mcp import MCPTool
 from .mcp_resources import ListMcpResourcesTool, ReadMcpResourceTool
 from .misc import NotebookEditTool, PowerShellTool, REPLTool, RemoteTriggerTool, SendMessageTool, TestingPermissionTool
@@ -93,6 +94,7 @@ __all__ = [
     "FooocusTool",
     "LSPTool",
     "KronosForecastTool",
+    "LongHorizonControlTool",
     "MCPTool",
     "ListMcpResourcesTool",
     "ReadMcpResourceTool",

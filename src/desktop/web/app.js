@@ -312,7 +312,7 @@ async function refreshStatus() {
   $("model-line").textContent = `${state.status.provider} · ${model}`;
   $("chat-title").textContent = state.status.session?.title || "New chat";
   if ($("app-version")) {
-    const ver = state.status.version || "0.4.6";
+    const ver = state.status.version || "0.4.7";
     $("app-version").textContent = `v${ver} · standalone`;
     document.title = `Jonathan Ai ${ver}`;
   }
@@ -350,7 +350,8 @@ function formatBytes(bytes) {
   const value = Number(bytes || 0);
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function renderArtifacts(items) {
@@ -1787,9 +1788,15 @@ function bindUi() {
           const row = document.createElement("div");
           row.className = "scan-item";
           const modelCount = (runtime.models || []).filter((item) => item.type !== "embedding").length || (runtime.model_files || []).length;
+          const resources = runtime.resources || {};
+          const details = [`${modelCount} local model(s)`, runtime.executable || "model cache"];
+          if (resources.model_storage_bytes) details.push(`${formatBytes(resources.model_storage_bytes)} stored`);
+          if (resources.resident_memory_bytes) details.push(`${formatBytes(resources.resident_memory_bytes)} live RAM`);
+          if (resources.system_available_memory_bytes) details.push(`${formatBytes(resources.system_available_memory_bytes)} RAM free`);
+          if (resources.fit && resources.fit !== "unknown") details.push(`${resources.fit} estimated fit`);
           row.innerHTML = `<strong></strong><small></small>`;
           row.querySelector("strong").textContent = `${runtime.label} installed`;
-          row.querySelector("small").textContent = `${modelCount} local model(s) · ${runtime.executable || "model cache"}`;
+          row.querySelector("small").textContent = details.join(" · ");
           box.appendChild(row);
         }
         if (data.connected) box.insertAdjacentHTML("afterbegin", '<div class="scan-item ok"><strong>Connected automatically</strong><small>The reachable installed model is now Jonathan’s active provider.</small></div>');

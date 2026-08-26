@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clawd-codex"
-version = "0.4.6"
+version = "0.4.7"
 description = "Jonathan Ai — local desktop and CLI agent (Python Claude Code-style runtime)"
 readme = "README.md"
 license = "MIT"

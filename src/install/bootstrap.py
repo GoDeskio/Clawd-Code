@@ -23,6 +23,10 @@ from .source import current_branch, current_commit
 from src.version import get_version
 
 CRITICAL_IMPORT = "import anthropic, openai, rich, dotenv, prompt_toolkit, tiktoken, PIL, cv2, rapidocr_onnxruntime, trimesh, psutil, yfinance, pandas, pypdf, docx, openpyxl, pptx, pyautogui"
+# The shipped native launcher was last compiled with this readiness marker.
+# Setup still writes the current marker; this compatibility marker prevents a
+# successful fresh install from repeating the same repair on every launch.
+LAUNCHER_COMPAT_VERSION = "0.4.6"
 
 
 def runtime_ready_marker(source_dir: str | Path, version: str | None = None) -> Path:
@@ -41,6 +45,9 @@ def write_runtime_ready_marker(source_dir: str | Path, result: dict[str, Any]) -
         "created_at": datetime.now(timezone.utc).isoformat(),
         "python": str(result.get("venv_python") or ""),
     }, indent=2), encoding="utf-8")
+    compatibility = runtime_ready_marker(root, LAUNCHER_COMPAT_VERSION)
+    if compatibility != marker:
+        compatibility.write_text(marker.read_text(encoding="utf-8"), encoding="utf-8")
     return marker
 
 

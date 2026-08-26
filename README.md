@@ -6,7 +6,9 @@
 
 **A local desktop and CLI agent, built as a Python reimplementation of Claude Code**
 
-**Version 0.4.6** — Jonathan Ai adds a complete, audited Everything Claude Code (ECC) catalog integration, evidence-backed skill learning, and a built-in probabilistic OHLCV forecasting engine. The app keeps the full ECC catalog offline while lazily enabling only selected skills so startup and prompts remain fast. Git-history learning produces sanitized, confidence-scored `SKILL.md` drafts that require review, and market forecasts produce downloadable research CSVs without placing trades.
+**Version 0.4.7** — Jonathan Ai adds native durable control for long-running work. `LongHorizonControl` keeps objectives, workspace scope, bounded turns, dependency-aware todos, agent claims/leases, human gates, evidence receipts, and handoffs in atomic UTF-8 state shared across conversations. Its continuation and closure decisions fail closed when judgment, evidence, prerequisites, or budget are missing.
+
+Local-model discovery now also reports on-disk model size, live runtime RAM, available system RAM, and conservative fit guidance before a large model is selected. The measurements are local and informational; Jonathan does not silently stop another runtime or send hardware details to a service.
 
 Every conversation also writes a redacted, tamper-evident append-only runtime ledger under `~/.clawd/events`. Provider context can stay bounded for speed without deleting job, tool, permission, completion, usage, or artifact evidence. Token counts remain persisted per conversation and agent and are informational only—there is no quota, payment, or purchase path.
 
@@ -16,7 +18,7 @@ The Device & System card also shows an earned-autonomy profile for each conversa
 
 Tool execution is audit-gated: after policy and user approval, Jonathan writes a secret-redacted `started` record before invoking the tool and a second record with success, refusal, or failure. If the preflight audit cannot be persisted, the side effect does not run.
 
-The 0.4.6 shell uses a quiet, neutral desktop system: compact native typography, solid surfaces, low-decoration hierarchy, consistent radii, clear focus rings, semantic state colors, and reduced-motion support. It keeps the dense operational layout instead of applying oversized website spacing.
+The 0.4.7 shell uses a quiet, neutral desktop system: compact native typography, solid surfaces, low-decoration hierarchy, consistent radii, clear focus rings, semantic state colors, and reduced-motion support. It keeps the dense operational layout instead of applying oversized website spacing.
 
 Pydantic AI was evaluated for typed outputs, broad model adapters, durable execution, evaluations, and telemetry. Jonathan keeps its existing single runtime for this release; adding a second agent loop would duplicate session, permission, provider, and tool state. Its strongest capabilities remain candidates for narrow future adapters rather than a wholesale dependency.
 
@@ -31,6 +33,7 @@ The Workers control now offers **Fast**, **Balanced**, and **Verified** modes. V
 - `Repository`: inspect, clone, fetch, pull, and push GitHub/GitLab repositories without merging; protected branches require explicit authorization.
 - `AudioStudio`: generate deterministic original instrumental WAV beds and trim, normalize, or mix local PCM WAV files into conversation downloads without an account or cloud service.
 - `SkillManager` and `SharedMemory`: create/validate/package reusable `SKILL.md` files and search/export durable cross-conversation memory.
+- `LongHorizonControl`: coordinate durable goals across separate conversation agents with bounded turns, dependency-aware work, leases, judgment gates, evidence receipts, handoffs, and explicit continuation checks.
 - `ECCIntegration`: synchronize, audit, import, update, enable/disable, and search ECC skills/agent templates; exchange unreviewed Memory Vault documents; and create reviewable skills from measured Git history.
 - `BusinessManager`: durable local customers, projects, tasks, invoices, income/expense ledger, dashboard, and downloadable JSON/CSV/HTML business reports.
 - `KronosForecast`: create built-in Mini/Small/Base probabilistic EWMA/Monte Carlo OHLCV research forecasts as downloadable CSV files; never places an order.
@@ -234,7 +237,7 @@ clawd desktop      # Start the desktop host
 
 The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session.
 
-**Chat on first run with only a local model or one API key.** After install, Jonathan first discovers installed local runtimes and connects a reachable model automatically when no working provider exists. The installer prepares the built-in code memory, forecasting, engineering-gate, finance, and editable-graphics engines; only the audited ECC catalog needs an optional online source sync. You can pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are omitted from provider requests until connected. Tokens stay on this machine. The product version is **0.4.6**.
+**Chat on first run with only a local model or one API key.** After install, Jonathan first discovers installed local runtimes and connects a reachable model automatically when no working provider exists. The installer prepares the built-in code memory, forecasting, engineering-gate, finance, editable-graphics, and long-horizon control engines; only the audited ECC catalog needs an optional online source sync. You can pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are omitted from provider requests until connected. Tokens stay on this machine. The product version is **0.4.7**.
 
 **Windows (real desktop app):**
 
@@ -432,7 +435,7 @@ python -m src.desktop --port 8765
 
 This binds `http://127.0.0.1:8765/` only, serves the chat UI, and opens a browser. Use `--no-browser` in CI.
 
-The dashboard is a glassmorphism prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), frosted chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.4.6** and the token meter (informational only). Conversations persist in the sidebar; New Chat is always empty. Shared memory is local only (`~/.clawd/memory`). User-authored skills are visible under `Jonathan-Ai/Skills`; managed ECC content is stored below `Skills/.managed/ecc` and only enabled entries are loaded. Jonathan Ai is the agent — no second AI connection is required.
+The dashboard is a compact prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), clear chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.4.7** and the token meter (informational only). Conversations persist in the sidebar; New Chat is always empty. Shared memory is local only (`~/.clawd/memory`), while durable goal governance is stored under `~/.clawd/goals`. User-authored skills are visible under `Jonathan-Ai/Skills`; managed ECC content is stored below `Skills/.managed/ecc` and only enabled entries are loaded. Jonathan Ai is the agent — no second AI connection is required.
 
 **Option B — Electron desktop shell (tray, notifications, folder picker)**
 
