@@ -33,11 +33,17 @@ async function api(path, options = {}) {
   return data;
 }
 
-function renderMarkdown(text) {
-  const escaped = String(text || "")
+function escapeHtml(value) {
+  return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderMarkdown(text) {
+  const escaped = escapeHtml(text);
   const withCode = escaped.replace(/```([\s\S]*?)```/g, (_, code) => `<pre class="md-pre"><code>${code}</code></pre>`);
   return withCode
     .replace(/^### (.+)$/gm, "<h3>$1</h3>")
@@ -312,7 +318,7 @@ async function refreshStatus() {
   $("model-line").textContent = `${state.status.provider} · ${model}`;
   $("chat-title").textContent = state.status.session?.title || "New chat";
   if ($("app-version")) {
-    const ver = state.status.version || "0.4.7";
+    const ver = state.status.version || "0.4.8";
     $("app-version").textContent = `v${ver} · standalone`;
     document.title = `Jonathan Ai ${ver}`;
   }
@@ -1288,24 +1294,67 @@ function watchJob(jobId, sessionId) {
   updateBusyUi();
   let assistant = null;
   let accumulated = "";
-  const source = new EventSource(`/api/events?job_id=${encodeURIComponent(jobId)}`);
-  source.onmessage = (msg) => {
-    const event = JSON.parse(msg.data);
+  let after = 0;
+  let finalized = false;
+  let polling = false;
+  let source = null;
+
+  const finishJob = async () => {
+    if (finalized) return;
+    finalized = true;
+    source?.close();
+    state.activeJobs.delete(jobId);
+    state.pendingSessions.delete(sessionId);
+    updateBusyUi();
+    if (state.currentSessionId === sessionId) {
+      try {
+        const snapshot = await api(`/api/instances/peek?session_id=${encodeURIComponent(sessionId)}`);
+        renderTranscript(snapshot.messages || []);
+      } catch (err) {
+        addBubble("system", `Response saved, but the transcript could not refresh: ${err.message}`);
+      }
+    }
+    await Promise.allSettled([refreshSessions(), refreshStatus(), refreshArtifacts()]);
+  };
+
+  const pollJob = async () => {
+    if (polling || finalized) return;
+    polling = true;
+    if (state.currentSessionId === sessionId) setProgress("Reconnecting to response…");
+    let failures = 0;
+    while (!finalized) {
+      try {
+        const payload = await api(`/api/jobs/events?job_id=${encodeURIComponent(jobId)}&after=${after}`);
+        failures = 0;
+        for (const event of payload.events || []) {
+          handleEvent(event);
+        }
+        after = Math.max(after, Number(payload.after) || after);
+        if (payload.done) {
+          await finishJob();
+          return;
+        }
+      } catch (err) {
+        failures += 1;
+        if (failures >= 4) {
+          if (state.currentSessionId === sessionId) {
+            addBubble("system", `Response connection failed: ${err.message}. Reloading saved conversation…`);
+          }
+          await finishJob();
+          return;
+        }
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 650));
+    }
+  };
+
+  function handleEvent(event) {
     const visible = state.currentSessionId === sessionId;
     if (event.type === "stream_end") {
-      source.close();
-      state.activeJobs.delete(jobId);
-      state.pendingSessions.delete(sessionId);
-      updateBusyUi();
-      if (visible) {
-        api(`/api/instances/peek?session_id=${encodeURIComponent(sessionId)}`)
-          .then((snapshot) => renderTranscript(snapshot.messages || []))
-          .catch(() => {});
-      }
-      refreshSessions();
-      refreshStatus();
+      void finishJob();
       return;
     }
+    after += 1;
     if (event.type === "job_started") {
       if (visible) setProgress("Reading attachments…");
       return;
@@ -1400,12 +1449,19 @@ function watchJob(jobId, sessionId) {
         $("settings-modal").classList.remove("hidden");
       }
     }
+  }
+
+  source = new EventSource(`/api/events?job_id=${encodeURIComponent(jobId)}`);
+  source.onmessage = (msg) => {
+    try {
+      handleEvent(JSON.parse(msg.data));
+    } catch (err) {
+      if (state.currentSessionId === sessionId) addBubble("system", `Response event error: ${err.message}`);
+    }
   };
   source.onerror = () => {
     source.close();
-    state.activeJobs.delete(jobId);
-    state.pendingSessions.delete(sessionId);
-    updateBusyUi();
+    void pollJob();
   };
 }
 

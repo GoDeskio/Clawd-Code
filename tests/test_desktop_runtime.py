@@ -410,7 +410,7 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("ToolSearch", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.4.7")
+        self.assertEqual(runtime.status()["version"], "0.4.8")
         self.assertTrue(runtime.status()["standalone"])
 
     def test_local_chat_route_skips_tools_for_conversation_and_focuses_actions(self) -> None:
@@ -759,7 +759,7 @@ class TestDesktopServer(DesktopTestCase):
         )
         ready = json.loads(urllib.request.urlopen(ready_req, timeout=2).read())
         self.assertTrue(ready["ok"])
-        self.assertEqual(ready["version"], "0.4.7")
+        self.assertEqual(ready["version"], "0.4.8")
 
     def test_static_ui_is_served(self) -> None:
         server = DesktopServer(DesktopRuntime(workspace=self.workspace), host="127.0.0.1", port=0)
@@ -774,7 +774,7 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.4.7", html)
+        self.assertIn("0.4.8", html)
         self.assertIn("session-menu", html)
         self.assertIn("working-robot", html)
         self.assertIn("preview-pane", html)

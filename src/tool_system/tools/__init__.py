@@ -29,12 +29,13 @@ from .kronos_forecast import KronosForecastTool
 from .long_horizon_control import LongHorizonControlTool
 from .mcp import MCPTool
 from .mcp_resources import ListMcpResourcesTool, ReadMcpResourceTool
-from .misc import NotebookEditTool, PowerShellTool, REPLTool, RemoteTriggerTool, SendMessageTool, TestingPermissionTool
+from .misc import NotebookEditTool, PowerShellTool, REPLTool, SendMessageTool, TestingPermissionTool
 from .plan_mode import EnterPlanModeTool, ExitPlanModeTool
 from .personal_finance_vault import PersonalFinanceVaultTool
 from .procoder import ProcoderTool
 from .public_api_catalog import PublicApiCatalogTool
 from .read import FileReadTool
+from .remote_computer import RemoteTriggerTool
 from .repository import RepositoryTool
 from .send_user_message import SendUserMessageTool
 from .self_hosted_service import SelfHostedServiceTool

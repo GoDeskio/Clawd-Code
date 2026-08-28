@@ -56,7 +56,8 @@ class MediaAdminToolsTests(unittest.TestCase):
                             "regions": [{"x": 20, "y": 50, "width": 220, "height": 60}]}, self.context)
         self.assertTrue(Path(removed.output["path"]).is_file())
         converted = tool.run({"action": "convert", "source": "media/restored.png", "output": "media/final.webp"}, self.context)
-        self.assertEqual(Image.open(converted.output["path"]).format, "WEBP")
+        with Image.open(converted.output["path"]) as converted_image:
+            self.assertEqual(converted_image.format, "WEBP")
         self.assertTrue(converted.output["artifacts"])
 
     def test_local_vision_reads_colors_shapes_and_dimensions(self) -> None:

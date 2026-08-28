@@ -135,7 +135,7 @@ def _compose(service: dict[str, Any], context: ToolContext) -> tuple[list[str], 
 def _health(url: str, timeout: int) -> dict[str, Any]:
     endpoint = assert_local_or_lan_url(url)
     try:
-        with urlopen(Request(endpoint, headers={"User-Agent": "JonathanAi/0.4.7"}), timeout=min(timeout, 30)) as response:
+        with urlopen(Request(endpoint, headers={"User-Agent": "JonathanAi/0.4.8"}), timeout=min(timeout, 30)) as response:
             return {"url": endpoint, "reachable": True, "status": int(getattr(response, "status", 200) or 200)}
     except HTTPError as exc:
         return {"url": endpoint, "reachable": True, "status": int(exc.code)}

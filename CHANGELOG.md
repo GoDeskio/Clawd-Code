@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.8] - 2026-08-27
+
+- Fixed the desktop startup failure that left the conversation window blank or displayed `escapeHtml is not defined`. The shared escaping primitive is restored, persisted user/assistant messages render again, and Markdown, engine-status, image, attachment and artifact rendering retain HTML escaping.
+- Hardened response delivery: if the browser's Server-Sent Events connection is aborted, the conversation automatically resumes through the bounded job-events endpoint, keeps the working indicator active, and reloads the saved transcript when the job completes. A completed answer can no longer disappear merely because the live socket closed.
+- Replaced the nonfunctional `RemoteTrigger` placeholder with permission-gated SSH command execution, SCP upload/download, Windows Remote Management execution and bounded TCP reachability checks for explicitly named computers and servers. It uses existing SSH keys/agent or stored Windows credentials, never accepts passwords in model/tool input, validates hosts, defaults to strict host-key checking, uses argument arrays with `shell=False`, and remains subject to the remote machine's authorization, ACL and elevation rules.
+- Added regression tests for visible response infrastructure, remote-action permission gating, host validation, strict SSH invocation and password exclusion; visually verified a new local-model reply in the real conversation window.
+- Updated product, desktop, installer, documentation and test version surfaces for 0.4.8.
+
 ## [0.4.7] - 2026-08-25
 
 - Evaluated Apache-2.0/MIT LoopX and adopted its strongest non-duplicative idea as Jonathan's independent `LongHorizonControl`: durable objectives, workspace scope, bounded turns, dependency-aware todos, agent claims with expiring leases, explicit human/evidence gates, UTF-8 evidence receipts, handoffs, and fail-closed continuation/closure decisions. No upstream source, dashboard, adapter, PWA/Tauri shell, branding, service, or runtime is bundled.

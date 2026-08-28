@@ -43,30 +43,6 @@ class SendMessageTool:
         return ToolResult(name="SendMessage", output={"success": True, "message": f"Message queued for {to}"})
 
 
-class RemoteTriggerTool:
-    def spec(self) -> ToolSpec:
-        return ToolSpec(
-            name="RemoteTrigger",
-            description="Trigger a remote action (not implemented).",
-            input_schema={"type": "object", "additionalProperties": True},
-            is_read_only=True,
-            max_result_size_chars=100_000,
-        )
-
-    def check_permissions(
-        self, tool_input: dict[str, Any], context: ToolContext
-    ) -> PermissionResult:
-        return maybe_ask_for_gated_tool(
-            context,
-            "RemoteTrigger",
-            "Trigger a remote action",
-            "Allow RemoteTrigger for the rest of this session",
-        )
-
-    def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
-        return ToolResult(name="RemoteTrigger", output={"error": "RemoteTrigger is not implemented"}, is_error=True)
-
-
 class PowerShellTool:
     def spec(self) -> ToolSpec:
         return ToolSpec(

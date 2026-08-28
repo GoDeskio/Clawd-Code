@@ -1,6 +1,6 @@
 # Jonathan Ai for Windows
 
-**Version 0.4.7** — Jonathan Ai adds durable long-horizon objectives, bounded turns, dependency-aware todos, cross-agent claims/leases, judgment gates, evidence receipts and handoffs to the existing standard upgrade-in-place wizard, while retaining the audited ECC catalog, native media/business/finance/engineering engines, event ledger, and earned-autonomy evidence profiles.
+**Version 0.4.8** — Jonathan Ai restores visible persisted replies, automatically recovers interrupted live response streams through job-event polling, and replaces the old remote-action placeholder with approval-gated SSH/SCP/WinRM operations that use existing OS credentials. The standard wizard still upgrades `%USERPROFILE%\Jonathan\Jonathan-Ai` in place and preserves conversations, configuration, user skills, media and project downloads.
 
 `JonathanAi.exe` looks for the app in this order: `CLAWD_SOURCE_DIR`, the exe folder, `%USERPROFILE%\Jonathan\Jonathan-Ai`, then the current working directory. A working `.venv` is enough to open the UI; Electron is optional. If a Desktop click still says it cannot find Electron or the venv, run `JonathanAi-Setup.exe` again — it upgrades that same `Jonathan-Ai` folder in place and rewrites shortcuts to `%USERPROFILE%\Jonathan\Jonathan-Ai\JonathanAi.exe`.
 
