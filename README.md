@@ -6,7 +6,7 @@
 
 **A local desktop and CLI agent, built as a Python reimplementation of Claude Code**
 
-**Version 0.4.8** — Jonathan Ai's conversation window now reliably renders persisted user and assistant messages. If Windows or the embedded browser aborts the live response stream, the UI automatically resumes from the bounded job-events endpoint and reloads the saved transcript at completion instead of silently losing the answer.
+**Version 0.4.9** — Jonathan Ai keeps its composer visible and writable, makes New Chat switch atomically to a genuinely empty session, and prevents stale background refreshes from restoring conversations removed from the sidebar. Packaged installs now monitor the allowlisted PR branch at startup and every six hours, then upgrade the existing folder with the standard installer and restart automatically.
 
 `RemoteTrigger` is now a real approval-gated remote-computer tool rather than a placeholder. It can probe an explicitly named host, execute commands through SSH or Windows Remote Management, and transfer files through SCP using existing OS credentials or SSH keys. It does not accept passwords in model input, defaults to strict SSH host-key verification, and cannot bypass the remote machine's authentication, ACL, firewall, UAC or sudo rules.
 
@@ -22,7 +22,7 @@ The Device & System card also shows an earned-autonomy profile for each conversa
 
 Tool execution is audit-gated: after policy and user approval, Jonathan writes a secret-redacted `started` record before invoking the tool and a second record with success, refusal, or failure. If the preflight audit cannot be persisted, the side effect does not run.
 
-The 0.4.8 shell uses a quiet, neutral desktop system: compact native typography, solid surfaces, low-decoration hierarchy, consistent radii, clear focus rings, semantic state colors, and reduced-motion support. It keeps the dense operational layout instead of applying oversized website spacing.
+The 0.4.9 shell uses a quiet, neutral desktop system: compact native typography, solid surfaces, low-decoration hierarchy, consistent radii, clear focus rings, semantic state colors, and reduced-motion support. It keeps the dense operational layout instead of applying oversized website spacing.
 
 Pydantic AI was evaluated for typed outputs, broad model adapters, durable execution, evaluations, and telemetry. Jonathan keeps its existing single runtime for this release; adding a second agent loop would duplicate session, permission, provider, and tool state. Its strongest capabilities remain candidates for narrow future adapters rather than a wholesale dependency.
 
@@ -30,7 +30,7 @@ The Workers control now offers **Fast**, **Balanced**, and **Verified** modes. V
 
 ### Media, 3D, and administrator tools
 
-- `ImageStudio`: create and convert PNG/JPEG/WebP/BMP/GIF/TIFF/PDF, add/remove text, inpaint, composite, crop, resize, rotate, flip, or call a configured OpenAI-compatible image endpoint.
+- `ImageStudio`: type `/image ...` or an explicit image request directly in conversation to generate locally with no cloud key, or attach an image and ask for a prompt-guided edit. Results persist inline with Preview and Download controls; if the selected download folder is unavailable, Jonathan safely publishes them from its private durable artifact store. It also creates and converts PNG/JPEG/WebP/BMP/GIF/TIFF/PDF, adds/removes text, inpaints, composites, crops, resizes, rotates, and flips.
 - `ThreeDStudio`: make colored GLB/GLTF/OBJ/STL/PLY assets locally; use Blender for textures, BLEND/FBX/USD, advanced conversion, and high-definition Eevee/Cycles renders. The common `MLB` typo is accepted and corrected to `.glb`.
 - `Artifact`: publish any file to the conversation download shelf, or safely ZIP a directory.
 - `SystemAdmin`: inventory, monitor, evaluate, report, control approved processes/services, and install approved packages. Every tool action is written to a secret-redacted audit ledger at `~/.clawd/audit/actions.jsonl`.
@@ -243,7 +243,7 @@ clawd desktop      # Start the desktop host
 
 The first-run wizard installs everything needed to run the desktop agent: it detects the OS, saves the full source tree under a **Jonathan** folder, creates a Python venv, installs backend and desktop-shell dependencies, writes provider config placeholders (no API keys), and verifies the agent can start a session.
 
-**Chat on first run with only a local model or one API key.** After install, Jonathan first discovers installed local runtimes and connects a reachable model automatically when no working provider exists. The installer prepares the built-in code memory, forecasting, engineering-gate, finance, editable-graphics, and long-horizon control engines; only the audited ECC catalog needs an optional online source sync. You can pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are omitted from provider requests until connected. Tokens stay on this machine. The product version is **0.4.8**.
+**Chat on first run with only a local model or one API key.** After install, Jonathan first discovers installed local runtimes and connects a reachable model automatically when no working provider exists. The installer prepares the built-in code memory, forecasting, engineering-gate, finance, editable-graphics, and long-horizon control engines; only the audited ECC catalog needs an optional online source sync. You can pick Anthropic / OpenAI / GLM / Hugging Face / Local LLM and send a message. MCP servers, Cursor, Codex, and other agents are optional — they are omitted from provider requests until connected. Tokens stay on this machine. The product version is **0.4.9**.
 
 **Windows (real desktop app):**
 
@@ -441,7 +441,7 @@ python -m src.desktop --port 8765
 
 This binds `http://127.0.0.1:8765/` only, serves the chat UI, and opens a browser. Use `--no-browser` in CI.
 
-The dashboard is a compact prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), clear chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.4.8** and the token meter (informational only). Conversations persist in the sidebar; New Chat is always empty. Shared memory is local only (`~/.clawd/memory`), while durable goal governance is stored under `~/.clawd/goals`. User-authored skills are visible under `Jonathan-Ai/Skills`; managed ECC content is stored below `Skills/.managed/ecc` and only enabled entries are loaded. Jonathan Ai is the agent — no second AI connection is required.
+The dashboard is a compact prompt UI: conversations on the left (title + last activity; **double-click or right-click to rename**), clear chat cards, and a monochrome + eye-glow palette matching the robot sketch. The header shows **v0.4.9** and the token meter (informational only). Conversations persist in the sidebar; New Chat is always empty. Shared memory is local only (`~/.clawd/memory`), while durable goal governance is stored under `~/.clawd/goals`. User-authored skills are visible under `Jonathan-Ai/Skills`; managed ECC content is stored below `Skills/.managed/ecc` and only enabled entries are loaded. Jonathan Ai is the agent — no second AI connection is required.
 
 **Option B — Electron desktop shell (tray, notifications, folder picker)**
 

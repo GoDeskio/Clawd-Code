@@ -253,7 +253,7 @@ function createWindow({ loading = false } = {}) {
     height: 840,
     minWidth: 880,
     minHeight: 600,
-    title: "Jonathan Ai 0.4.8",
+    title: "Jonathan Ai 0.4.9",
     backgroundColor: "#0b0c0f",
     show: true,
     autoHideMenuBar: true,
@@ -342,9 +342,62 @@ ipcMain.handle("clawd:notify", async (_event, { title, body }) => {
   return true;
 });
 
+ipcMain.handle("clawd:restartApp", async () => {
+  logRuntime("update_restart_requested");
+  app.relaunch({ execPath: process.execPath, args: process.argv.slice(1) });
+  app.isQuiting = true;
+  app.quit();
+  return true;
+});
+
+ipcMain.handle("clawd:installUpdate", async (_event, installerPath) => {
+  const updatesDir = path.resolve(os.homedir(), ".clawd", "updates");
+  const candidate = path.resolve(String(installerPath || ""));
+  const prefix = `${updatesDir}${path.sep}`.toLowerCase();
+  if (!candidate.toLowerCase().startsWith(prefix) || path.extname(candidate).toLowerCase() !== ".exe") {
+    throw new Error("Refusing installer outside Jonathan's update folder");
+  }
+  const header = fs.readFileSync(candidate).subarray(0, 2).toString("ascii");
+  if (header !== "MZ") throw new Error("Downloaded update is not a Windows executable");
+
+  const helper = path.join(updatesDir, `apply-${Date.now()}.ps1`);
+  const helperSource = `param(
+  [Parameter(Mandatory=$true)][string]$Installer,
+  [Parameter(Mandatory=$true)][string]$Root,
+  [Parameter(Mandatory=$true)][int]$ParentPid
+)
+$ErrorActionPreference = "Stop"
+$log = Join-Path ([Environment]::GetFolderPath("UserProfile")) ".clawd\\run\\update.log"
+try {
+  Add-Content -LiteralPath $log -Encoding utf8 -Value "$(Get-Date -Format o) waiting for Jonathan process $ParentPid"
+  Wait-Process -Id $ParentPid -Timeout 90 -ErrorAction SilentlyContinue
+  $installed = Start-Process -FilePath $Installer -ArgumentList @("/S", ("/D=" + $Root)) -WindowStyle Hidden -Wait -PassThru
+  Add-Content -LiteralPath $log -Encoding utf8 -Value "$(Get-Date -Format o) installer exit $($installed.ExitCode)"
+  if ($installed.ExitCode -eq 0) {
+    Start-Process -FilePath (Join-Path $Root "JonathanAi.exe") -WorkingDirectory $Root -WindowStyle Hidden
+  }
+} catch {
+  Add-Content -LiteralPath $log -Encoding utf8 -Value "$(Get-Date -Format o) update failed: $($_.Exception.Message)"
+}
+`;
+  fs.writeFileSync(helper, helperSource, "utf8");
+  const updater = spawn("powershell.exe", [
+    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", helper,
+    "-Installer", candidate, "-Root", ROOT, "-ParentPid", String(process.pid),
+  ], { detached: true, stdio: "ignore", windowsHide: true });
+  updater.unref();
+  logRuntime("installer_update_started", { installer: candidate, helper });
+  app.isQuiting = true;
+  setImmediate(() => app.quit());
+  return true;
+});
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
-  app.quit();
+  // Keep the handoff process alive past the native launcher's settle window.
+  // The existing instance has already received second-instance and focused;
+  // delaying this clean exit prevents older launchers from opening Chrome.
+  setTimeout(() => app.quit(), 2500);
 } else {
   app.on("second-instance", () => {
     if (mainWindow) {

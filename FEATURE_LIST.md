@@ -76,7 +76,7 @@
 | 工具执行网关 | ✅ | v0.4.6：允许的工具动作在执行副作用前写入脱敏 preflight 审计记录，完成/拒绝/失败后再写结果；preflight 无法持久化时关闭执行 |
 | 自托管服务操作 | ✅ | v0.4.7：持久注册 Docker/Podman Compose、Windows service 与 systemd；固定参数、无 shell 拼接；状态/log、LAN health、可下载 backup、审批后 start/stop/restart/update；配套可见 operator skill |
 | 远程电脑与服务器 | ✅ | v0.4.8：对明确主机执行审批门控的 SSH/WinRM 命令、SCP 上传/下载和 TCP 可达性检查；仅使用现有密钥/系统凭据，严格验证主机，无密码模型输入，不能绕过远端 ACL/UAC/sudo/防火墙 |
-| 桌面应用 | ✅ | v0.4.8：修复持久对话渲染；SSE 中断时自动切换到 job-event 轮询并在完成后重载保存的回答；Electron/浏览器壳 + 本地 Python host |
+| 桌面应用 | ✅ | v0.4.9：修复固定输入区、新建/删除对话竞态、安装日志、单实例启动与安装版自动更新；Electron/浏览器壳 + 本地 Python host |
 | 安装向导 | ✅ | Windows Setup exe 可见向导（Next/Install/Finish）+ Desktop/开始菜单快捷方式；默认源码目录 `~/Jonathan/Jonathan-Ai` |
 | 自更新 | ✅ | 仅从 GoDeskio/Clawd-Code 检查并快进更新 |
 

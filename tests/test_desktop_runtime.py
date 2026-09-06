@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from src.desktop.attachments import attach_clipboard_text, attach_path, image_source, render_attachments
-from src.desktop.runtime import DesktopRuntime, local_chat_route, provider_limit_hint
+from src.desktop.runtime import DesktopRuntime, direct_image_request, local_chat_route, provider_limit_hint
 from src.desktop.server import DesktopServer
 from src.providers.base import ChatResponse
 from src.tool_system.permissions import maybe_ask_for_gated_tool
@@ -296,6 +296,54 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertEqual(exported_text, "What color is this?")
         self.assertNotIn(str(staged_path), exported_text)
 
+    def test_explicit_image_prompt_runs_local_engine_without_chat_provider(self) -> None:
+        runtime = DesktopRuntime(workspace=self.workspace)
+        runtime.provider = None
+        artifact = {
+            "name": "generated.png", "id": "generated.png", "size": 123,
+            "is_image": True, "media_type": "image/png",
+            "view_url": "/api/artifacts/view?name=generated.png",
+            "download_url": "/api/artifacts/download?name=generated.png",
+        }
+        from src.tool_system.protocol import ToolResult
+
+        with patch("src.desktop.runtime.ImageStudioTool.run", return_value=ToolResult(
+            name="ImageStudio", output={"action": "generate", "artifact": artifact, "artifacts": [artifact]},
+        )) as run_image:
+            job = runtime.start_chat("/image a friendly blue robot in a workshop")
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1], timeout=5))
+        events, done = runtime.drain_events(job)
+        self.assertTrue(done)
+        self.assertEqual([event["type"] for event in events], ["job_started", "user", "tool_use", "tool_result", "done"])
+        tool_input = run_image.call_args.args[0]
+        self.assertEqual(tool_input["engine"], "local")
+        self.assertEqual((tool_input["width"], tool_input["height"]), (512, 512))
+        self.assertIn("friendly blue robot", tool_input["prompt"])
+        transcript = runtime.session.export_messages()
+        self.assertTrue(any(row["role"] == "assistant" and isinstance(row["content"], list) for row in transcript))
+        self.assertIn("ready to download", transcript[1]["content"].lower())
+
+    def test_uploaded_image_edit_prompt_uses_exact_staged_source(self) -> None:
+        from PIL import Image
+        from src.tool_system.protocol import ToolResult
+
+        runtime = self._runtime()
+        source = Path(self.tmp.name) / "source.png"
+        Image.new("RGB", (20, 20), "red").save(source)
+        staged = runtime.attach_files([{"kind": "file", "path": str(source)}], runtime.session.session_id)
+        with patch("src.desktop.runtime.ImageStudioTool.run", return_value=ToolResult(
+            name="ImageStudio", output={"action": "ai_edit", "artifacts": []},
+        )) as run_image:
+            job = runtime.start_chat("Please transform this image into a watercolor", attachments=staged)
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1], timeout=5))
+        tool_input = run_image.call_args.args[0]
+        self.assertEqual(tool_input["action"], "ai_edit")
+        self.assertEqual(tool_input["source"], staged[0]["path"])
+        runtime.provider.chat.assert_not_called()
+
+    def test_code_feature_request_is_not_misrouted_as_image_generation(self) -> None:
+        self.assertIsNone(direct_image_request("Fix the image generator feature in this application"))
+
     def test_uploaded_document_is_downloadable_and_backend_context_is_hidden(self) -> None:
         runtime = self._runtime()
         source = Path(self.tmp.name) / "brief.txt"
@@ -410,7 +458,7 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("ToolSearch", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.4.8")
+        self.assertEqual(runtime.status()["version"], "0.4.9")
         self.assertTrue(runtime.status()["standalone"])
 
     def test_local_chat_route_skips_tools_for_conversation_and_focuses_actions(self) -> None:
@@ -571,6 +619,28 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertTrue(artifact["name"].endswith(".zip"))
         self.assertTrue(runtime.resolve_artifact(artifact["id"]).exists())
         self.assertIn("/api/artifacts/download", artifact["download_url"])
+
+    def test_artifact_publish_falls_back_when_selected_location_is_not_writable(self) -> None:
+        runtime = self._runtime()
+        requested = Path(self.tmp.name) / "selected-projects"
+        fallback = Path(self.tmp.name) / "durable-fallback"
+        runtime.set_projects_dir(requested)
+        runtime._artifact_fallback_dir = fallback
+        source = self.workspace / "generated.png"
+        source.write_bytes(b"generated-image")
+        real_copy = __import__("shutil").copy2
+
+        def guarded_copy(src, dst, *args, **kwargs):
+            if Path(dst).parent == requested / "Jonathan Ai Downloads":
+                raise PermissionError("selected folder became read-only")
+            return real_copy(src, dst, *args, **kwargs)
+
+        with patch("src.desktop.runtime.shutil.copy2", side_effect=guarded_copy):
+            artifact = runtime._publish_artifact(source)
+
+        self.assertEqual(runtime.artifacts_dir, fallback)
+        self.assertTrue(runtime.resolve_artifact(artifact["id"]).is_file())
+        self.assertEqual(runtime.resolve_artifact(artifact["id"]).read_bytes(), b"generated-image")
 
     def test_conversation_agents_run_simultaneously_without_session_crossover(self) -> None:
         runtime = self._runtime()
@@ -759,7 +829,7 @@ class TestDesktopServer(DesktopTestCase):
         )
         ready = json.loads(urllib.request.urlopen(ready_req, timeout=2).read())
         self.assertTrue(ready["ok"])
-        self.assertEqual(ready["version"], "0.4.8")
+        self.assertEqual(ready["version"], "0.4.9")
 
     def test_static_ui_is_served(self) -> None:
         server = DesktopServer(DesktopRuntime(workspace=self.workspace), host="127.0.0.1", port=0)
@@ -774,7 +844,7 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.4.8", html)
+        self.assertIn("0.4.9", html)
         self.assertIn("session-menu", html)
         self.assertIn("working-robot", html)
         self.assertIn("preview-pane", html)

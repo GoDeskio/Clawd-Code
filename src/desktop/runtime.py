@@ -166,6 +166,39 @@ _LOCAL_ACTION_RE = re.compile(
     r"docx|pdf|png|jpe?g|webp|stl|obj|gltf|blend)\b)"
 )
 
+_DIRECT_IMAGE_NOUN_RE = re.compile(
+    r"(?i)\b(?:images?|pictures?|photos?|illustrations?|artworks?|graphics?|logos?|posters?|wallpapers?|icons?|portraits?)\b"
+)
+_DIRECT_IMAGE_CREATE_RE = re.compile(
+    r"(?i)\b(?:generate|create|make|draw|render|produce|design|paint)\b"
+)
+_DIRECT_IMAGE_EDIT_RE = re.compile(
+    r"(?i)^\s*(?:(?:please|kindly)\s+|(?:can|could|would)\s+you\s+)?"
+    r"(?:edit|modify|change|transform|restyle|recolor|retouch|enhance|remove|replace|add)\b"
+)
+_IMAGE_FEATURE_REQUEST_RE = re.compile(
+    r"(?i)\b(?:fix|build|implement|integrate|support|debug|wire|add)\b.*"
+    r"\b(?:image\s+(?:generator|generation|editor|editing)|image\s+(?:tool|feature|button|api)|codebase|application|app)\b"
+)
+
+
+def direct_image_request(text: str, attachments: list[Attachment] | None = None) -> tuple[str, str] | None:
+    """Recognize an explicit prompt-level image request without asking an LLM to route it."""
+    raw = str(text or "").strip()
+    images = [item for item in attachments or [] if item.is_image and item.path and not item.omitted]
+    if raw.lower() == "/image":
+        return "generate", ""
+    if raw.lower().startswith("/image "):
+        prompt = raw[7:].strip()
+        return ("ai_edit" if images else "generate", prompt) if prompt else None
+    if _IMAGE_FEATURE_REQUEST_RE.search(raw):
+        return None
+    wants_creation = bool(_DIRECT_IMAGE_CREATE_RE.search(raw) and _DIRECT_IMAGE_NOUN_RE.search(raw))
+    wants_edit = bool(images and _DIRECT_IMAGE_EDIT_RE.search(raw))
+    if not wants_creation and not wants_edit:
+        return None
+    return ("ai_edit" if images else "generate", raw)
+
 
 def local_chat_route(text: str, attachments: list[Attachment] | None = None) -> tuple[bool, set[str]]:
     """Return (lightweight, visible tools) for an OpenAI-compatible local model.
@@ -281,6 +314,8 @@ class DesktopRuntime:
         self.workspace.mkdir(parents=True, exist_ok=True)
         raw_projects = settings.get("projects_dir") or Path.home() / "Jonathan" / "Projects"
         self.projects_dir = Path(raw_projects).expanduser().resolve()
+        self._artifact_dir_override: Path | None = None
+        self._artifact_fallback_dir = (Path.home() / ".clawd" / "artifacts").resolve()
         ensure_learning_skill(source_dir=resolve_source_dir() or Path(__file__).resolve().parents[2])
         self.stream = stream
         self.permission_timeout_s = permission_timeout_s
@@ -1050,12 +1085,19 @@ class DesktopRuntime:
         if not projects_dir.is_dir():
             raise ValueError(f"project download location is not a directory: {projects_dir}")
         self.projects_dir = projects_dir
+        self._artifact_dir_override = None
         update_desktop_settings(projects_dir=str(projects_dir))
         return {"projects_dir": str(projects_dir), "artifacts": self.list_artifacts()}
 
     @property
     def artifacts_dir(self) -> Path:
-        return self.projects_dir / "Jonathan Ai Downloads"
+        return self._artifact_dir_override or (self.projects_dir / "Jonathan Ai Downloads")
+
+    def _fallback_artifacts_dir(self) -> Path:
+        """Keep generated work downloadable if a selected drive becomes unavailable."""
+        self._artifact_fallback_dir.mkdir(parents=True, exist_ok=True)
+        self._artifact_dir_override = self._artifact_fallback_dir
+        return self._artifact_fallback_dir
 
     def list_artifacts(self) -> list[dict[str, Any]]:
         root = self.artifacts_dir
@@ -1092,26 +1134,37 @@ class DesktopRuntime:
         path = Path(source).expanduser().resolve()
         if not path.exists():
             raise ValueError(f"generated file does not exist: {path}")
-        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         raw_name = preferred_name or path.name
         safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", raw_name).strip("-.") or "jonathan-artifact"
-        if path.is_dir():
-            if not safe_name.lower().endswith(".zip"):
-                safe_name += ".zip"
-            target = self.artifacts_dir / f"{stamp}-{safe_name}"
-            with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-                for current, dirs, names in os.walk(path):
-                    dirs[:] = [name for name in dirs if name not in {".git", ".venv", "node_modules", "__pycache__"}]
-                    for name in names:
-                        item = Path(current) / name
-                        archive.write(item, item.relative_to(path).as_posix())
-        else:
+        if path.is_dir() and not safe_name.lower().endswith(".zip"):
+            safe_name += ".zip"
+        elif path.is_file():
             suffix = path.suffix
             if suffix and not safe_name.lower().endswith(suffix.lower()):
                 safe_name += suffix
-            target = self.artifacts_dir / f"{stamp}-{safe_name}"
-            shutil.copy2(path, target)
+
+        def publish_into(root: Path) -> Path:
+            root.mkdir(parents=True, exist_ok=True)
+            target = root / f"{stamp}-{safe_name}"
+            if path.is_dir():
+                with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+                    for current, dirs, names in os.walk(path):
+                        dirs[:] = [name for name in dirs if name not in {".git", ".venv", "node_modules", "__pycache__"}]
+                        for name in names:
+                            item = Path(current) / name
+                            archive.write(item, item.relative_to(path).as_posix())
+            else:
+                shutil.copy2(path, target)
+            return target
+
+        try:
+            target = publish_into(self.artifacts_dir)
+        except PermissionError:
+            # Removable/network folders and corporate-controlled Downloads can
+            # become read-only after selection. The generation itself should
+            # still succeed, so publish to Jonathan's private durable store.
+            target = publish_into(self._fallback_artifacts_dir())
         return next(row for row in self.list_artifacts() if row["name"] == target.name)
 
     def _publish_session_artifact(
@@ -1701,6 +1754,7 @@ class DesktopRuntime:
             {"name": "/load", "description": "Load a session by id"},
             {"name": "/tools", "description": "List available tools"},
             {"name": "/skills", "description": "List available skills"},
+            {"name": "/image", "description": "Generate an image locally and show it in this conversation"},
         ]
         seen = {item["name"] for item in builtins}
         for cmd in self.command_registry.list_commands():
@@ -1822,7 +1876,7 @@ class DesktopRuntime:
         # Finish the deterministic setup error before returning. This avoids
         # leaving a pointless daemon thread racing shutdown/test cleanup when
         # no provider exists, while configured providers remain asynchronous.
-        if self.provider is None:
+        if self.provider is None and direct_image_request(text, parsed_attachments) is None:
             self._run_chat_job(job, agent, text, parsed_attachments)
             return job.job_id
         thread = threading.Thread(
@@ -2045,9 +2099,139 @@ class DesktopRuntime:
             answers[question_text] = label
         return answers
 
+    @staticmethod
+    def _record_user_turn(agent: AgentInstance, visible_text: str, provider_text: str,
+                          attachments: list[Attachment]) -> None:
+        image_blocks = []
+        attachment_blocks = []
+        for attachment in attachments:
+            if attachment.is_image and not attachment.omitted:
+                image_blocks.append(ImageContentBlock(source=image_source(attachment)))
+            elif attachment.path and Path(attachment.path).is_file():
+                stored_name = Path(attachment.path).name
+                query = f"session_id={agent.session.session_id}&name={stored_name}"
+                attachment_blocks.append(AttachmentContentBlock(
+                    name=attachment.name,
+                    download_url=f"/api/attachments/download?{query}",
+                    media_type=attachment.media_type or "application/octet-stream",
+                    size=attachment.size,
+                ))
+        if attachments:
+            agent.session.conversation.add_user_message([
+                TextContentBlock(text=provider_text, display_text=visible_text.strip()),
+                *image_blocks,
+                *attachment_blocks,
+            ])
+        else:
+            agent.session.conversation.add_user_message(provider_text)
+
+    def _run_direct_image_job(
+        self,
+        job: ChatJob,
+        agent: AgentInstance,
+        text: str,
+        attachments: list[Attachment],
+        action: str,
+        prompt: str,
+    ) -> None:
+        """Execute an explicit image prompt locally without provider routing or credentials."""
+        rendered = render_attachments(attachments)
+        provider_text = f"{text.strip()}\n\n{rendered}" if rendered else text.strip()
+        self._record_user_turn(agent, text, provider_text, attachments)
+        self._emit(job, {"type": "user", "text": text.strip(), "attachments": [a.to_dict() for a in attachments]})
+
+        lower = prompt.lower()
+        if any(word in lower for word in ("landscape", "wide", "widescreen", "banner")):
+            width, height = 768, 512
+        elif any(word in lower for word in ("portrait", "vertical", "phone wallpaper")):
+            width, height = 512, 768
+        else:
+            width = height = 512
+        tool_input: dict[str, Any] = {
+            "action": action,
+            "engine": "local",
+            "prompt": prompt,
+            "performance": "Speed" if action == "ai_edit" else "Extreme Speed",
+            "width": width,
+            "height": height,
+            "output": f"media/jonathan-image-{job.job_id[:12]}.png",
+        }
+        if action == "ai_edit":
+            source = next((item.path for item in attachments if item.is_image and item.path and not item.omitted), "")
+            if not source:
+                raise ValueError("Attach an image before asking Jonathan to edit it.")
+            tool_input["source"] = source
+
+        tool_use_id = f"direct-image-{job.job_id}"
+        self._emit(job, {
+            "type": "tool_use",
+            "tool_name": "ImageStudio",
+            "tool_input": tool_input,
+            "tool_use_id": tool_use_id,
+            "summary": "Generating image locally" if action == "generate" else "Editing uploaded image locally",
+        })
+        record_action({
+            "session_id": agent.session.session_id,
+            "tool": "ImageStudio",
+            "input": tool_input,
+            "permission": "explicit prompt image request",
+            "status": "started",
+        })
+        try:
+            result = ImageStudioTool().run(tool_input, agent.tool_context)
+        except Exception:
+            record_action({
+                "session_id": agent.session.session_id,
+                "tool": "ImageStudio",
+                "input": {"action": action},
+                "permission": "explicit prompt image request",
+                "status": "failed",
+            })
+            agent.session.save()
+            raise
+
+        output = result.output if isinstance(result.output, dict) else {"result": result.output}
+        artifacts = output.get("artifacts") or ([output["artifact"]] if output.get("artifact") else [])
+        for artifact in artifacts:
+            agent.session.record_artifact(artifact, caption="Generated image" if action == "generate" else "Edited image")
+        response = (
+            "Generated the image locally. It is shown below and ready to download."
+            if action == "generate"
+            else "Edited the uploaded image locally. The result is shown below and ready to download."
+        )
+        agent.session.conversation.add_assistant_message(response)
+        agent.session.save()
+        record_action({
+            "session_id": agent.session.session_id,
+            "tool": "ImageStudio",
+            "input": {"action": action},
+            "permission": "explicit prompt image request",
+            "status": "complete",
+        })
+        self._emit(job, {
+            "type": "tool_result",
+            "tool_name": "ImageStudio",
+            "tool_output": output,
+            "tool_use_id": tool_use_id,
+            "is_error": bool(result.is_error),
+            "summary": "Image ready to preview and download",
+        })
+        self._finish(job, {
+            "type": "done",
+            "text": response,
+            "usage": dict(agent.session.token_usage),
+            "turn_usage": empty_token_usage(),
+            "num_turns": 1,
+            "session": agent.session.to_summary(),
+        })
+
     def _run_chat_job(self, job: ChatJob, agent: AgentInstance, text: str, attachments: list[Attachment]) -> None:
         try:
             self._emit(job, {"type": "job_started", "text": text})
+            image_request = direct_image_request(text, attachments)
+            if image_request is not None:
+                self._run_direct_image_job(job, agent, text, attachments, *image_request)
+                return
             if self.provider is None:
                 self._finish(job, {
                     "type": "error",
@@ -2093,28 +2277,7 @@ class DesktopRuntime:
                 if handled:
                     return
 
-            image_blocks = []
-            attachment_blocks = []
-            for attachment in attachments:
-                if attachment.is_image and not attachment.omitted:
-                    image_blocks.append(ImageContentBlock(source=image_source(attachment)))
-                elif attachment.path and Path(attachment.path).is_file():
-                    stored_name = Path(attachment.path).name
-                    query = f"session_id={agent.session.session_id}&name={stored_name}"
-                    attachment_blocks.append(AttachmentContentBlock(
-                        name=attachment.name,
-                        download_url=f"/api/attachments/download?{query}",
-                        media_type=attachment.media_type or "application/octet-stream",
-                        size=attachment.size,
-                    ))
-            if attachments:
-                agent.session.conversation.add_user_message([
-                    TextContentBlock(text=combined, display_text=text.strip()),
-                    *image_blocks,
-                    *attachment_blocks,
-                ])
-            else:
-                agent.session.conversation.add_user_message(combined)
+            self._record_user_turn(agent, text, combined, attachments)
             self._emit(job, {"type": "user", "text": combined, "attachments": [a.to_dict() for a in attachments]})
 
             def on_event(ev: ToolEvent) -> None:

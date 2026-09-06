@@ -54,7 +54,7 @@ class TestBootstrap(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertEqual(result["pip"], "ok")
             pip.assert_not_called()
-            self.assertTrue(runtime_ready_marker(root, "0.4.8").is_file())
+            self.assertTrue(runtime_ready_marker(root, "0.4.9").is_file())
             self.assertTrue(runtime_ready_marker(root, "0.4.6").is_file())
 
     def test_installs_pip_when_imports_missing(self) -> None:

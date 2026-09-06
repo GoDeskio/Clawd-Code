@@ -6,7 +6,7 @@
 #define MyAppExe "JonathanAi.exe"
 #define MyAppPublisher "GoDeskio"
 #define MyAppURL "https://github.com/GoDeskio/Clawd-Code"
-#define MyAppVersion "0.4.8"
+#define MyAppVersion "0.4.9"
 
 [Setup]
 AppId={{C8E2A4B1-0F31-4E77-9A44-7B2E91C0D801}

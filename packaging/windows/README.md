@@ -1,6 +1,6 @@
 # Jonathan Ai for Windows
 
-**Version 0.4.8** — Jonathan Ai restores visible persisted replies, automatically recovers interrupted live response streams through job-event polling, and replaces the old remote-action placeholder with approval-gated SSH/SCP/WinRM operations that use existing OS credentials. The standard wizard still upgrades `%USERPROFILE%\Jonathan\Jonathan-Ai` in place and preserves conversations, configuration, user skills, media and project downloads.
+**Version 0.4.9** — Jonathan Ai keeps the composer inside the desktop viewport, makes New Chat immediately writable, prevents stale refreshes from restoring removed conversations, records installer failures, and automatically applies newer installers from the allowlisted PR branch. The standard wizard upgrades `%USERPROFILE%\Jonathan\Jonathan-Ai` in place and preserves conversations, configuration, user skills, media and project downloads.
 
 `JonathanAi.exe` looks for the app in this order: `CLAWD_SOURCE_DIR`, the exe folder, `%USERPROFILE%\Jonathan\Jonathan-Ai`, then the current working directory. A working `.venv` is enough to open the UI; Electron is optional. If a Desktop click still says it cannot find Electron or the venv, run `JonathanAi-Setup.exe` again — it upgrades that same `Jonathan-Ai` folder in place and rewrites shortcuts to `%USERPROFILE%\Jonathan\Jonathan-Ai\JonathanAi.exe`.
 

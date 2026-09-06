@@ -21,6 +21,10 @@ const state = {
   agentProfiles: [],
   librarySkills: [],
   selectedSkill: null,
+  sessionsRequestId: 0,
+  creatingSession: false,
+  updateInProgress: false,
+  removingSessions: new Set(),
 };
 
 const $ = (id) => document.getElementById(id);
@@ -318,7 +322,7 @@ async function refreshStatus() {
   $("model-line").textContent = `${state.status.provider} · ${model}`;
   $("chat-title").textContent = state.status.session?.title || "New chat";
   if ($("app-version")) {
-    const ver = state.status.version || "0.4.8";
+    const ver = state.status.version || "0.4.9";
     $("app-version").textContent = `v${ver} · standalone`;
     document.title = `Jonathan Ai ${ver}`;
   }
@@ -525,9 +529,12 @@ function startInlineRename(session) {
 }
 
 async function refreshSessions() {
+  const requestId = ++state.sessionsRequestId;
   const data = await api("/api/sessions");
-  state.sessions = data.sessions || [];
+  if (requestId !== state.sessionsRequestId) return;
+  state.sessions = (data.sessions || []).filter((session) => !state.removingSessions.has(session.session_id));
   const current = data.current?.session_id;
+  state.currentSessionId = current || state.currentSessionId;
   const list = $("session-list");
   list.innerHTML = "";
   for (const session of state.sessions) {
@@ -589,7 +596,55 @@ async function refreshSessions() {
   await refreshInstances();
 }
 
+async function applyAvailableUpdate({ automatic = false } = {}) {
+  if (state.updateInProgress) return;
+  state.updateInProgress = true;
+  const node = $("update-status");
+  const button = $("apply-update");
+  if (button) button.disabled = true;
+  node.textContent = automatic ? "Downloading automatic update…" : "Downloading update…";
+  try {
+    const result = await api("/api/update/apply", { method: "POST", body: "{}" });
+    if (!result.restart_required) {
+      node.textContent = "Up to date";
+      button?.classList.add("hidden");
+      return;
+    }
+    if (result.installer_path) {
+      node.textContent = "Update ready — restarting installer…";
+      if (!native?.installUpdate) {
+        throw new Error(`Update downloaded to ${result.installer_path}; restart from the desktop app to install it.`);
+      }
+      await native.installUpdate(result.installer_path);
+      return;
+    }
+    node.textContent = "Updated — restarting Jonathan Ai…";
+    if (native?.restartApp) await native.restartApp();
+    else node.textContent = "Updated — restart Jonathan Ai to finish";
+  } catch (err) {
+    node.textContent = `Update failed: ${err.message}`;
+    if (button) button.classList.remove("hidden");
+  } finally {
+    state.updateInProgress = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function checkForUpdates({ automatic = true } = {}) {
+  if (state.updateInProgress) return;
+  try {
+    const update = await api("/api/update/check", { method: "POST", body: "{}" });
+    renderUpdate(update);
+    if (automatic && update.update_available) {
+      await applyAvailableUpdate({ automatic: true });
+    }
+  } catch (err) {
+    renderUpdate({ error: err.message || "offline" });
+  }
+}
+
 async function loadAgentSession(sessionId) {
+  state.sessionsRequestId += 1;
   const loaded = await api("/api/sessions/load", {
     method: "POST",
     body: JSON.stringify({ session_id: sessionId }),
@@ -1384,7 +1439,7 @@ function watchJob(jobId, sessionId) {
       }
       if (visible && event.type === "tool_use") {
         const labels = {
-          imagestudio: "Editing image…",
+          imagestudio: "Generating or editing image…",
           visionanalyze: "Analyzing image…",
           fooocus: "Generating image…",
           read: "Reading file…",
@@ -1628,13 +1683,32 @@ function bindUi() {
     else $("slash-palette").classList.add("hidden");
   });
   $("new-chat").addEventListener("click", async () => {
-    const created = await api("/api/sessions", { method: "POST" });
-    renderTranscript(created.messages || []);
-    await refreshStatus();
-    await refreshSessions();
-    $("chat-title").textContent = created.title || "New chat";
-    $("prompt").value = "";
-    $("prompt").focus();
+    if (state.creatingSession) return;
+    state.creatingSession = true;
+    const button = $("new-chat");
+    button.disabled = true;
+    try {
+      state.sessionsRequestId += 1;
+      const created = await api("/api/sessions", { method: "POST" });
+      // Bind the new session before any secondary refresh so an immediate
+      // Enter/send always lands in the empty conversation just created.
+      state.currentSessionId = created.session_id;
+      state.attachments = [];
+      renderAttachments();
+      renderTranscript(created.messages || []);
+      $("chat-title").textContent = created.title || "New chat";
+      $("prompt").value = "";
+      $("prompt").disabled = false;
+      $("prompt").focus();
+      await Promise.all([refreshStatus(), refreshSessions()]);
+      updateBusyUi();
+      $("prompt").focus();
+    } catch (err) {
+      addBubble("system", `Could not start a new chat: ${err.message}`);
+    } finally {
+      state.creatingSession = false;
+      button.disabled = false;
+    }
   });
   $("session-menu-rename").addEventListener("click", () => {
     const session = state.sessions.find((item) => item.session_id === state.menuSessionId);
@@ -1647,13 +1721,25 @@ function bindUi() {
     hideSessionMenu();
     if (!sessionId) return;
     if (!window.confirm(`Remove “${session?.title || "this conversation"}” from the sidebar? Its full history stays in persistent memory.`)) return;
-    const result = await api("/api/sessions/remove", {
-      method: "POST",
-      body: JSON.stringify({ session_id: sessionId }),
-    });
-    if (Array.isArray(result.messages)) renderTranscript(result.messages);
-    await refreshStatus();
-    await refreshSessions();
+    state.sessionsRequestId += 1;
+    state.removingSessions.add(sessionId);
+    state.sessions = state.sessions.filter((item) => item.session_id !== sessionId);
+    const row = $("session-list")?.querySelector(`[data-session-id="${CSS.escape(sessionId)}"]`);
+    row?.remove();
+    try {
+      const result = await api("/api/sessions/remove", {
+        method: "POST",
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      if (result.session?.session_id) state.currentSessionId = result.session.session_id;
+      if (Array.isArray(result.messages)) renderTranscript(result.messages);
+      await Promise.all([refreshStatus(), refreshSessions()]);
+    } catch (err) {
+      addBubble("system", `Could not remove the conversation: ${err.message}`);
+    } finally {
+      state.removingSessions.delete(sessionId);
+      await refreshSessions().catch(() => {});
+    }
   });
   document.addEventListener("click", (event) => {
     if (!$("session-menu")?.contains(event.target)) hideSessionMenu();
@@ -1740,14 +1826,7 @@ function bindUi() {
     }
   });
   $("apply-update").addEventListener("click", async () => {
-    $("update-status").textContent = "Updating from GoDeskio/Clawd-Code…";
-    try {
-      const result = await api("/api/update/apply", { method: "POST", body: "{}" });
-      $("update-status").textContent = `Updated · ${(result.sha || "").slice(0, 7)} — restart the app`;
-      $("apply-update").classList.add("hidden");
-    } catch (err) {
-      $("update-status").textContent = err.message;
-    }
+    await applyAvailableUpdate({ automatic: false });
   });
   $("open-settings").addEventListener("click", () => $("settings-modal").classList.remove("hidden"));
   $("settings-close").addEventListener("click", () => $("settings-modal").classList.add("hidden"));
@@ -2404,12 +2483,7 @@ async function boot() {
     $("transcript").innerHTML = "";
   }
   addBubble("system", "Jonathan Ai is the agent. Chats persist on this machine. New chat starts empty. Shared memory is local only.");
-  try {
-    const update = await api("/api/update/check", { method: "POST", body: "{}" });
-    renderUpdate(update);
-  } catch (_err) {
-    renderUpdate({ error: "offline" });
-  }
+  await checkForUpdates({ automatic: true });
   let voiceRecorder = null;
   let voiceStream = null;
   let voiceChunks = [];
@@ -2448,6 +2522,7 @@ async function boot() {
     if (state.renamingId) refreshInstances().catch(() => {});
     else refreshSessions().catch(() => {});
   }, 1800);
+  window.setInterval(() => checkForUpdates({ automatic: true }).catch(() => {}), 6 * 60 * 60 * 1000);
 }
 
 boot().catch((err) => addBubble("system", err.message));

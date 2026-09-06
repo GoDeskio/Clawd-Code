@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.9] - 2026-09-05
+
+- Fixed the desktop viewport contract so long conversation sidebars scroll internally and the composer remains visible, focusable, and writable at every supported window size.
+- Serialized New Chat creation and invalidated stale session-list requests so immediate prompts target the new empty conversation and removed conversations cannot reappear from an older periodic response. Removed histories remain available to shared persistent memory as designed.
+- Fixed native single-instance launch detection so reopening Jonathan focuses Electron without spawning an unwanted Python/browser fallback.
+- Made Windows setup upgrades deterministic in place, removed same-folder source copying and premature relaunch, added a durable UTF-8 dependency transcript at `.cache/install/latest.log`, and surfaced that path on installer failure.
+- Added production self-update support for packaged installs: Jonathan checks the allowlisted PR branch at startup and every six hours, downloads and validates its standard installer when a newer version exists, exits cleanly, upgrades the existing folder silently, and restarts. Clean developer checkouts retain fast-forward-only Git updates and `origin/main` is never merged.
+- Added deterministic prompt-level local image generation and uploaded-image editing. `/image ...` and explicit image requests now bypass cloud credentials and model tool-routing, use CPU-safe fast defaults, and persist inline previews plus downloadable artifacts in the conversation. If a selected project-download drive becomes unavailable or read-only, completed media automatically falls back to Jonathan's durable private artifact store instead of disappearing.
+- Added regression coverage for the repaired desktop/session/update contracts and updated all version, installer, documentation, and test surfaces for 0.4.9.
+
 ## [0.4.8] - 2026-08-27
 
 - Fixed the desktop startup failure that left the conversation window blank or displayed `escapeHtml is not defined`. The shared escaping primitive is restored, persisted user/assistant messages render again, and Markdown, engine-status, image, attachment and artifact rendering retain HTML escaping.

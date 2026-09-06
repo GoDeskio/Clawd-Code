@@ -321,13 +321,8 @@ class TestUpdater(unittest.TestCase):
                     return subprocess.CompletedProcess(["git", *args], 0, f"origin\t{CANONICAL_HTTPS} (fetch)\n", "")
                 return subprocess.CompletedProcess(["git", *args], 0, "", "")
 
-            with patch("src.update.updater._git", side_effect=fake_git), patch(
-                "src.update.updater.fetch_repo_status", return_value={
-                    "sha": "mainsha",
-                    "default_branch": "main",
-                    "release_tag": "",
-                    "html_url": "https://github.com/GoDeskio/Clawd-Code",
-                }
+            with patch("src.update.updater._git", side_effect=fake_git), patch.object(
+                updater, "remote_version", return_value="0.4.9"
             ):
                 status = updater.status(refresh=True)
             self.assertTrue(status["update_available"])
@@ -352,6 +347,39 @@ class TestUpdater(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 updater.apply(allow_dirty=True)
             self.assertEqual((repo / "dirty.txt").read_text(encoding="utf-8"), "must survive\n")
+
+    def test_packaged_dirty_tree_uses_allowlisted_installer_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            (repo / "JonathanAi.exe").write_bytes(b"MZpackaged")
+            (repo / "VERSION").write_text("0.4.8\n", encoding="utf-8")
+            (repo / "installed.txt").write_text("installer-owned overlay\n", encoding="utf-8")
+            updater = Updater(repo)
+            checked = {
+                "update_available": True,
+                "apply_mode": "installer",
+                "remote_version": "0.4.9",
+            }
+            expected = {"ok": True, "installer_path": "update.exe", "restart_required": True}
+            with patch.object(updater, "status", return_value=checked), patch.object(
+                updater, "_download_installer", return_value=expected
+            ) as download:
+                result = updater.apply()
+            self.assertEqual(result, expected)
+            download.assert_called_once_with("0.4.9")
+
+    def test_packaged_status_ignores_stale_git_when_version_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            (repo / "JonathanAi.exe").write_bytes(b"MZpackaged")
+            (repo / "VERSION").write_text("0.4.9\n", encoding="utf-8")
+            (repo / "installed.txt").write_text("overlay\n", encoding="utf-8")
+            updater = Updater(repo)
+            with patch.object(updater, "remote_version", return_value="0.4.9"):
+                status = updater.status(refresh=True)
+            self.assertFalse(status["update_available"])
+            self.assertEqual(status["apply_mode"], "installer")
+            self.assertTrue(status["dirty"])
 
     def test_install_record_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

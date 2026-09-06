@@ -6,7 +6,7 @@ RequestExecutionLevel user
 SetCompressor zlib
 
 !define PRODUCT_NAME "Jonathan Ai"
-!define PRODUCT_VERSION "0.4.8"
+!define PRODUCT_VERSION "0.4.9"
 !define PRODUCT_PUBLISHER "GoDeskio"
 !define PRODUCT_WEB "https://github.com/GoDeskio/Clawd-Code"
 !define PRODUCT_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\JonathanAi"
@@ -49,7 +49,7 @@ Section "Jonathan Ai" MainSection
 
   ; Ship a complete source payload. Heavy generated/runtime folders remain in
   ; place during upgrades and are repaired by install.ps1 when needed.
-  File /r /x ".git" /x ".venv" /x "node_modules" /x "Skills" /x "__pycache__" /x "*.pyc" /x ".pytest_cache" /x "dist" /x "build" /x "upstream" /x "Fooocus" /x "Fooocus-outputs" /x ".image-models" /x "python-runtimes" /x ".fooocus-venv" /x ".kronos-venv" /x ".uv-cache" /x ".pip-cache" /x ".fooocus-cache" /x ".kronos-cache" /x "ECC" /x "Kronos" /x "Securo" /x "electron" /x "media" /x "pong" /x "mech_robot_*.png" /x "JonathanAi-Setup.exe" /x "JonathanAi.exe.new" /x ".jonathan-ai-processes.json" /x ".jonathan-ai-runtime-*.ready" "..\..\*.*"
+  File /r /x ".git" /x ".venv" /x "node_modules" /x "Skills" /x "__pycache__" /x "*.pyc" /x ".pytest_cache" /x ".clawd" /x ".port_sessions" /x "dist" /x "build" /x "upstream" /x "Fooocus" /x "Fooocus-outputs" /x ".image-models" /x "python-runtimes" /x ".fooocus-venv" /x ".kronos-venv" /x ".uv-cache" /x ".pip-cache" /x ".fooocus-cache" /x ".kronos-cache" /x "ECC" /x "Kronos" /x "Securo" /x "electron" /x "media" /x "pong" /x "mech_robot_*.png" /x "JonathanAi-Setup.exe" /x "JonathanAi-*-source.zip" /x "JonathanAi.exe.new" /x ".jonathan-ai-processes.json" /x ".jonathan-ai-runtime-*.ready" "..\..\*.*"
   File /oname=JonathanAi.exe "bin\JonathanAi.exe"
   File /oname=jonathan-ai.ico "jonathan-ai.ico"
   CreateDirectory "$INSTDIR\Skills"
@@ -60,8 +60,12 @@ Section "Jonathan Ai" MainSection
   Pop $0
   System::Call 'Kernel32::SetEnvironmentVariable(t, t) i("CLAWD_INSTALL_DIR", "").r0'
   ${If} $0 != 0
-    MessageBox MB_ICONSTOP|MB_OK "Dependency installation failed with exit code $0. Review the setup details, then run this installer again."
+    IfSilent silentDependencyFailure
+    MessageBox MB_ICONSTOP|MB_OK "Dependency installation failed with exit code $0.$\r$\n$\r$\nThe complete repair log is at:$\r$\n$INSTDIR\.cache\install\latest.log$\r$\n$\r$\nRun this installer again after reviewing that log."
     Abort
+    silentDependencyFailure:
+    SetErrorLevel $0
+    Quit
   ${EndIf}
 
   WriteUninstaller "$INSTDIR\Uninstall-JonathanAi.exe"

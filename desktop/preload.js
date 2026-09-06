@@ -15,4 +15,6 @@ contextBridge.exposeInMainWorld("clawdDesktop", {
   readClipboardText: () => ipcRenderer.invoke("clawd:readClipboardText"),
   captureScreenshot: () => ipcRenderer.invoke("clawd:captureScreenshot"),
   notify: (title, body) => ipcRenderer.invoke("clawd:notify", { title, body }),
+  installUpdate: (installerPath) => ipcRenderer.invoke("clawd:installUpdate", installerPath),
+  restartApp: () => ipcRenderer.invoke("clawd:restartApp"),
 });

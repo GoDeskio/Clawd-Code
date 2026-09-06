@@ -142,7 +142,10 @@ static BOOL start_process_checked(const wchar_t *exe, const wchar_t *args, const
         GetExitCodeProcess(pi.hProcess, &code);
     }
     CloseHandle(pi.hProcess);
-    return code == STILL_ACTIVE;
+    /* A second Electron process exits cleanly after handing focus to the
+       existing single-instance window. Treat exit code 0 as success so the
+       launcher does not also start the browser fallback. */
+    return code == STILL_ACTIVE || code == 0;
 }
 
 static int start_electron(const wchar_t *root) {
