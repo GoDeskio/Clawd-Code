@@ -13,9 +13,10 @@ from src.config import get_default_config, load_config, save_config
 from src.providers import PROVIDER_INFO
 
 from .constants import CANONICAL_HTTPS
-from .deps import install_desktop_deps, install_python_deps
+from .deps import install_blender_dep, install_code_memory_dep, install_desktop_deps, install_drawai_dep, install_ecc_dep, install_fooocus_dep, install_kronos_dep, install_personal_finance_dep, install_procoder_dep, install_python_deps
 from .python_env import detect_os, ensure_venv, find_system_python
 from .record import write_install_record
+from .runtime_process import stop_running_app
 from .app_root import discover_existing_install
 from .source import current_branch, current_commit, materialize_source
 from .verify import verify_agent_session
@@ -158,8 +159,15 @@ class InstallWizard:
         skip_desktop_deps: bool,
         clone: bool,
     ) -> None:
+        restart_after_install = False
+        dest = Path(source_dir).expanduser() if source_dir else discover_existing_install()
         try:
-            dest = Path(source_dir).expanduser() if source_dir else discover_existing_install()
+            process_state = stop_running_app(dest)
+            restart_after_install = bool(process_state.get("was_running"))
+            if restart_after_install and not process_state.get("stopped"):
+                raise RuntimeError("Jonathan Ai is running and could not be stopped for an in-place upgrade")
+            if restart_after_install:
+                self._emit(job, {"type": "step", "id": "restart", "message": "Stopped the running app for an in-place upgrade"})
             self._emit(job, {"type": "step", "id": "os", "message": f"Detected {detect_os()['platform']}"})
             self._emit(job, {"type": "step", "id": "python", "message": "Locating Python 3.10+"})
             python = find_system_python()
@@ -184,12 +192,26 @@ class InstallWizard:
                 self._emit(job, {"type": "step", "id": "deps", "message": message})
 
             install_python_deps(venv, tree, retry=3, progress=pip_progress)
+            blender_status = install_blender_dep(venv, tree, progress=pip_progress)
+            fooocus_status = install_fooocus_dep(tree, progress=pip_progress)
             desktop_status = "skipped"
             if not skip_desktop_deps:
                 desktop_status = install_desktop_deps(tree, retry=3, progress=pip_progress)
+                if desktop_status == "failed":
+                    raise RuntimeError("Electron desktop dependencies could not be installed")
 
             self._emit(job, {"type": "step", "id": "config", "message": "Writing provider placeholders (no API keys)"})
             write_provider_placeholders()
+            from src.skills.library import ensure_learning_skill
+
+            ensure_learning_skill(source_dir=tree)
+            self._emit(job, {"type": "step", "id": "skills", "message": f"Shared skill library ready at {tree / 'Skills'}"})
+            ecc_status = install_ecc_dep(tree, progress=pip_progress)
+            kronos_status = install_kronos_dep(tree, progress=pip_progress)
+            personal_finance_status = install_personal_finance_dep(tree, progress=pip_progress)
+            code_memory_status = install_code_memory_dep(tree, progress=pip_progress)
+            procoder_status = install_procoder_dep(tree, progress=pip_progress)
+            drawai_status = install_drawai_dep(tree, progress=pip_progress)
 
             self._emit(job, {"type": "step", "id": "verify", "message": "Verifying the agent can start a session"})
             verification = verify_agent_session(tree, python_path=venv)
@@ -205,10 +227,19 @@ class InstallWizard:
                 "venv_python": str(venv),
                 "repo": CANONICAL_HTTPS,
                 "desktop_deps": desktop_status,
+                "blender": blender_status,
+                "fooocus": fooocus_status,
+                "ecc": ecc_status,
+                "kronos": kronos_status,
+                "personal_finance": personal_finance_status,
+                "code_memory": code_memory_status,
+                "procoder": procoder_status,
+                "drawai": drawai_status,
                 "launchers": launchers,
                 "verification": verification,
                 "commit": commit,
                 "branch": branch,
+                "restart_required": restart_after_install,
             }
             job.result = result
             self._emit(job, {"type": "done", **result})
@@ -216,6 +247,13 @@ class InstallWizard:
                 job.done = True
                 job.condition.notify_all()
         except Exception as exc:
+            if restart_after_install:
+                try:
+                    from .launch import launch_jonathan_ai
+
+                    launch_jonathan_ai(dest)
+                except Exception:
+                    pass
             job.error = str(exc)
             self._emit(job, {"type": "error", "error": str(exc)})
             with job.condition:

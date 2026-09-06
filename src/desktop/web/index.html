@@ -15,7 +15,7 @@
         <img src="/robot.png" alt="Jonathan Ai robot" width="48" height="48" />
         <div>
           <strong>Jonathan Ai</strong>
-          <span class="muted" id="app-version">v0.2.8 · standalone</span>
+          <span class="muted" id="app-version">v0.4.9 · standalone</span>
         </div>
       </div>
       <button id="new-chat" class="primary">New chat</button>
@@ -32,14 +32,24 @@
         </div>
         <p id="git-line" class="muted"></p>
       </div>
+      <div class="workspace-card">
+        <div class="label">Project downloads</div>
+        <div id="projects-path" class="path" title="">—</div>
+        <button id="pick-projects" class="ghost">Choose location</button>
+      </div>
       <div class="section-title">Conversations</div>
-      <p class="muted sidebar-hint">Double-click or right-click to rename. Titles stay with the session.</p>
+      <p class="muted sidebar-hint">Double-click to rename. Right-click to rename or remove; removed history stays in memory.</p>
       <nav id="session-list" class="session-list" aria-label="Conversation list"></nav>
       <div id="session-menu" class="context-menu hidden" role="menu">
         <button id="session-menu-rename" type="button" role="menuitem">Rename</button>
+        <button id="session-menu-remove" class="danger-action" type="button" role="menuitem">Remove from sidebar</button>
       </div>
       <div class="sidebar-foot">
-        <button id="open-connectors" class="ghost">Git &amp; agents</button>
+        <button id="open-search" class="ghost">Search memory</button>
+        <button id="open-agent-hub" class="ghost">Named agents</button>
+        <button id="open-skills" class="ghost">Skills library</button>
+        <button id="open-doctor" class="ghost">System check</button>
+        <button id="open-connectors" class="ghost">Connect tools</button>
         <button id="open-settings" class="ghost">Provider &amp; model</button>
       </div>
     </aside>
@@ -54,6 +64,10 @@
         <div class="top-actions">
           <span id="update-status" class="muted">Checking updates…</span>
           <button id="apply-update" class="ghost hidden">Update now</button>
+          <button id="toggle-preview" class="ghost">Preview</button>
+          <button id="package-project" class="ghost">Package project</button>
+          <button id="undo-turn" class="ghost" title="Undo the last completed turn; a recovery checkpoint is kept">Undo</button>
+          <button id="retry-turn" class="ghost" title="Retry the last prompt from a clean checkpoint">Retry</button>
           <button id="save-session" class="ghost">Save</button>
         </div>
       </header>
@@ -82,13 +96,38 @@
             <button id="attach-files" class="ghost" title="Attach files">Attach</button>
             <button id="attach-clipboard" class="ghost" title="Attach current clipboard text">Clipboard</button>
             <button id="attach-screenshot" class="ghost hidden" title="Capture the current screen">Screenshot</button>
+            <button id="voice-record" class="ghost" title="Start or stop a user-initiated microphone recording">Voice</button>
             <input id="file-input" type="file" multiple hidden />
           </div>
-          <button id="workers" class="ghost" title="Plan this into isolated internal workers">Workers</button>
+          <div class="row worker-controls"><select id="worker-mode" aria-label="Worker verification mode" title="Fast uses fewer workers; Verified adds an independent final review"><option value="fast">Fast</option><option value="balanced" selected>Balanced</option><option value="verified">Verified</option></select><button id="workers" class="ghost" title="Plan this into isolated internal workers">Workers</button></div>
           <button id="send" class="primary">Send</button>
         </div>
       </footer>
+
+      <div id="working-robot" class="working-robot hidden" aria-live="polite">
+        <img src="/robot.png" alt="Jonathan Ai is working" />
+        <span id="working-progress">Working…</span>
+      </div>
+      <div class="section-title">Agent instances</div>
+      <p class="muted sidebar-hint">Each conversation runs independently. Select an instance to cross-view it.</p>
+      <div id="instance-list" class="instance-list"></div>
     </main>
+
+    <aside id="preview-pane" class="preview-pane hidden">
+      <header class="preview-head">
+        <div><strong>Project preview</strong><div id="preview-path" class="muted">Workspace</div></div>
+        <div class="row">
+          <button id="refresh-preview" class="ghost">Refresh</button>
+          <button id="close-preview" class="ghost" aria-label="Close preview">×</button>
+        </div>
+      </header>
+      <iframe id="preview-frame" class="preview-frame hidden" title="Project preview" sandbox="allow-scripts allow-forms allow-downloads allow-same-origin allow-popups"></iframe>
+      <div id="preview-empty" class="preview-empty muted">No previewable index.html yet. The project file list will update as Jonathan works.</div>
+      <div class="section-title">Project files</div>
+      <div id="preview-files" class="preview-files"></div>
+      <div class="section-title">Downloads</div>
+      <div id="artifact-list" class="artifact-list"></div>
+    </aside>
   </div>
 
   <div id="setup-modal" class="modal hidden">
@@ -172,101 +211,267 @@
   </div>
 
   <div id="connectors-modal" class="modal hidden">
-    <div class="dialog wide">
-      <h2>Git &amp; other agents</h2>
-      <p class="muted">Optional. Jonathan Ai chats on its own. Connect MCP or another agent only if you already run one. Tokens stay in <code>~/.clawd/config.json</code>. Jonathan Ai never pushes <code>main</code>/<code>master</code> unless you name that branch. Default GitHub owner is <code>GoDeskio</code>.</p>
+    <div class="dialog wide connector-dialog">
+      <div class="connector-titlebar">
+        <div><h2>Connect tools</h2><p class="muted">Choose a small card, then complete only that connection’s requirements.</p></div>
+        <button id="connectors-close" class="icon-button" type="button" aria-label="Close connectors">×</button>
+      </div>
+      <div id="connector-dashboard" class="connector-grid">
+        <button class="connector-card" data-panel="images"><span class="connector-icon">✦</span><strong>Image Studio</strong><small>Generate, inspect and edit</small><span id="card-images-state" class="card-state">Local editor ready</span></button>
+        <button class="connector-card" data-panel="fooocus"><span class="connector-icon">FX</span><strong>Local diffusion</strong><small>Jonathan image engine</small><span id="card-fooocus-state" class="card-state">Checking…</span></button>
+        <button class="connector-card" data-panel="providers"><span class="connector-icon">AI</span><strong>AI providers</strong><small>Anthropic, OpenAI, HF, local</small><span class="card-state">Chat models</span></button>
+        <button class="connector-card" data-panel="github"><span class="connector-icon">GH</span><strong>GitHub</strong><small>OAuth or token</small><span id="card-github-state" class="card-state">Not connected</span></button>
+        <button class="connector-card" data-panel="gitlab"><span class="connector-icon">GL</span><strong>GitLab</strong><small>OAuth or token</small><span id="card-gitlab-state" class="card-state">Not connected</span></button>
+        <button class="connector-card" data-panel="mcp"><span class="connector-icon">MCP</span><strong>MCP servers</strong><small>stdio or HTTP tools</small><span id="card-mcp-state" class="card-state">Add server</span></button>
+        <button class="connector-card" data-panel="agents"><span class="connector-icon">AG</span><strong>Other agents</strong><small>Codex, Cursor, local</small><span id="card-agents-state" class="card-state">Add agent</span></button>
+        <button class="connector-card" data-panel="external"><span class="connector-icon">↗</span><strong>External tools</strong><small>OAuth, password or API key</small><span id="card-external-state" class="card-state">Add service</span></button>
+        <button class="connector-card" data-panel="finance"><span class="connector-icon">$</span><strong>Business &amp; finance</strong><small>Alpaca and market tools</small><span id="card-finance-state" class="card-state">Paper mode</span></button>
+        <button class="connector-card" data-panel="kronos"><span class="connector-icon">MF</span><strong>Market forecasts</strong><small>Local probabilistic OHLCV engine</small><span id="card-kronos-state" class="card-state">Checking…</span></button>
+        <button class="connector-card" data-panel="personal-finance"><span class="connector-icon">PF</span><strong>Personal finance vault</strong><small>Private self-hosted records</small><span id="card-personal-finance-state" class="card-state">Checking…</span></button>
+        <button class="connector-card" data-panel="code-memory"><span class="connector-icon">DB</span><strong>Code memory</strong><small>Local graph, usages and notes</small><span id="card-code-memory-state" class="card-state">Checking…</span></button>
+        <button class="connector-card" data-panel="procoder"><span class="connector-icon">QC</span><strong>Engineering gate</strong><small>Checks, tests and security</small><span id="card-procoder-state" class="card-state">Checking…</span></button>
+        <button class="connector-card" data-panel="drawai"><span class="connector-icon">SVG</span><strong>Editable graphics</strong><small>Raster to SVG and PPTX</small><span id="card-drawai-state" class="card-state">Checking…</span></button>
+        <button class="connector-card" data-panel="characters"><span class="connector-icon">☺</span><strong>Character studio</strong><small>Deterministic SVG rigs</small><span class="card-state">Built in</span></button>
+        <button class="connector-card" data-panel="media"><span class="connector-icon">3D</span><strong>3D &amp; Blender</strong><small>Models, textures and render</small><span class="card-state">Local engine</span></button>
+        <button class="connector-card" data-panel="system"><span class="connector-icon">›_</span><strong>Device &amp; system</strong><small>Apps, browsers, files, network</small><span id="card-device-state" class="card-state">Approval gated</span></button>
+      </div>
 
-      <h3>GitHub</h3>
-      <p id="gh-status" class="muted">Not connected</p>
-      <label>Token
-        <input id="gh-token" type="password" autocomplete="off" />
-      </label>
-      <label>Owner / org
-        <input id="gh-owner" value="GoDeskio" />
-      </label>
-      <div class="row">
-        <button id="gh-save" class="primary" type="button">Save GitHub token</button>
-        <button id="gh-repos" class="ghost" type="button">List repos</button>
-      </div>
-      <label>OAuth App client ID (optional device login)
-        <input id="gh-client" />
-      </label>
-      <div class="row">
-        <button id="gh-device" class="ghost" type="button">Start GitHub device login</button>
-        <button id="gh-poll" class="ghost" type="button">Poll device login</button>
-      </div>
-      <p id="gh-device-status" class="muted"></p>
-      <div id="gh-repos-list" class="scan-list"></div>
+      <div id="connector-detail" class="connector-detail hidden">
+        <button id="connector-detail-close" class="icon-button detail-close" type="button" aria-label="Close connection details">×</button>
 
-      <h3>GitLab</h3>
-      <p id="gl-status" class="muted">Not connected</p>
-      <label>Host
-        <input id="gl-host" value="https://gitlab.com" />
-      </label>
-      <label>Personal access token
-        <input id="gl-token" type="password" autocomplete="off" />
-      </label>
-      <label>Group / owner
-        <input id="gl-owner" />
-      </label>
-      <div class="row">
-        <button id="gl-save" class="primary" type="button">Save GitLab token</button>
-        <button id="gl-projects" class="ghost" type="button">List projects</button>
-      </div>
-      <label>Application ID (optional device login)
-        <input id="gl-client" />
-      </label>
-      <div class="row">
-        <button id="gl-device" class="ghost" type="button">Start GitLab device login</button>
-        <button id="gl-poll" class="ghost" type="button">Poll device login</button>
-      </div>
-      <p id="gl-device-status" class="muted"></p>
-      <div id="gl-projects-list" class="scan-list"></div>
+        <section class="connector-panel hidden" data-connector-panel="images">
+          <h3>Image Studio</h3>
+          <p class="muted">Generation uses Jonathan's local diffusion engine by default. Cloud generation is optional; prompt-based cloud editing requires an OpenAI-compatible image endpoint.</p>
+          <div id="media-status" class="scan-list compact-list"></div>
+          <div class="form-grid two">
+            <label>Image API key<input id="image-api-key" type="password" autocomplete="off" /></label>
+            <label>Endpoint<input id="image-api-url" value="https://api.openai.com/v1" /></label>
+            <label>Image model<input id="image-api-model" value="gpt-image-1" /></label>
+          </div>
+          <button id="image-provider-save" class="primary" type="button">Save image connection</button>
+          <p id="image-provider-status" class="muted"></p>
+          <hr />
+          <div class="form-grid two">
+            <label>Action<select id="image-action"><option value="generate">AI generate</option><option value="ai_edit">AI prompt edit</option><option value="add_text">Add text</option><option value="remove_text">Remove text/inpaint</option><option value="resize">Resize</option><option value="crop">Crop</option><option value="rotate">Rotate</option><option value="flip">Flip</option><option value="composite">Composite/overlay</option><option value="convert">Convert</option></select></label>
+            <label>Generation engine<select id="image-engine"><option value="local" selected>Jonathan · local default</option><option value="cloud">Cloud image API</option></select></label>
+            <label>Source image path<input id="image-source" placeholder="Use an attached image or enter a path" /></label>
+            <label>Overlay image path<input id="image-overlay" placeholder="For composite" /></label>
+            <label class="span-two">Prompt / edit instructions<input id="image-prompt" placeholder="Describe the image or requested change" /></label>
+            <label>Text<input id="image-text" placeholder="Text to add" /></label>
+            <label>Output<input id="image-output" value="media/image-result.png" /></label>
+            <label>Width<input id="image-width" type="number" value="1024" /></label>
+            <label>Height<input id="image-height" type="number" value="1024" /></label>
+            <label>X position<input id="image-x" type="number" value="0" /></label>
+            <label>Y position<input id="image-y" type="number" value="0" /></label>
+            <label>Rotation angle<input id="image-angle" type="number" value="90" /></label>
+            <label>Flip direction<select id="image-direction"><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option></select></label>
+            <label class="span-two">Remove-text regions (JSON)<input id="image-regions" placeholder='[{"x":10,"y":10,"width":200,"height":60}]' /></label>
+          </div>
+          <div class="row"><button id="image-use-attachment" class="ghost" type="button">Use attached image</button><button id="image-run" class="primary" type="button">Run image action</button></div>
+          <div id="image-result" class="scan-list"></div>
+        </section>
 
-      <h3>MCP servers</h3>
-      <p class="muted">Add a real MCP server the user already has (stdio command or HTTP URL). Test lists its tools; Jonathan Ai can call them in a turn.</p>
-      <label>Name
-        <input id="mcp-name" />
-      </label>
-      <label>Command (stdio)
-        <input id="mcp-command" placeholder="npx" />
-      </label>
-      <label>Args (space-separated)
-        <input id="mcp-args" placeholder="-y @modelcontextprotocol/server-filesystem /tmp" />
-      </label>
-      <label>HTTP URL
-        <input id="mcp-url" />
-      </label>
-      <label>Optional token
-        <input id="mcp-token" type="password" autocomplete="off" />
-      </label>
-      <div class="row">
-        <button id="mcp-save" class="primary" type="button">Add MCP server</button>
-        <button id="mcp-test" class="ghost" type="button">Test MCP</button>
-      </div>
-      <p id="mcp-status" class="muted"></p>
-      <div id="mcp-list" class="scan-list"></div>
+        <section class="connector-panel hidden" data-connector-panel="fooocus">
+          <h3>Jonathan local diffusion engine</h3>
+          <p class="muted">Jonathan runs Diffusers directly inside its installed Python environment. No Fooocus checkout, Gradio service, account, or API key is required. First generation downloads the configured image-model weights.</p>
+          <div id="fooocus-status" class="scan-list compact-list"></div>
+          <div class="form-grid two">
+            <label class="span-two">Prompt<input id="fooocus-prompt" placeholder="Describe the image to generate locally" /></label>
+            <label>Width<input id="fooocus-width" type="number" value="1024" min="256" max="2048" /></label>
+            <label>Height<input id="fooocus-height" type="number" value="1024" min="256" max="2048" /></label>
+            <label>Performance<select id="fooocus-performance"><option>Speed</option><option>Quality</option><option>Extreme Speed</option><option>Lightning</option><option>Hyper-SD</option></select></label>
+          </div>
+          <div class="row">
+            <button id="fooocus-install" class="primary" type="button">Install / repair</button>
+            <button id="fooocus-start" class="primary" type="button">Verify engine</button>
+            <button id="fooocus-generate" class="primary" type="button">Generate &amp; download</button>
+            <button id="fooocus-open" class="ghost" type="button">Refresh outputs</button>
+            <button id="fooocus-latest" class="ghost" type="button">Download latest</button>
+            <button id="fooocus-stop" class="ghost" type="button">Release memory</button>
+          </div>
+          <p id="fooocus-message" class="muted"></p>
+        </section>
 
-      <h3>Other agents</h3>
-      <p class="muted">OpenAI-compatible agent URL (Cursor / Codex / local). Or drop <code>~/.clawd/hooks/cursor.json</code>. Other tools can POST <code>/api/hooks/inbound</code> on localhost with the desktop token.</p>
-      <label>Name
-        <input id="agent-name" />
-      </label>
-      <label>Base URL
-        <input id="agent-url" placeholder="http://127.0.0.1:3999/v1" />
-      </label>
-      <label>Optional API key
-        <input id="agent-key" type="password" autocomplete="off" />
-      </label>
-      <div class="row">
-        <button id="agent-save" class="primary" type="button">Add agent</button>
-        <button id="agent-test" class="ghost" type="button">Test connection</button>
-      </div>
-      <p id="agent-status" class="muted"></p>
-      <div id="agent-list" class="scan-list"></div>
+        <section class="connector-panel hidden" data-connector-panel="providers">
+          <h3>AI providers</h3><p class="muted">Configure chat models in Settings. OpenAI image credentials can be saved separately in Image Studio without changing the current Anthropic chat model.</p>
+          <button id="connector-open-settings" class="primary" type="button">Open provider settings</button>
+        </section>
 
-      <div class="row end">
-        <button id="connectors-close" class="ghost">Close</button>
+        <section class="connector-panel hidden" data-connector-panel="github">
+          <h3>GitHub</h3><p id="gh-status" class="muted">Not connected</p>
+          <div class="form-grid two"><label>Personal access token<input id="gh-token" type="password" autocomplete="off" /></label><label>Owner / organization<input id="gh-owner" value="GoDeskio" /></label><label>OAuth App client ID<input id="gh-client" /></label></div>
+          <div class="row"><button id="gh-save" class="primary" type="button">Connect with token</button><button id="gh-device" class="ghost" type="button">Start OAuth</button><button id="gh-poll" class="ghost" type="button">Finish OAuth</button><button id="gh-repos" class="ghost" type="button">List repos</button></div>
+          <p id="gh-device-status" class="muted"></p><div id="gh-repos-list" class="scan-list"></div>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="gitlab">
+          <h3>GitLab</h3><p id="gl-status" class="muted">Not connected</p>
+          <div class="form-grid two"><label>Host<input id="gl-host" value="https://gitlab.com" /></label><label>Personal access token<input id="gl-token" type="password" autocomplete="off" /></label><label>Group / owner<input id="gl-owner" /></label><label>OAuth Application ID<input id="gl-client" /></label></div>
+          <div class="row"><button id="gl-save" class="primary" type="button">Connect with token</button><button id="gl-device" class="ghost" type="button">Start OAuth</button><button id="gl-poll" class="ghost" type="button">Finish OAuth</button><button id="gl-projects" class="ghost" type="button">List projects</button></div>
+          <p id="gl-device-status" class="muted"></p><div id="gl-projects-list" class="scan-list"></div>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="mcp">
+          <h3>MCP servers</h3><p class="muted">Connect a stdio command or HTTP MCP server and test its advertised tools.</p>
+          <div class="form-grid two"><label>Name<input id="mcp-name" /></label><label>Command<input id="mcp-command" placeholder="npx" /></label><label>Arguments<input id="mcp-args" placeholder="-y package-name" /></label><label>HTTP URL<input id="mcp-url" /></label><label>Optional token<input id="mcp-token" type="password" autocomplete="off" /></label></div>
+          <div class="row"><button id="mcp-save" class="primary" type="button">Save server</button><button id="mcp-test" class="ghost" type="button">Test server</button></div><p id="mcp-status" class="muted"></p><div id="mcp-list" class="scan-list"></div>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="agents">
+          <h3>Other agents</h3><div class="form-grid two"><label>Name<input id="agent-name" /></label><label>Base URL<input id="agent-url" placeholder="http://127.0.0.1:3999/v1" /></label><label>Optional API key<input id="agent-key" type="password" autocomplete="off" /></label></div>
+          <div class="row"><button id="agent-save" class="primary" type="button">Save agent</button><button id="agent-test" class="ghost" type="button">Test agent</button></div><p id="agent-status" class="muted"></p><div id="agent-list" class="scan-list"></div>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="external">
+          <h3>External OAuth, password &amp; API connections</h3>
+          <div class="form-grid two"><label>Name<input id="external-name" /></label><label>Base/test URL<input id="external-url" placeholder="https://api.example.com/me" /></label><label>Authentication<select id="external-auth"><option value="none">No authentication</option><option value="oauth2">OAuth 2.0</option><option value="password">Username + password</option><option value="api_key">API key</option><option value="bearer">Bearer token</option></select></label><label>Username<input id="external-username" autocomplete="username" /></label><label>Password<input id="external-password" type="password" autocomplete="current-password" /></label><label>API key / bearer token<input id="external-token" type="password" autocomplete="off" /></label><label>API key header<input id="external-header" value="X-API-Key" /></label><label>OAuth authorization URL<input id="external-auth-url" /></label><label>OAuth token URL<input id="external-token-url" /></label><label>OAuth client ID<input id="external-client-id" /></label><label>OAuth client secret<input id="external-client-secret" type="password" autocomplete="off" /></label><label>OAuth scopes<input id="external-scopes" /></label></div>
+          <div class="row"><button id="external-save" class="primary" type="button">Save connection</button><button id="external-test" class="ghost" type="button">Test selected</button><button id="external-oauth-start" class="ghost" type="button">Start OAuth</button><button id="external-remove" class="danger" type="button">Remove selected</button></div>
+          <label>OAuth authorization code<input id="external-code" /></label><button id="external-oauth-finish" class="ghost" type="button">Exchange code</button>
+          <p id="external-status" class="muted"></p><div id="external-list" class="connector-mini-grid"></div>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="finance">
+          <h3>Business &amp; finance</h3><p class="muted">Market monitoring and local business records work without a broker. Alpaca defaults to paper trading; every order still needs separate approval.</p><div id="finance-status" class="scan-list"></div>
+          <div class="form-grid two"><label>Alpaca API key<input id="alpaca-key" type="password" autocomplete="off" /></label><label>Alpaca secret key<input id="alpaca-secret" type="password" autocomplete="off" /></label><label>Trading mode<select id="alpaca-mode"><option value="paper" selected>Paper trading (recommended)</option><option value="live">Live — real money</option></select></label></div><button id="alpaca-save" class="primary" type="button">Save broker connection</button><p id="alpaca-message" class="muted"></p>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="kronos">
+          <h3>Native market forecasts</h3>
+          <p class="muted">Run Jonathan's built-in probabilistic EWMA/Monte Carlo engine on a timestamped OHLCV CSV. Forecasts are research artifacts—not investment advice, broker instructions, or automatic trading signals.</p>
+          <div id="kronos-status" class="scan-list"></div>
+          <div class="form-grid two">
+            <label class="span-two">Input OHLCV CSV path<input id="kronos-input" placeholder="C:\\path\\to\\market-data.csv" /></label>
+            <label>Model<select id="kronos-model"><option value="mini" selected>Mini · fastest</option><option value="small">Small</option><option value="base">Base · highest local capacity</option></select></label>
+            <label>Forecast rows<input id="kronos-pred-len" type="number" value="24" min="1" max="256" /></label>
+            <label>Lookback rows<input id="kronos-lookback" type="number" value="400" min="16" max="2048" /></label>
+            <label>Output CSV<input id="kronos-output" value="finance/kronos-forecast.csv" /></label>
+          </div>
+          <div class="row"><button id="kronos-install" class="primary" type="button">Install / repair</button><button id="kronos-run" class="primary" type="button">Forecast &amp; download</button></div>
+          <p id="kronos-message" class="muted"></p>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="personal-finance">
+          <h3>Personal finance vault</h3>
+          <p class="muted">Jonathan's built-in local SQLite vault for accounts, transactions, categories, recurring items, budgets, goals, assets, reports, and currencies. It needs no container, cloned application, subscription, or payment.</p>
+          <div id="personal-finance-status" class="scan-list"></div>
+          <div class="row"><button id="personal-finance-install" class="primary" type="button">Install / repair</button><button id="personal-finance-start" class="primary" type="button">Start</button><button id="personal-finance-open" class="ghost" type="button">Open in preview</button><button id="personal-finance-stop" class="danger" type="button">Stop</button></div>
+          <p id="personal-finance-message" class="muted"></p>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="code-memory">
+          <h3>Local code memory</h3>
+          <p class="muted">Incrementally maps symbols and dependencies, searches the project, and stores only notes you explicitly request. Data stays in Jonathan’s local SQLite database; no Claude hooks, cloud account, or subscription is installed.</p>
+          <div id="code-memory-status" class="scan-list"></div>
+          <div class="form-grid two">
+            <label>Action<select id="code-memory-action"><option value="search">Search notes</option><option value="usages">Find usages</option><option value="explain">Explain symbol</option><option value="path">Dependency path</option><option value="remember">Remember note</option></select></label>
+            <label>Query / symbol<input id="code-memory-query" placeholder="Symbol, search phrase, or durable note" /></label>
+            <label>Target symbol<input id="code-memory-target" placeholder="Required only for dependency path" /></label>
+            <label>Result limit<input id="code-memory-limit" type="number" value="100" min="1" max="1000" /></label>
+          </div>
+          <div class="row"><button id="code-memory-install" class="primary" type="button">Install / repair</button><button id="code-memory-scan" class="primary" type="button">Scan workspace</button><button id="code-memory-run" class="ghost" type="button">Run query</button></div>
+          <p id="code-memory-message" class="muted"></p><pre id="code-memory-result" class="scan-list"></pre>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="procoder">
+          <h3>Engineering quality gate</h3>
+          <p class="muted">Runs Jonathan's built-in fail-closed engineering controller against the current project. Unchecked work is reported as failing. It does not edit files, install hooks, commit, tag, file issues, or upgrade itself.</p>
+          <div id="procoder-status" class="scan-list"></div>
+          <div class="form-grid two"><label>Report<select id="procoder-action"><option value="check">Changed-file gate</option><option value="test">Project tests</option><option value="audit">Full audit</option><option value="security">Security</option><option value="git">Git hygiene</option><option value="docs">Documentation</option><option value="ci">CI</option><option value="infra">Infrastructure</option><option value="maintain">Maintainability</option><option value="deps">Dependencies</option><option value="release">Release readiness</option></select></label><label><input id="procoder-deep" type="checkbox" /> Deep security scan</label></div>
+          <div class="row"><button id="procoder-install" class="primary" type="button">Install / verify</button><button id="procoder-run" class="primary" type="button">Run report</button></div>
+          <p id="procoder-message" class="muted"></p><pre id="procoder-result" class="scan-list"></pre>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="drawai">
+          <h3>Raster to editable graphics</h3>
+          <p class="muted">Decompose a technical figure, diagram, or slide screenshot with Jonathan's local color-region vectorizer and OCR, then download editable SVG and native-shape PPTX outputs. No separate model pack, account, or cloned application is required.</p>
+          <div id="drawai-status" class="scan-list"></div>
+          <div class="form-grid two"><label class="span-two">Uploaded image path<input id="drawai-input" placeholder="Use an attached image or enter a path" /></label><label>Device<select id="drawai-device"><option value="cpu">CPU</option><option value="gpu">NVIDIA GPU</option><option value="auto">Auto</option></select></label><label>Output folder<input id="drawai-output" value="media/editable-graphics" /></label></div>
+          <div class="row"><button id="drawai-use-attachment" class="ghost" type="button">Use attached image</button><button id="drawai-install" class="primary" type="button">Verify engine</button><button id="drawai-run" class="primary" type="button">Convert &amp; download</button></div>
+          <p id="drawai-message" class="muted"></p>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="characters">
+          <h3>Procedural character studio</h3><p class="muted">Create a deterministic editable SVG character and JSON rig recipe from a seed. The same seed always redraws the same character; no model, API, or external application is used.</p>
+          <div class="form-grid two"><label>Name<input id="character-name" placeholder="Optional display name" /></label><label>Seed<input id="character-seed" value="jonathan" /></label><label>Species<select id="character-species"><option value="auto">Auto</option><option>human</option><option>cat</option><option>dog</option><option>fox</option><option>rabbit</option><option>bear</option></select></label><label>Medium<select id="character-medium"><option>ink</option><option>chalk</option><option>marker</option><option>watercolor</option></select></label></div>
+          <button id="character-generate" class="primary" type="button">Generate &amp; download</button><p id="character-message" class="muted"></p>
+        </section>
+
+        <section class="connector-panel hidden" data-connector-panel="media"><h3>3D &amp; Blender</h3><p class="muted">Create GLB/GLTF/OBJ/STL locally. Blender adds BLEND/FBX/USD, textures and high-definition rendering.</p><div id="media-3d-status" class="scan-list"></div></section>
+        <section class="connector-panel hidden" data-connector-panel="system">
+          <h3>Full Device &amp; Network Access</h3>
+          <p class="muted">Off by default. When enabled, every conversation agent can read and write across mounted drives, run installed shells and CLIs, launch applications and browsers, and use network tools without repeated Jonathan prompts. Windows ACL and UAC prompts still apply.</p>
+          <div id="device-access-status" class="scan-list"></div>
+          <div class="row"><button id="device-access-toggle" class="danger" type="button">Enable full access</button><button id="device-inventory-scan" class="ghost" type="button">Scan installed tools</button></div>
+            <p id="device-access-message" class="muted">Enabling requires typing ENABLE FULL ACCESS. You can revoke it here at any time.</p>
+            <div id="device-inventory" class="scan-list"></div>
+            <h3>Earned autonomy</h3>
+            <p class="muted">Approval history is measured separately for each conversation and tool. Recommendations use conservative confidence bounds and never grant access by themselves.</p>
+            <div id="autonomy-status" class="scan-list"></div>
+            <h3>Administrator, audit &amp; Local terminals</h3>
+          <div id="admin-status" class="scan-list"></div><div id="terminal-list" class="scan-list"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="control-modal" class="modal hidden">
+    <div class="dialog wide control-dialog">
+      <div class="dialog-head"><div><h2>Agent control center</h2><p class="muted">Search every chat, run persistent named agents in parallel, and verify the local runtime.</p></div><button id="control-close" class="ghost" type="button">Close</button></div>
+
+      <section id="search-panel" class="control-panel hidden">
+        <h3>Conversation &amp; memory search</h3>
+        <div class="row"><input id="history-query" placeholder="Search all conversations and durable memory" /><button id="history-search" class="primary" type="button">Search</button></div>
+        <p id="history-meta" class="muted"></p><div id="history-results" class="scan-list"></div>
+      </section>
+
+      <section id="agent-hub-panel" class="control-panel hidden">
+        <h3>Persistent named agents</h3>
+        <p class="muted">Each named agent owns one permanent conversation, its own workspace, token totals, and a local inbox. Agents can run at the same time.</p>
+        <div id="agent-floor" class="agent-floor" aria-label="Live spatial agent floor"></div>
+        <input id="profile-id" type="hidden" />
+        <div class="form-grid two"><label>Name<input id="profile-name" placeholder="Release engineer" /></label><label>Workspace<input id="profile-workspace" placeholder="Use current workspace" /></label><label class="span-two">Role and instructions<textarea id="profile-instructions" rows="4" placeholder="Own release builds, verification, and packaging."></textarea></label></div>
+        <div class="row"><button id="profile-save" class="primary" type="button">Save agent</button><button id="profile-clear" class="ghost" type="button">New profile</button></div>
+        <div id="profile-list" class="profile-grid"></div>
+      </section>
+
+      <section id="doctor-panel" class="control-panel hidden">
+        <h3>System check</h3><p class="muted">Checks the provider, dependencies, terminal backends, persistent state, search, Git, Node, ripgrep and FFmpeg.</p>
+        <div class="row"><button id="doctor-run" class="primary" type="button">Run check</button><button id="doctor-repair" class="ghost" type="button">Repair safe local state</button></div>
+        <p id="doctor-summary" class="muted"></p><div id="doctor-results" class="scan-list"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="skills-modal" class="modal hidden">
+    <div class="dialog wide skills-dialog">
+      <div class="dialog-head">
+        <div><h2>Shared skills library</h2><p class="muted">Every conversation agent can discover and execute these editable SKILL.md files.</p></div>
+        <button id="skills-close" class="ghost" type="button">Close</button>
+      </div>
+      <div class="skills-toolbar">
+        <div><span class="label">Folder</span><div id="skills-path" class="path">—</div></div>
+        <div class="row"><button id="skill-learn-project" class="ghost" type="button">Learn from project</button><button id="skills-open-folder" class="ghost" type="button">Open folder</button><button id="skills-new" class="primary" type="button">New skill</button></div>
+      </div>
+      <details class="ecc-manager">
+        <summary><strong>ECC catalog</strong> <span id="ecc-summary" class="muted">Checking managed integration…</span></summary>
+        <p class="muted">The full MIT-licensed catalog stays indexed on disk. Only enabled skills enter agent context.</p>
+        <div class="row wrap">
+          <button id="ecc-sync" class="ghost" type="button">Sync catalog</button>
+          <button id="ecc-scan" class="ghost" type="button">Security scan</button>
+          <button id="ecc-import-all" class="ghost" type="button">Import all, enable curated set</button>
+          <button id="ecc-memory-export" class="ghost" type="button">Export memory vault</button>
+          <input id="ecc-filter" aria-label="Filter ECC skills" placeholder="Filter ECC skills" />
+        </div>
+        <div id="ecc-skill-list" class="ecc-skill-list"></div>
+      </details>
+      <div class="skills-layout">
+        <nav id="skills-list" class="skills-list" aria-label="Editable skills"></nav>
+        <section class="skill-editor">
+          <label>Skill name<input id="skill-name" placeholder="my-reusable-workflow" /></label>
+          <label>SKILL.md<textarea id="skill-content" rows="20" spellcheck="false" placeholder="Select a skill or create a new one."></textarea></label>
+          <p id="skill-status" class="muted">Changes are UTF-8 and become available to every agent immediately.</p>
+          <div class="row end"><button id="skill-archive" class="danger" type="button">Archive</button><button id="skill-save" class="primary" type="button">Validate &amp; save</button></div>
+        </section>
       </div>
     </div>
   </div>

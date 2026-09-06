@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import json
 import subprocess
 import tempfile
@@ -13,6 +14,12 @@ from src.install.constants import CANONICAL_HTTPS
 from src.install.python_env import detect_os, ensure_venv, find_system_python, venv_is_usable
 from src.install.record import read_install_record, write_install_record
 from src.install.deps import install_desktop_deps
+from src.install.runtime_process import (
+    process_record_path,
+    read_process_record,
+    stop_running_app,
+    write_process_record,
+)
 from src.install.source import (
     UntrustedSourceError,
     assert_allowed_source_url,
@@ -30,6 +37,58 @@ class TestJonathanPath(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             dest = default_source_dir(home=Path(tmp))
             self.assertEqual(dest, Path(tmp) / "Jonathan" / "Jonathan-Ai")
+
+
+class TestRuntimeProcessRecord(unittest.TestCase):
+    def test_record_is_scoped_to_install_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "Jonathan" / "Jonathan-Ai"
+            root.mkdir(parents=True)
+            write_process_record(root, owner_pid=99991, backend_pid=99992, kind="electron")
+            record = read_process_record(root)
+            self.assertEqual(record["source_dir"], str(root.resolve()))
+            self.assertEqual(record["owner_pid"], 99991)
+            self.assertIsNone(read_process_record(root.parent))
+
+    def test_windows_stop_targets_only_recorded_process_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_process_record(root, owner_pid=99991, backend_pid=99992, kind="electron")
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            image = str(root / "desktop" / "node_modules" / "electron" / "dist" / "electron.exe")
+            with patch("src.install.runtime_process._pid_is_running", return_value=(True, image)), patch(
+                "src.install.runtime_process.shutil.which", return_value="taskkill.exe"
+            ), patch("src.install.runtime_process.subprocess.run", return_value=completed) as run:
+                result = stop_running_app(root)
+            self.assertTrue(result["was_running"])
+            self.assertTrue(result["stopped"])
+            taskkill_calls = [
+                call.args[0]
+                for call in run.call_args_list
+                if call.args and isinstance(call.args[0], list) and "/PID" in call.args[0]
+            ]
+            self.assertTrue(taskkill_calls)
+            self.assertIn("99991", taskkill_calls[-1])
+            self.assertFalse(process_record_path(root).exists())
+
+    def test_reused_pid_outside_install_root_is_never_killed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_process_record(root, owner_pid=99991, kind="electron")
+            with patch(
+                "src.install.runtime_process._pid_is_running",
+                return_value=(True, r"C:\OtherApp\electron.exe"),
+            ), patch("src.install.runtime_process.subprocess.run") as run:
+                result = stop_running_app(root)
+            self.assertFalse(result["was_running"])
+            self.assertIn("unexpected executable", result["error"])
+            kill_calls = [
+                call.args[0]
+                for call in run.call_args_list
+                if call.args and isinstance(call.args[0], list) and "/PID" in call.args[0]
+            ]
+            self.assertEqual(kill_calls, [])
+            self.assertTrue(process_record_path(root).exists())
 
 
 class TestSourceAllowlist(unittest.TestCase):
@@ -191,6 +250,20 @@ class TestWizardAndVerify(unittest.TestCase):
             ), patch(
                 "src.install.wizard.install_desktop_deps", return_value="skipped"
             ), patch(
+                "src.install.wizard.install_blender_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_ecc_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_kronos_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_personal_finance_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_code_memory_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_procoder_dep", return_value="ready"
+            ), patch(
+                "src.install.wizard.install_drawai_dep", return_value="ready"
+            ), patch(
                 "src.install.wizard.verify_agent_session", return_value={"ok": True, "session_id": "s"}
             ):
                 result = InstallWizard().run_sync(
@@ -248,13 +321,8 @@ class TestUpdater(unittest.TestCase):
                     return subprocess.CompletedProcess(["git", *args], 0, f"origin\t{CANONICAL_HTTPS} (fetch)\n", "")
                 return subprocess.CompletedProcess(["git", *args], 0, "", "")
 
-            with patch("src.update.updater._git", side_effect=fake_git), patch(
-                "src.update.updater.fetch_repo_status", return_value={
-                    "sha": "mainsha",
-                    "default_branch": "main",
-                    "release_tag": "",
-                    "html_url": "https://github.com/GoDeskio/Clawd-Code",
-                }
+            with patch("src.update.updater._git", side_effect=fake_git), patch.object(
+                updater, "remote_version", return_value="0.4.9"
             ):
                 status = updater.status(refresh=True)
             self.assertTrue(status["update_available"])
@@ -270,6 +338,48 @@ class TestUpdater(unittest.TestCase):
             updater = Updater(repo)
             with self.assertRaises(RuntimeError):
                 updater.apply()
+
+    def test_allow_dirty_cannot_bypass_update_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            (repo / "dirty.txt").write_text("must survive\n", encoding="utf-8")
+            updater = Updater(repo)
+            with self.assertRaises(RuntimeError):
+                updater.apply(allow_dirty=True)
+            self.assertEqual((repo / "dirty.txt").read_text(encoding="utf-8"), "must survive\n")
+
+    def test_packaged_dirty_tree_uses_allowlisted_installer_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            (repo / "JonathanAi.exe").write_bytes(b"MZpackaged")
+            (repo / "VERSION").write_text("0.4.8\n", encoding="utf-8")
+            (repo / "installed.txt").write_text("installer-owned overlay\n", encoding="utf-8")
+            updater = Updater(repo)
+            checked = {
+                "update_available": True,
+                "apply_mode": "installer",
+                "remote_version": "0.4.9",
+            }
+            expected = {"ok": True, "installer_path": "update.exe", "restart_required": True}
+            with patch.object(updater, "status", return_value=checked), patch.object(
+                updater, "_download_installer", return_value=expected
+            ) as download:
+                result = updater.apply()
+            self.assertEqual(result, expected)
+            download.assert_called_once_with("0.4.9")
+
+    def test_packaged_status_ignores_stale_git_when_version_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            (repo / "JonathanAi.exe").write_bytes(b"MZpackaged")
+            (repo / "VERSION").write_text("0.4.9\n", encoding="utf-8")
+            (repo / "installed.txt").write_text("overlay\n", encoding="utf-8")
+            updater = Updater(repo)
+            with patch.object(updater, "remote_version", return_value="0.4.9"):
+                status = updater.status(refresh=True)
+            self.assertFalse(status["update_available"])
+            self.assertEqual(status["apply_mode"], "installer")
+            self.assertTrue(status["dirty"])
 
     def test_install_record_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -301,6 +411,51 @@ class TestUpdater(unittest.TestCase):
                 status = install_desktop_deps(source, retry=2, progress=notes.append)
             self.assertEqual(status, "failed")
             self.assertTrue(any("browser UI still works" in note for note in notes))
+
+    def test_electron_uses_app_cache_and_requires_runtime_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "app"
+            desktop = source / "desktop"
+            desktop.mkdir(parents=True)
+            (desktop / "package.json").write_text("{}", encoding="utf-8")
+            captured: dict[str, str] = {}
+
+            def install(_cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+                self.assertEqual(cwd, desktop)
+                captured.update(env or {})
+                binary = desktop / "node_modules" / "electron" / "dist" / ("electron.exe" if os.name == "nt" else "electron")
+                binary.parent.mkdir(parents=True)
+                binary.write_bytes(b"electron")
+
+            with patch("shutil.which", return_value="npm"), patch("src.install.deps._run", side_effect=install):
+                status = install_desktop_deps(source, retry=1)
+            self.assertEqual(status, "installed")
+            self.assertEqual(captured["ELECTRON_CACHE"], str(source / ".cache" / "electron"))
+            self.assertEqual(captured["electron_config_cache"], str(source / ".cache" / "electron"))
+            self.assertEqual(captured["NPM_CONFIG_CACHE"], str(source / ".cache" / "npm"))
+
+    def test_electron_repairs_package_missing_its_downloaded_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "app"
+            desktop = source / "desktop"
+            desktop.mkdir(parents=True)
+            (desktop / "package.json").write_text("{}", encoding="utf-8")
+            installer = desktop / "node_modules" / "electron" / "install.js"
+            installer.parent.mkdir(parents=True)
+            installer.write_text("// installer", encoding="utf-8")
+            commands: list[list[str]] = []
+
+            def install(command: list[str], **_kwargs: object) -> None:
+                commands.append(command)
+                if command[-1].endswith("install.js"):
+                    binary = desktop / "node_modules" / "electron" / "dist" / ("electron.exe" if os.name == "nt" else "electron")
+                    binary.parent.mkdir(parents=True)
+                    binary.write_bytes(b"electron")
+
+            with patch("shutil.which", side_effect=lambda name: name), patch("src.install.deps._run", side_effect=install):
+                status = install_desktop_deps(source, retry=1)
+            self.assertEqual(status, "installed")
+            self.assertEqual(commands, [["npm", "install"], ["node", str(installer)]])
 
     def test_wizard_html_covers_git_and_agents(self) -> None:
         html = (Path(__file__).resolve().parents[1] / "src" / "install" / "web" / "index.html").read_text(encoding="utf-8")

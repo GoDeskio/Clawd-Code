@@ -50,7 +50,7 @@ def _get_default_config_from_providers() -> dict[str, Any]:
         },
         "session": {
             "auto_save": True,
-            "max_history": 100
+            "max_history": 0
         }
     })
 
@@ -265,37 +265,117 @@ def public_config() -> dict[str, Any]:
 
 
 def _encode_connector_secrets(config: dict[str, Any]) -> None:
+    local_credentials = config.get("local_runtime_credentials")
+    if isinstance(local_credentials, dict):
+        for slot in local_credentials.values():
+            if not isinstance(slot, dict):
+                continue
+            for field in ("api_key", "device_key"):
+                if slot.get(field):
+                    slot[field] = _encode_api_key(str(slot[field]))
     connectors = config.get("connectors")
-    if not isinstance(connectors, dict):
-        return
-    for name in ("github", "gitlab"):
-        slot = connectors.get(name)
-        if isinstance(slot, dict) and slot.get("token"):
-            slot["token"] = _encode_api_key(str(slot["token"]))
-    for key, field in (("mcp", "token"), ("agents", "api_key")):
-        items = connectors.get(key)
-        if not isinstance(items, list):
-            continue
-        for item in items:
-            if isinstance(item, dict) and item.get(field):
-                item[field] = _encode_api_key(str(item[field]))
+    if isinstance(connectors, dict):
+        for name in ("github", "gitlab"):
+            slot = connectors.get(name)
+            if isinstance(slot, dict) and slot.get("token"):
+                slot["token"] = _encode_api_key(str(slot["token"]))
+        for key, field in (("mcp", "token"), ("agents", "api_key")):
+            items = connectors.get(key)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, dict) and item.get(field):
+                    item[field] = _encode_api_key(str(item[field]))
+        services = connectors.get("services")
+        if isinstance(services, list):
+            for item in services:
+                if not isinstance(item, dict):
+                    continue
+                for field in ("password", "api_key", "bearer_token", "client_secret", "access_token", "refresh_token"):
+                    if item.get(field):
+                        item[field] = _encode_api_key(str(item[field]))
+    alpaca = (config.get("finance") or {}).get("alpaca") if isinstance(config.get("finance"), dict) else None
+    if isinstance(alpaca, dict):
+        for field in ("api_key", "secret_key"):
+            if alpaca.get(field):
+                alpaca[field] = _encode_api_key(str(alpaca[field]))
 
 
 def _decode_connector_secrets(config: dict[str, Any]) -> None:
+    local_credentials = config.get("local_runtime_credentials")
+    if isinstance(local_credentials, dict):
+        for slot in local_credentials.values():
+            if not isinstance(slot, dict):
+                continue
+            for field in ("api_key", "device_key"):
+                if slot.get(field):
+                    slot[field] = _decode_api_key(str(slot[field]))
     connectors = config.get("connectors")
-    if not isinstance(connectors, dict):
-        return
-    for name in ("github", "gitlab"):
-        slot = connectors.get(name)
-        if isinstance(slot, dict) and slot.get("token"):
-            slot["token"] = _decode_api_key(str(slot["token"]))
-    for key, field in (("mcp", "token"), ("agents", "api_key")):
-        items = connectors.get(key)
-        if not isinstance(items, list):
-            continue
-        for item in items:
-            if isinstance(item, dict) and item.get(field):
-                item[field] = _decode_api_key(str(item[field]))
+    if isinstance(connectors, dict):
+        for name in ("github", "gitlab"):
+            slot = connectors.get(name)
+            if isinstance(slot, dict) and slot.get("token"):
+                slot["token"] = _decode_api_key(str(slot["token"]))
+        for key, field in (("mcp", "token"), ("agents", "api_key")):
+            items = connectors.get(key)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, dict) and item.get(field):
+                    item[field] = _decode_api_key(str(item[field]))
+        services = connectors.get("services")
+        if isinstance(services, list):
+            for item in services:
+                if not isinstance(item, dict):
+                    continue
+                for field in ("password", "api_key", "bearer_token", "client_secret", "access_token", "refresh_token"):
+                    if item.get(field):
+                        item[field] = _decode_api_key(str(item[field]))
+    alpaca = (config.get("finance") or {}).get("alpaca") if isinstance(config.get("finance"), dict) else None
+    if isinstance(alpaca, dict):
+        for field in ("api_key", "secret_key"):
+            if alpaca.get(field):
+                alpaca[field] = _decode_api_key(str(alpaca[field]))
+
+
+def get_finance_config() -> dict[str, Any]:
+    config = load_config()
+    finance = config.get("finance")
+    return dict(finance) if isinstance(finance, dict) else {}
+
+
+def set_alpaca_config(api_key: str, secret_key: str, *, paper: bool = True) -> dict[str, Any]:
+    config = load_config()
+    finance = config.get("finance") if isinstance(config.get("finance"), dict) else {}
+    finance["alpaca"] = {"api_key": api_key.strip(), "secret_key": secret_key.strip(), "paper": bool(paper)}
+    config["finance"] = finance
+    save_config(config)
+    return {"configured": bool(api_key.strip() and secret_key.strip()), "paper": bool(paper)}
+
+
+def set_local_runtime_credential(base_url: str, api_key: str, *, device_key: str = "") -> None:
+    """Store endpoint-scoped local-runtime credentials outside public config."""
+    config = load_config()
+    credentials = config.get("local_runtime_credentials")
+    if not isinstance(credentials, dict):
+        credentials = {}
+    credentials[str(base_url).rstrip("/")] = {
+        "api_key": str(api_key or "").strip(),
+        "device_key": str(device_key or "").strip(),
+    }
+    config["local_runtime_credentials"] = credentials
+    save_config(config)
+
+
+def get_local_runtime_credential(base_url: str) -> dict[str, str]:
+    config = load_config()
+    credentials = config.get("local_runtime_credentials")
+    if not isinstance(credentials, dict):
+        return {"api_key": "", "device_key": ""}
+    slot = credentials.get(str(base_url).rstrip("/"))
+    if not isinstance(slot, dict):
+        return {"api_key": "", "device_key": ""}
+    return {"api_key": str(slot.get("api_key") or ""), "device_key": str(slot.get("device_key") or "")}
 
 
 def _public_connectors_safe() -> dict[str, Any]:
@@ -311,16 +391,24 @@ def get_desktop_settings() -> dict[str, Any]:
         desktop = {}
     return {
         "workspace": desktop.get("workspace", ""),
+        "projects_dir": desktop.get("projects_dir", ""),
         "notify_on_complete": bool(desktop.get("notify_on_complete", True)),
         "current_session_id": desktop.get("current_session_id") or "",
+        "hidden_session_ids": list(desktop.get("hidden_session_ids") or []),
+        "full_device_access": bool(desktop.get("full_device_access", False)),
+        "full_device_access_approved_at": str(desktop.get("full_device_access_approved_at") or ""),
     }
 
 
 def update_desktop_settings(
     *,
     workspace: Optional[str] = None,
+    projects_dir: Optional[str] = None,
     notify_on_complete: Optional[bool] = None,
     current_session_id: Optional[str] = None,
+    hidden_session_ids: Optional[list[str]] = None,
+    full_device_access: Optional[bool] = None,
+    full_device_access_approved_at: Optional[str] = None,
 ) -> dict[str, Any]:
     config = load_config()
     desktop = config.get("desktop")
@@ -328,10 +416,18 @@ def update_desktop_settings(
         desktop = {}
     if workspace is not None:
         desktop["workspace"] = workspace
+    if projects_dir is not None:
+        desktop["projects_dir"] = projects_dir
     if notify_on_complete is not None:
         desktop["notify_on_complete"] = bool(notify_on_complete)
     if current_session_id is not None:
         desktop["current_session_id"] = current_session_id
+    if hidden_session_ids is not None:
+        desktop["hidden_session_ids"] = list(dict.fromkeys(hidden_session_ids))
+    if full_device_access is not None:
+        desktop["full_device_access"] = bool(full_device_access)
+    if full_device_access_approved_at is not None:
+        desktop["full_device_access_approved_at"] = str(full_device_access_approved_at)
     config["desktop"] = desktop
     save_config(config)
     return get_desktop_settings()

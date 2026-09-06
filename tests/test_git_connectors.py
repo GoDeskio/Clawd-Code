@@ -19,6 +19,7 @@ from src.connectors.store import (
     public_connectors,
     read_connectors,
     save_agent,
+    save_external_service,
     save_forge_login,
     save_mcp_server,
     set_mcp_enabled,
@@ -80,6 +81,29 @@ class TestForgeStore(ConnectorHomeTest):
         loaded = load_config()
         self.assertEqual(loaded["connectors"]["github"]["token"], "ghp_disksecret99")
 
+    def test_external_password_and_oauth_secrets_are_not_public_or_plaintext(self) -> None:
+        public = save_external_service(
+            name="Accounting",
+            base_url="https://api.example.com/me",
+            auth_type="oauth2",
+            client_id="client-id",
+            client_secret="oauth-secret",
+            access_token="access-secret",
+            password="password-secret",
+            username="jonathan",
+        )
+        dumped = json.dumps(public)
+        self.assertNotIn("oauth-secret", dumped)
+        self.assertNotIn("access-secret", dumped)
+        self.assertNotIn("password-secret", dumped)
+        self.assertEqual(public["services"][0]["auth_type"], "oauth2")
+        raw = (self.home / ".clawd" / "config.json").read_text(encoding="utf-8")
+        self.assertNotIn("oauth-secret", raw)
+        self.assertNotIn("access-secret", raw)
+        self.assertNotIn("password-secret", raw)
+        loaded = read_connectors()["services"][0]
+        self.assertEqual(loaded["access_token"], "access-secret")
+
     def test_github_create_defaults_to_godeskio(self) -> None:
         connector = GitHubConnector()
         connector.token = "tok"
@@ -128,6 +152,10 @@ class TestMcpAndAgents(ConnectorHomeTest):
 class TestInboundHook(ConnectorHomeTest):
     def test_inbound_hook_starts_a_job(self) -> None:
         runtime = DesktopRuntime(workspace=self.workspace)
+        # Keep this unit test independent from any real local model discovered
+        # on the developer machine. The no-provider response completes inline,
+        # so no daemon owns the temporary home during teardown.
+        runtime.provider = None
         result = runtime.inbound_hook("hello from another agent")
         self.assertTrue(result["ok"])
         self.assertTrue(result["job_id"])

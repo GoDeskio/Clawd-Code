@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from .claude_md import load_claude_md_context
+from .claude_md import load_claude_md_context, load_design_md_context
 from .git_context import collect_git_context
 from .workspace_snapshot import build_workspace_snapshot
 
@@ -19,6 +19,7 @@ def build_context_prompt(
     workspace = build_workspace_snapshot(root, cwd=current)
     git = collect_git_context(root)
     claude_md = load_claude_md_context(root, cwd=current)
+    design_md = load_design_md_context(root)
 
     sections: list[str] = []
 
@@ -31,6 +32,10 @@ def build_context_prompt(
     md_lines = _render_claude_md_section(claude_md, root)
     if md_lines:
         sections.append("\n".join(md_lines))
+
+    design_lines = _render_design_md_section(design_md, root)
+    if design_lines:
+        sections.append("\n".join(design_lines))
 
     return "\n\n".join(section for section in sections if section.strip())
 
@@ -89,4 +94,20 @@ def _render_claude_md_section(claude_md, workspace_root: Path) -> list[str]:
         ])
     if claude_md.truncated:
         lines.append("- Additional instruction files were truncated to stay within prompt budget.")
+    return lines
+
+
+def _render_design_md_section(design_md, workspace_root: Path) -> list[str]:
+    if not design_md.files:
+        return []
+    item = design_md.files[0]
+    lines = [
+        "## Project Design System",
+        "### ./DESIGN.md",
+        "```md",
+        item.content,
+        "```",
+    ]
+    if design_md.truncated:
+        lines.append("- DESIGN.md was truncated to stay within the prompt budget.")
     return lines

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Protocol
 
 from .context import ToolContext
@@ -69,14 +70,30 @@ class ToolRegistry:
         return self._by_name.get(name.lower())
 
     def dispatch(self, call: ToolCall, context: ToolContext) -> ToolResult:
+        started = datetime.now(timezone.utc)
+
+        def audited(result: ToolResult, *, permission: str = "allowed") -> ToolResult:
+            if context.audit_logger is not None:
+                context.audit_logger({
+                    "session_id": context.session_id or "",
+                    "tool": result.name or call.name,
+                    "tool_use_id": call.tool_use_id or "",
+                    "input": call.input,
+                    "permission": permission,
+                    "status": "error" if result.is_error else "success",
+                    "duration_ms": round((datetime.now(timezone.utc) - started).total_seconds() * 1000, 3),
+                    "result_summary": str(result.output)[:1000],
+                })
+            return result
+
         tool = self.get(call.name)
         if tool is None:
-            return ToolResult(
+            return audited(ToolResult(
                 name=call.name,
                 output={"error": f"unknown tool: {call.name}"},
                 is_error=True,
                 tool_use_id=call.tool_use_id,
-            )
+            ))
         spec = tool.spec()
         context.ensure_tool_allowed(spec.name)
         validate_json_schema(call.input, spec.input_schema, root_name=spec.name)
@@ -84,22 +101,22 @@ class ToolRegistry:
         # Check permissions before running
         permission_result = tool.check_permissions(call.input, context) if hasattr(tool, 'check_permissions') else PermissionResult.allow()
         if permission_result.behavior.value == "deny":
-            return ToolResult(
+            return audited(ToolResult(
                 name=spec.name,
                 output={"error": permission_result.message or "permission denied"},
                 is_error=True,
                 tool_use_id=call.tool_use_id,
-            )
+            ), permission="denied")
         if permission_result.behavior.value == "ask":
             # Need user interaction
             if context.permission_handler is None:
                 # No handler available, deny by default
-                return ToolResult(
+                return audited(ToolResult(
                     name=spec.name,
                     output={"error": permission_result.message or "permission required but no handler available"},
                     is_error=True,
                     tool_use_id=call.tool_use_id,
-                )
+                ), permission="required")
             # Call the permission handler
             allowed, _ = context.permission_handler(
                 spec.name,
@@ -107,12 +124,12 @@ class ToolRegistry:
                 permission_result.suggestion,
             )
             if not allowed:
-                return ToolResult(
+                return audited(ToolResult(
                     name=spec.name,
                     output={"error": "permission denied by user"},
                     is_error=True,
                     tool_use_id=call.tool_use_id,
-                )
+                ), permission="denied")
             # User allowed - proceed with potentially updated input
             if permission_result.updated_input:
                 call = ToolCall(
@@ -121,14 +138,44 @@ class ToolRegistry:
                     tool_use_id=call.tool_use_id,
                 )
 
-        result = tool.run(call.input, context)
+        # Persist the approved intent before any side effect begins. The audit
+        # logger is part of the enforcement path: if its write fails, dispatch
+        # fails closed and the tool is not run. A second record below captures
+        # the actual result or exception.
+        if context.audit_logger is not None:
+            context.audit_logger({
+                "session_id": context.session_id or "",
+                "tool": spec.name,
+                "tool_use_id": call.tool_use_id or "",
+                "input": call.input,
+                "permission": "approved",
+                "status": "started",
+                "duration_ms": 0,
+                "result_summary": "Approved action recorded before execution",
+            })
+
+        try:
+            result = tool.run(call.input, context)
+        except Exception as exc:
+            if context.audit_logger is not None:
+                context.audit_logger({
+                    "session_id": context.session_id or "",
+                    "tool": spec.name,
+                    "tool_use_id": call.tool_use_id or "",
+                    "input": call.input,
+                    "permission": "allowed",
+                    "status": "exception",
+                    "duration_ms": round((datetime.now(timezone.utc) - started).total_seconds() * 1000, 3),
+                    "result_summary": f"{type(exc).__name__}: {exc}"[:1000],
+                })
+            raise
         if result.tool_use_id is None and call.tool_use_id is not None:
-            return ToolResult(
+            return audited(ToolResult(
                 name=result.name,
                 output=result.output,
                 is_error=result.is_error,
                 tool_use_id=call.tool_use_id,
                 content_type=result.content_type,
-            )
-        return result
+            ))
+        return audited(result)
 

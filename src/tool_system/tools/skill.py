@@ -70,6 +70,13 @@ class SkillTool:
                 is_error=True,
             )
 
+        if skill.loaded_from in {"user", "managed", "skills"}:
+            try:
+                from ...skills.curator import record_skill_use
+                record_skill_use(normalized)
+            except Exception:
+                pass
+
         content = skill.markdown_content
         content = substitute_arguments(
             content,

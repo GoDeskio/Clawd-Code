@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Union
@@ -27,6 +28,31 @@ _ANTHROPIC_CONTENT_BLOCK_TYPES = frozenset({
     "mcp_tool_use",
     "mcp_tool_result",
 })
+
+_LEGACY_BINARY_UPLOAD = re.compile(
+    r"\[clipboard attachment:\s*([^\]]+\.(?:png|jpe?g|webp|gif|bmp|tiff?|pdf|docx|xlsx|pptx))\]",
+    re.IGNORECASE,
+)
+
+
+def sanitize_legacy_binary_upload_text(content: str) -> str:
+    """Hide binary bytes that desktop versions before 0.4.3 decoded as text."""
+    text = str(content or "")
+    match = _LEGACY_BINARY_UPLOAD.search(text)
+    if not match:
+        return text
+    sample = text[:4096]
+    looks_binary = "JFIF" in sample or "PNG" in sample[:128] or "\x00" in sample or sample.count("�") >= 8
+    if not looks_binary:
+        return text
+    name = match.group(1)
+    prefix = text[:match.start()].strip()
+    lead = f"{prefix}\n\n" if prefix else ""
+    return (
+        f"{lead}[uploaded file: {name}]\n"
+        "(This file was corrupted by a legacy binary-upload bug and its text payload was hidden. "
+        "Re-upload the original file if you want Jonathan to inspect it.)"
+    )
 
 
 def _is_anthropic_content_block(item: Any) -> bool:
@@ -99,6 +125,25 @@ class TextContentBlock:
     """A text content block."""
     type: str = "text"
     text: str = ""
+    # Optional transcript-only text. Providers always receive ``text``.
+    display_text: str | None = None
+
+
+@dataclass
+class ImageContentBlock:
+    """A provider-neutral image block stored in Anthropic wire format."""
+    type: str = "image"
+    source: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class AttachmentContentBlock:
+    """Transcript-only downloadable user attachment metadata."""
+    type: str = "attachment"
+    name: str = ""
+    download_url: str = ""
+    media_type: str = "application/octet-stream"
+    size: int = 0
 
 
 @dataclass
@@ -119,7 +164,7 @@ class ToolResultContentBlock:
     is_error: bool = False
 
 
-ContentBlock = Union[TextContentBlock, ToolUseContentBlock, ToolResultContentBlock]
+ContentBlock = Union[TextContentBlock, ImageContentBlock, AttachmentContentBlock, ToolUseContentBlock, ToolResultContentBlock]
 
 
 @dataclass
@@ -136,18 +181,20 @@ class Message:
 class Conversation:
     """Conversation manager."""
     messages: list[Message] = field(default_factory=list)
-    max_history: int = 100
+    # Zero means durable/unbounded history. Provider context windows are handled
+    # separately; Jonathan never deletes old turns merely to enforce an app quota.
+    max_history: int = 0
 
     def add_message(self, role: str, content: Union[str, list[ContentBlock]]):
         """Add a message to conversation."""
-        if len(self.messages) >= self.max_history:
+        if self.max_history > 0 and len(self.messages) >= self.max_history:
             self.messages.pop(0)
 
         self.messages.append(Message(role=role, content=content))
 
-    def add_user_message(self, text: str):
-        """Add a plain user text message."""
-        self.add_message("user", text)
+    def add_user_message(self, content: Union[str, list[ContentBlock]]):
+        """Add user text or multimodal content blocks."""
+        self.add_message("user", content)
 
     def add_assistant_message(self, content: Union[str, list[ContentBlock]]):
         """Add an assistant message (text or tool use)."""
@@ -171,12 +218,18 @@ class Conversation:
             if getattr(msg, "_is_internal", False):
                 continue
             if isinstance(msg.content, str):
-                api_messages.append({"role": msg.role, "content": msg.content})
+                api_messages.append({"role": msg.role, "content": sanitize_legacy_binary_upload_text(msg.content)})
             else:
                 content_blocks = []
                 for block in msg.content:
                     if isinstance(block, TextContentBlock):
                         content_blocks.append({"type": "text", "text": block.text})
+                    elif isinstance(block, ImageContentBlock):
+                        content_blocks.append({"type": "image", "source": dict(block.source)})
+                    elif isinstance(block, AttachmentContentBlock):
+                        # UI metadata is not a provider content block. The staged
+                        # path and extracted text are already present in text.
+                        continue
                     elif isinstance(block, ToolUseContentBlock):
                         content_blocks.append({
                             "type": "tool_use",
@@ -208,7 +261,14 @@ class Conversation:
                 content_data = []
                 for block in msg.content:
                     if isinstance(block, TextContentBlock):
-                        content_data.append({"type": "text", "text": block.text})
+                        content_data.append({"type": "text", "text": block.text, "display_text": block.display_text})
+                    elif isinstance(block, ImageContentBlock):
+                        content_data.append({"type": "image", "source": dict(block.source)})
+                    elif isinstance(block, AttachmentContentBlock):
+                        content_data.append({
+                            "type": "attachment", "name": block.name, "download_url": block.download_url,
+                            "media_type": block.media_type, "size": block.size,
+                        })
                     elif isinstance(block, ToolUseContentBlock):
                         content_data.append({
                             "type": "tool_use",
@@ -237,7 +297,8 @@ class Conversation:
     @classmethod
     def from_dict(cls, data: dict) -> 'Conversation':
         """Deserialize conversation."""
-        conv = cls(max_history=data.get("max_history", 100))
+        # Migrate older sessions that stored the former 100-message UI cap.
+        conv = cls(max_history=0)
         for msg_data in data.get("messages", []):
             content = msg_data["content"]
             if isinstance(content, str):
@@ -247,7 +308,19 @@ class Conversation:
                 for block_data in content:
                     block_type = block_data.get("type")
                     if block_type == "text":
-                        msg_content.append(TextContentBlock(type="text", text=block_data.get("text", "")))
+                        msg_content.append(TextContentBlock(
+                            type="text", text=block_data.get("text", ""),
+                            display_text=block_data.get("display_text"),
+                        ))
+                    elif block_type == "image" and isinstance(block_data.get("source"), dict):
+                        msg_content.append(ImageContentBlock(type="image", source=dict(block_data["source"])))
+                    elif block_type == "attachment":
+                        msg_content.append(AttachmentContentBlock(
+                            type="attachment", name=str(block_data.get("name") or "attachment"),
+                            download_url=str(block_data.get("download_url") or ""),
+                            media_type=str(block_data.get("media_type") or "application/octet-stream"),
+                            size=int(block_data.get("size") or 0),
+                        ))
                     elif block_type == "tool_use":
                         msg_content.append(ToolUseContentBlock(
                             type="tool_use",

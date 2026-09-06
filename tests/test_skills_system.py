@@ -9,8 +9,9 @@ from unittest.mock import patch
 from src.skills.create import create_skill
 from src.skills.frontmatter import parse_frontmatter
 from src.skills.loader import clear_skill_registry, get_all_skills
+from src.skills.library import render_skill, save_user_skill, validate_skill_source
 from src.tool_system.context import ToolContext
-from src.tool_system.tools import SkillTool
+from src.tool_system.tools import SkillManagerTool, SkillTool
 
 
 class SkillSystemTests(unittest.TestCase):
@@ -50,6 +51,39 @@ class TestSkillCreate(SkillSystemTests):
         )
         self.assertEqual(parsed.frontmatter["arguments"], ["name"])
         self.assertEqual(parsed.frontmatter["allowed-tools"], ["Read", "Grep"])
+
+    def test_visible_library_round_trips_valid_utf8_skill(self) -> None:
+        skills_dir = self.root / "Jonathan" / "Jonathan-Ai" / "Skills"
+        source = render_skill(
+            name="image-review",
+            description="Inspect an uploaded image before editing it.",
+            instructions="Use VisionAnalyze, then preserve the user's subject during edits.",
+            allowed_tools=["VisionAnalyze", "ImageStudio"],
+        )
+        with patch.dict(os.environ, {"CLAWD_SKILLS_DIR": str(skills_dir)}):
+            saved = save_user_skill("image-review", source)
+            validation = validate_skill_source("image-review", saved["content"])
+            skills = {skill.name: skill for skill in get_all_skills(project_root=self.root)}
+        self.assertTrue(validation["valid"])
+        self.assertEqual(validation["description"], "Inspect an uploaded image before editing it.")
+        self.assertIn("image-review", skills)
+        self.assertEqual(skills["image-review"].loaded_from, "user")
+
+    def test_skill_manager_defaults_agent_learning_to_visible_user_library(self) -> None:
+        skills_dir = self.root / "visible-skills"
+        with patch.dict(os.environ, {"CLAWD_SKILLS_DIR": str(skills_dir)}):
+            result = SkillManagerTool().run({
+                "action": "create",
+                "name": "release-check",
+                "description": "Verify a completed release.",
+                "instructions": "Run the focused tests and verify packaged checksums.",
+                "allowed_tools": ["Read", "Bash"],
+            }, ToolContext(workspace_root=self.root))
+        path = skills_dir / "release-check" / "SKILL.md"
+        self.assertTrue(result.output["valid"])
+        self.assertEqual(result.output["scope"], "user")
+        self.assertTrue(path.is_file())
+        self.assertEqual(parse_frontmatter(path.read_text(encoding="utf-8")).frontmatter["name"], "release-check")
 
 
 class TestSkillRegister(SkillSystemTests):

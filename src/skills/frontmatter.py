@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from typing import Any, Dict, List, Tuple
 
 
@@ -86,6 +87,13 @@ def _split_key_value(line: str) -> Tuple[str, str]:
 
 
 def _coerce_scalar(value: str) -> Any:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        if value[0] == '"':
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                pass
+        return value[1:-1]
     low = value.lower()
     if low in ("true", "false"):
         return low == "true"

@@ -75,6 +75,15 @@ def venv_is_usable(source_dir: Path) -> bool:
     target = venv_python(source_dir)
     if not target.is_file():
         return False
+    # Avoid asking CreateProcess to execute a corrupt/text file on Windows.
+    # Besides being slow to time out, that can invoke OS compatibility and
+    # security handlers. A real Windows Python launcher is always a PE file.
+    if os.name == "nt":
+        try:
+            if target.read_bytes()[:2] != b"MZ":
+                return False
+        except OSError:
+            return False
     try:
         result = subprocess.run(
             [str(target), "-c", "import sys"],

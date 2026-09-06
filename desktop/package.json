@@ -1,7 +1,7 @@
 {
   "name": "jonathan-ai",
   "productName": "Jonathan Ai",
-  "version": "0.2.8",
+  "version": "0.4.9",
   "private": true,
   "description": "Native desktop shell for Jonathan Ai. The Python agent remains the brain.",
   "main": "main.js",
@@ -12,7 +12,7 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "electron": "^36.0.0",
+    "electron": "^44.0.0",
     "electron-builder": "^26.0.12"
   }
 }

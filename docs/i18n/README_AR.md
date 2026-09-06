@@ -10,8 +10,8 @@
 
 ***
 
-[![GitHub stars](https://img.shields.io/github/stars/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GPT-AGI/Clawd-Code/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GPT-AGI/Clawd-Code/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GoDeskio/Clawd-Code/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GoDeskio/Clawd-Code/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 
@@ -53,7 +53,7 @@
 - ✅ **سهل الاستخدام** — إعداد سهل، REPL تفاعلي، توثيق شامل
 - ✅ **تحسين مستمر** — معالجة أخطاء محسّنة، اختبارات، توثيق
 
-**الإصدار 0.2.8 — Jonathan Ai.** تطبيق سطح المكتب هو الوكيل نفسه. تُحفظ المحادثات على القرص؛ New Chat يفتح خيطاً فارغاً. الذاكرة المشتركة (`~/.clawd/memory`) تنقل الحقائق بين الدردشات. MCP وCursor وCodex اختيارية. تُحوَّل نتائج الأدوات ذات الشكل الكائني إلى نص. أعد تسمية المحادثات من الشريط الجانبي. تُرسل مخططات الأدوات بالشكل الكلاسيكي لـ Anthropic (`input_schema.type`). عند 400 schema تُعاد نفس الطلب بدون tools.
+**الإصدار 0.3.0 — Jonathan Ai.** تطبيق سطح المكتب هو الوكيل نفسه، مع أدوات الصور وBlender ثلاثية الأبعاد وإدارة النظام والتدقيق والمستودعات والمهارات والذاكرة المشتركة.
 
 **🚀 جرّبه الآن! افرکه، عدّله، اجعله ملكك! طلبات السحب مرحب بها!**
 
@@ -122,7 +122,7 @@ clawd config       # عرض الإعدادات
 ### التثبيت
 
 ```bash
-git clone https://github.com/GPT-AGI/Clawd-Code.git
+git clone https://github.com/GoDeskio/Clawd-Code.git
 cd Clawd-Code
 
 # إنشاء venv (يُوصى بـ uv)

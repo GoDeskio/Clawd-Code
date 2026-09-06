@@ -1,6 +1,6 @@
 # Jonathan Ai for Windows
 
-**Version 0.2.8** — Jonathan Ai is itself the AI agent. After install, chat works with one API key or a local LLM. Conversations persist across restarts; New Chat is always empty. Shared memory stays in `%USERPROFILE%\.clawd\memory`. MCP, Cursor, and Codex are optional. Object-shaped Anthropic tool results are stringified. Rename conversations from the left sidebar (double-click or right-click). The version appears in the installer title and the app header.
+**Version 0.4.9** — Jonathan Ai keeps the composer inside the desktop viewport, makes New Chat immediately writable, prevents stale refreshes from restoring removed conversations, records installer failures, and automatically applies newer installers from the allowlisted PR branch. The standard wizard upgrades `%USERPROFILE%\Jonathan\Jonathan-Ai` in place and preserves conversations, configuration, user skills, media and project downloads.
 
 `JonathanAi.exe` looks for the app in this order: `CLAWD_SOURCE_DIR`, the exe folder, `%USERPROFILE%\Jonathan\Jonathan-Ai`, then the current working directory. A working `.venv` is enough to open the UI; Electron is optional. If a Desktop click still says it cannot find Electron or the venv, run `JonathanAi-Setup.exe` again — it upgrades that same `Jonathan-Ai` folder in place and rewrites shortcuts to `%USERPROFILE%\Jonathan\Jonathan-Ai\JonathanAi.exe`.
 
@@ -29,13 +29,13 @@ On Linux (mingw):
 ./packaging/windows/build.sh
 ```
 
-On Windows (optional Electron + Inno Setup polish):
+On Windows (Electron plus a standard Inno Setup or NSIS wizard):
 
 ```powershell
 powershell -File packaging\windows\build-windows.ps1
 ```
 
-Inno Setup (`JonathanAi.iss`) produces a classic Setup wizard that also writes Desktop/Start Menu shortcuts and launches the app on Finish.
+Inno Setup (`JonathanAi.iss`) or NSIS (`JonathanAi.nsi`) produces a standard Setup wizard that registers an uninstaller, writes Desktop/Start Menu shortcuts, upgrades the same folder, preserves `Skills`, installs runtime dependencies, initializes all native engines, optionally synchronizes the ECC catalog when online, and launches the app on Finish.
 
 No API tokens are baked into these artifacts. Tokens stay in `%USERPROFILE%\.clawd\config.json`. There is no token paywall. The on-screen token count is informational only.
 

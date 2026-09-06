@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
 from pathlib import Path
 
 
@@ -123,11 +124,25 @@ def install_app_shortcuts(
     )
     for src in sources:
         if src.exists() and src.resolve() != dest_exe.resolve():
-            shutil.copy2(src, dest_exe)
+            if src.read_bytes()[:2] != b"MZ":
+                raise RuntimeError(f"bundled launcher is not a Windows executable: {src}")
+            temp_exe = source_dir / "JonathanAi.exe.new"
+            shutil.copy2(src, temp_exe)
+            last_error: OSError | None = None
+            for _attempt in range(20):
+                try:
+                    os.replace(temp_exe, dest_exe)
+                    last_error = None
+                    break
+                except OSError as exc:
+                    last_error = exc
+                    time.sleep(0.1)
+            if last_error:
+                raise RuntimeError(f"could not replace {dest_exe}; close Jonathan Ai and retry") from last_error
             break
-    remove_parent_leftover_exes(source_dir)
+    removed_leftovers = remove_parent_leftover_exes(source_dir)
     result = create_windows_shortcuts(dest_exe, icon if icon and icon.exists() else None)
     result["target"] = str(dest_exe)
     result["workdir"] = str(source_dir)
-    result["removed_leftovers"] = remove_parent_leftover_exes(source_dir)
+    result["removed_leftovers"] = removed_leftovers
     return result

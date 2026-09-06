@@ -14,6 +14,27 @@ from .base import BaseProvider, ChatResponse, MessageInput, TextChunkCallback
 from src.tool_system.schema_sanitize import sanitize_input_schema, sanitize_tools_for_api
 
 
+def _openai_multimodal_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Translate persisted Anthropic-style image blocks to OpenAI image_url blocks."""
+    converted: list[dict[str, Any]] = []
+    for message in messages:
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            converted.append(message)
+            continue
+        blocks: list[Any] = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "image":
+                source = block.get("source") or {}
+                if source.get("type") == "base64" and source.get("data"):
+                    media = source.get("media_type") or "image/png"
+                    blocks.append({"type": "image_url", "image_url": {"url": f"data:{media};base64,{source['data']}"}})
+                    continue
+            blocks.append(block)
+        converted.append({**message, "content": blocks})
+    return converted
+
+
 def _convert_to_openai_tool_schema(anthropic_tool: dict[str, Any]) -> dict[str, Any] | None:
     """Convert Anthropic tool schema to OpenAI/GLM/Minimax function format.
 
@@ -86,6 +107,9 @@ class OpenAICompatibleProvider(BaseProvider):
             "output_tokens": getattr(usage, "completion_tokens", 0),
             "total_tokens": getattr(usage, "total_tokens", 0),
         }
+
+    def _prepare_messages(self, messages: list[MessageInput]) -> list[dict[str, Any]]:
+        return _openai_multimodal_messages(super()._prepare_messages(messages))
 
     def chat(
         self,

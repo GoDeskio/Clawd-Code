@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import base64
 import tempfile
 import threading
 import time
@@ -12,8 +13,8 @@ import urllib.request
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.desktop.attachments import attach_clipboard_text, attach_path, render_attachments
-from src.desktop.runtime import DesktopRuntime, provider_limit_hint
+from src.desktop.attachments import attach_clipboard_text, attach_path, image_source, render_attachments
+from src.desktop.runtime import DesktopRuntime, direct_image_request, local_chat_route, provider_limit_hint
 from src.desktop.server import DesktopServer
 from src.providers.base import ChatResponse
 from src.tool_system.permissions import maybe_ask_for_gated_tool
@@ -22,6 +23,9 @@ from src.tool_system.tools.web_fetch import WebFetchTool
 from src.tool_system.context import ToolContext
 from src.tool_system.permission_handler import PermissionBehavior
 from src.tool_system.protocol import ToolCall
+from src.tool_system.agent_loop import AgentLoopResult
+from src.tool_system.tools.terminal import TerminalTool, discover_terminals
+from src.tool_system.tools.device_control import DeviceControlTool
 from src.agent.session import Session
 
 
@@ -80,6 +84,17 @@ class TestGatedPermissions(DesktopTestCase):
         result = WebFetchTool().check_permissions({"url": "https://example.com"}, ctx)
         self.assertEqual(result.behavior, PermissionBehavior.ASK)
 
+    def test_device_control_uses_master_grant(self) -> None:
+        ctx = ToolContext(workspace_root=self.workspace, gate_destructive_tools=True)
+        tool = DeviceControlTool()
+        self.assertEqual(tool.check_permissions({"action": "inventory"}, ctx).behavior, PermissionBehavior.ASK)
+        ctx.session_grants.add("*")
+        self.assertEqual(tool.check_permissions({"action": "inventory"}, ctx).behavior, PermissionBehavior.ALLOW)
+        with patch("src.tool_system.tools.device_control.discover_device_controls", return_value={"counts": {"applications": 1}}):
+            result = tool.run({"action": "inventory"}, ctx)
+        self.assertFalse(result.is_error)
+        self.assertEqual(result.output["counts"]["applications"], 1)
+
     def test_dispatch_denies_gated_write_without_handler(self) -> None:
         from src.tool_system.registry import ToolRegistry
         from src.tool_system.tools.write import FileWriteTool
@@ -115,6 +130,39 @@ class TestAttachments(DesktopTestCase):
         item = attach_clipboard_text("   ")
         self.assertTrue(item.omitted)
 
+    def test_image_attachment_keeps_pixels_for_model_context(self) -> None:
+        from PIL import Image
+
+        path = self.workspace / "photo.png"
+        Image.new("RGB", (24, 16), "purple").save(path)
+        item = attach_path(path)
+        self.assertTrue(item.is_image)
+        self.assertFalse(item.omitted)
+        source = image_source(item)
+        self.assertEqual(source["type"], "base64")
+        self.assertEqual(source["media_type"], "image/png")
+        self.assertTrue(source["data"])
+
+    def test_inline_binary_upload_remains_an_image_instead_of_garbled_text(self) -> None:
+        from PIL import Image
+        import io
+
+        buffer = io.BytesIO()
+        Image.new("RGB", (18, 12), "teal").save(buffer, format="JPEG")
+        runtime = DesktopRuntime(workspace=self.workspace)
+        rows = runtime.attach_files([{
+            "kind": "file",
+            "name": "dropped-photo.jpg",
+            "media_type": "image/jpeg",
+            "data_base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
+        }], runtime.session.session_id)
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["is_image"])
+        self.assertFalse(rows[0]["omitted"])
+        self.assertTrue(Path(rows[0]["path"]).is_file())
+        self.assertIn("/api/attachments/view", rows[0]["preview_url"])
+        self.assertIn("/api/attachments/download", rows[0]["download_url"])
+
 
 class TestDesktopRuntime(DesktopTestCase):
     def _runtime(self) -> DesktopRuntime:
@@ -126,7 +174,10 @@ class TestDesktopRuntime(DesktopTestCase):
         return runtime
 
     def test_setup_required_without_key(self) -> None:
-        runtime = DesktopRuntime(workspace=self.workspace)
+        with patch("src.desktop.runtime.discover_local_environment", return_value={
+            "runtimes": [], "endpoints": [], "selected": None, "auto_started": False,
+        }):
+            runtime = DesktopRuntime(workspace=self.workspace)
         self.assertTrue(runtime.needs_setup())
         job_id = runtime.start_chat("hello")
         self.assertTrue(_wait_until(lambda: runtime.drain_events(job_id)[1]))
@@ -141,6 +192,29 @@ class TestDesktopRuntime(DesktopTestCase):
         masked = status["config"]["providers"]["openai"]["api_key_masked"]
         self.assertNotIn("sk-test-secret-key-123456", json.dumps(status))
         self.assertTrue(masked)
+
+    def test_full_device_access_requires_exact_confirmation_and_is_revocable(self) -> None:
+        runtime = self._runtime()
+        with self.assertRaisesRegex(ValueError, "ENABLE FULL ACCESS"):
+            runtime.configure_device_access(enabled=True, confirmation="yes")
+        with patch("src.desktop.runtime.record_action"):
+            enabled = runtime.configure_device_access(enabled=True, confirmation="ENABLE FULL ACCESS")
+        self.assertTrue(enabled["enabled"])
+        self.assertTrue(runtime.tool_context.permission_context.full_system_access)
+        self.assertIn("*", runtime.tool_context.session_grants)
+        outside = Path(self.tmp.name) / "outside.txt"
+        self.assertEqual(runtime.tool_context.ensure_allowed_path(outside), outside.resolve())
+        with patch("src.desktop.runtime.record_action"):
+            disabled = runtime.configure_device_access(enabled=False)
+        self.assertFalse(disabled["enabled"])
+        self.assertFalse(runtime.tool_context.permission_context.full_system_access)
+        self.assertNotIn("*", runtime.tool_context.session_grants)
+
+    def test_device_access_api_is_exposed_in_status(self) -> None:
+        runtime = self._runtime()
+        status = runtime.status()["device_access"]
+        self.assertFalse(status["enabled"])
+        self.assertIn("launch installed applications and browsers", status["capabilities"])
 
     def test_multi_turn_tool_loop_and_permission_allow(self) -> None:
         runtime = self._runtime()
@@ -185,6 +259,111 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("tool_use", types)
         self.assertIn("done", types)
         self.assertIn("write", runtime.tool_context.session_grants)
+
+    def test_uploaded_image_is_staged_and_added_as_multimodal_context(self) -> None:
+        from PIL import Image
+
+        runtime = self._runtime()
+        source = Path(self.tmp.name) / "outside.png"
+        Image.new("RGB", (32, 20), "orange").save(source)
+        staged = runtime.attach_files([{"kind": "file", "path": str(source)}], runtime.session.session_id)
+        self.assertEqual(len(staged), 1)
+        self.assertTrue(staged[0]["is_image"])
+        self.assertIn("/api/attachments/view", staged[0]["preview_url"])
+        self.assertIn("/api/attachments/download", staged[0]["download_url"])
+        staged_path = Path(staged[0]["path"])
+        self.assertTrue(staged_path.is_file())
+        self.assertIn(runtime.session.session_id, str(staged_path))
+        captured = {}
+
+        def fake_loop(*, conversation, **_kwargs):
+            captured["messages"] = conversation.get_messages()
+            conversation.add_assistant_message("I can see the orange image.")
+            return AgentLoopResult(response_text="I can see the orange image.", usage={}, num_turns=1)
+
+        with patch("src.desktop.runtime.run_agent_loop", side_effect=fake_loop):
+            job = runtime.start_chat("What color is this?", attachments=staged)
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1], timeout=5))
+        content = captured["messages"][-1]["content"]
+        self.assertTrue(any(block.get("type") == "image" and block.get("source", {}).get("data") for block in content))
+        self.assertIn(str(staged_path), content[0]["text"])
+        transcript = runtime.session.export_messages()
+        rich_user = next(row for row in transcript if row["role"] == "user" and isinstance(row["content"], list))
+        exported_image = next(block for block in rich_user["content"] if block.get("type") == "image")
+        self.assertEqual(exported_image["name"], "outside.png")
+        self.assertTrue(exported_image["source"]["data"])
+        exported_text = next(block["text"] for block in rich_user["content"] if block.get("type") == "text")
+        self.assertEqual(exported_text, "What color is this?")
+        self.assertNotIn(str(staged_path), exported_text)
+
+    def test_explicit_image_prompt_runs_local_engine_without_chat_provider(self) -> None:
+        runtime = DesktopRuntime(workspace=self.workspace)
+        runtime.provider = None
+        artifact = {
+            "name": "generated.png", "id": "generated.png", "size": 123,
+            "is_image": True, "media_type": "image/png",
+            "view_url": "/api/artifacts/view?name=generated.png",
+            "download_url": "/api/artifacts/download?name=generated.png",
+        }
+        from src.tool_system.protocol import ToolResult
+
+        with patch("src.desktop.runtime.ImageStudioTool.run", return_value=ToolResult(
+            name="ImageStudio", output={"action": "generate", "artifact": artifact, "artifacts": [artifact]},
+        )) as run_image:
+            job = runtime.start_chat("/image a friendly blue robot in a workshop")
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1], timeout=5))
+        events, done = runtime.drain_events(job)
+        self.assertTrue(done)
+        self.assertEqual([event["type"] for event in events], ["job_started", "user", "tool_use", "tool_result", "done"])
+        tool_input = run_image.call_args.args[0]
+        self.assertEqual(tool_input["engine"], "local")
+        self.assertEqual((tool_input["width"], tool_input["height"]), (512, 512))
+        self.assertIn("friendly blue robot", tool_input["prompt"])
+        transcript = runtime.session.export_messages()
+        self.assertTrue(any(row["role"] == "assistant" and isinstance(row["content"], list) for row in transcript))
+        self.assertIn("ready to download", transcript[1]["content"].lower())
+
+    def test_uploaded_image_edit_prompt_uses_exact_staged_source(self) -> None:
+        from PIL import Image
+        from src.tool_system.protocol import ToolResult
+
+        runtime = self._runtime()
+        source = Path(self.tmp.name) / "source.png"
+        Image.new("RGB", (20, 20), "red").save(source)
+        staged = runtime.attach_files([{"kind": "file", "path": str(source)}], runtime.session.session_id)
+        with patch("src.desktop.runtime.ImageStudioTool.run", return_value=ToolResult(
+            name="ImageStudio", output={"action": "ai_edit", "artifacts": []},
+        )) as run_image:
+            job = runtime.start_chat("Please transform this image into a watercolor", attachments=staged)
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1], timeout=5))
+        tool_input = run_image.call_args.args[0]
+        self.assertEqual(tool_input["action"], "ai_edit")
+        self.assertEqual(tool_input["source"], staged[0]["path"])
+        runtime.provider.chat.assert_not_called()
+
+    def test_code_feature_request_is_not_misrouted_as_image_generation(self) -> None:
+        self.assertIsNone(direct_image_request("Fix the image generator feature in this application"))
+
+    def test_uploaded_document_is_downloadable_and_backend_context_is_hidden(self) -> None:
+        runtime = self._runtime()
+        source = Path(self.tmp.name) / "brief.txt"
+        source.write_text("confidential attachment body", encoding="utf-8")
+        staged = runtime.attach_files([{"kind": "file", "path": str(source)}], runtime.session.session_id)
+        self.assertIn("/api/attachments/download", staged[0]["download_url"])
+
+        def fake_loop(*, conversation, **_kwargs):
+            conversation.add_assistant_message("I read the brief.")
+            return AgentLoopResult(response_text="I read the brief.", usage={}, num_turns=1)
+
+        with patch("src.desktop.runtime.run_agent_loop", side_effect=fake_loop):
+            job = runtime.start_chat("Summarize this file", attachments=staged)
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1], timeout=5))
+        rich_user = next(row for row in runtime.session.export_messages() if row["role"] == "user")
+        text = next(block["text"] for block in rich_user["content"] if block.get("type") == "text")
+        attachment = next(block for block in rich_user["content"] if block.get("type") == "attachment")
+        self.assertEqual(text, "Summarize this file")
+        self.assertEqual(attachment["name"], "brief.txt")
+        self.assertIn("/api/attachments/download", attachment["download_url"])
 
     def test_slash_help_is_local(self) -> None:
         runtime = self._runtime()
@@ -276,11 +455,76 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertNotIn("MCP", names)
         self.assertNotIn("ListMcpResources", names)
         self.assertNotIn("ReadMcpResource", names)
-        self.assertIn("Skill", names)
+        self.assertIn("ToolSearch", names)
         for tool in tools:
             self.assertEqual(tool["input_schema"].get("type"), "object", tool["name"])
-        self.assertEqual(runtime.status()["version"], "0.2.8")
+        self.assertEqual(runtime.status()["version"], "0.4.9")
         self.assertTrue(runtime.status()["standalone"])
+
+    def test_local_chat_route_skips_tools_for_conversation_and_focuses_actions(self) -> None:
+        lightweight, tools = local_chat_route("Tell me a short joke about robots")
+        self.assertTrue(lightweight)
+        self.assertEqual(tools, set())
+
+        lightweight, tools = local_chat_route("Fix the Python project and run its tests")
+        self.assertFalse(lightweight)
+        self.assertIn("ToolSearch", tools)
+        self.assertIn("Read", tools)
+        self.assertIn("Edit", tools)
+        self.assertIn("Bash", tools)
+        self.assertNotIn("SendUserMessage", tools)
+
+        lightweight, tools = local_chat_route("Open Chrome and take a desktop screenshot")
+        self.assertFalse(lightweight)
+        self.assertIn("DeviceControl", tools)
+
+        lightweight, tools = local_chat_route("What is shown here?", [MagicMock()])
+        self.assertFalse(lightweight)
+        self.assertIn("ImageStudio", tools)
+
+    def test_ordinary_local_chat_uses_lightweight_one_turn_loop(self) -> None:
+        runtime = self._runtime()
+        runtime.provider_name = "local"
+        captured = {}
+
+        def fake_loop(*, conversation, **kwargs):
+            captured.update(kwargs)
+            conversation.add_assistant_message("Fast local reply")
+            return AgentLoopResult(
+                response_text="Fast local reply",
+                usage={"input_tokens": 12, "output_tokens": 3},
+                num_turns=1,
+            )
+
+        with patch("src.desktop.runtime.run_agent_loop", side_effect=fake_loop):
+            job = runtime.start_chat("Hello Jonathan, how are you?")
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1], timeout=5))
+
+        self.assertTrue(captured["lightweight"])
+        self.assertEqual(captured["max_turns"], 1)
+        self.assertIsNone(captured["selected_tool_names"])
+        events, _ = runtime.drain_events(job)
+        self.assertTrue(any(event.get("type") == "done" and event.get("text") == "Fast local reply" for event in events))
+
+    def test_actionable_local_chat_receives_focused_tools(self) -> None:
+        runtime = self._runtime()
+        runtime.provider_name = "local"
+        captured = {}
+
+        def fake_loop(*, conversation, **kwargs):
+            captured.update(kwargs)
+            conversation.add_assistant_message("Project checked")
+            return AgentLoopResult(response_text="Project checked", usage={}, num_turns=1)
+
+        with patch("src.desktop.runtime.run_agent_loop", side_effect=fake_loop):
+            job = runtime.start_chat("Inspect this repo, fix app.py, and run tests")
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job)[1], timeout=5))
+
+        self.assertFalse(captured["lightweight"])
+        self.assertEqual(captured["max_turns"], 12)
+        self.assertIn("Read", captured["selected_tool_names"])
+        self.assertIn("Edit", captured["selected_tool_names"])
+        self.assertIn("Bash", captured["selected_tool_names"])
 
     def test_schema_400_retries_same_turn_without_tools(self) -> None:
         runtime = self._runtime()
@@ -340,6 +584,120 @@ class TestDesktopRuntime(DesktopTestCase):
         second = runtime.new_session()
         self.assertNotEqual(second["session_id"], first["session_id"])
         self.assertEqual(second["message_count"], 0)
+
+    def test_remove_chat_hides_sidebar_but_keeps_session_file_and_memory(self) -> None:
+        runtime = self._runtime()
+        runtime.session.conversation.add_user_message("Retain this private project history")
+        saved = runtime.save_session()
+        session_file = self.home / ".clawd" / "sessions" / f"{saved['session_id']}.json"
+        self.assertTrue(session_file.exists())
+
+        result = runtime.remove_session(saved["session_id"])
+
+        self.assertTrue(result["retained_in_memory"])
+        self.assertTrue(session_file.exists())
+        self.assertIsNotNone(Session.load(saved["session_id"]))
+        self.assertNotIn(saved["session_id"], {row["session_id"] for row in runtime.list_sessions()})
+        self.assertIn(saved["session_id"], {row["session_id"] for row in Session.list_sessions()})
+        self.assertNotEqual(runtime.session.session_id, saved["session_id"])
+
+    def test_project_location_preview_and_packaged_download(self) -> None:
+        runtime = self._runtime()
+        downloads = Path(self.tmp.name) / "chosen-projects"
+        configured = runtime.set_projects_dir(downloads)
+        self.assertEqual(Path(configured["projects_dir"]), downloads.resolve())
+        (self.workspace / "index.html").write_text("<h1>Live preview</h1>", encoding="utf-8")
+        (self.workspace / "app.js").write_text("console.log('ok')", encoding="utf-8")
+
+        preview = runtime.preview_info()
+        self.assertEqual(preview["entry"], "index.html")
+        self.assertIn("app.js", preview["files"])
+        self.assertEqual(runtime.resolve_preview_path("index.html").read_text(encoding="utf-8"), "<h1>Live preview</h1>")
+
+        packaged = runtime.package_workspace()
+        artifact = packaged["artifact"]
+        self.assertTrue(artifact["name"].endswith(".zip"))
+        self.assertTrue(runtime.resolve_artifact(artifact["id"]).exists())
+        self.assertIn("/api/artifacts/download", artifact["download_url"])
+
+    def test_artifact_publish_falls_back_when_selected_location_is_not_writable(self) -> None:
+        runtime = self._runtime()
+        requested = Path(self.tmp.name) / "selected-projects"
+        fallback = Path(self.tmp.name) / "durable-fallback"
+        runtime.set_projects_dir(requested)
+        runtime._artifact_fallback_dir = fallback
+        source = self.workspace / "generated.png"
+        source.write_bytes(b"generated-image")
+        real_copy = __import__("shutil").copy2
+
+        def guarded_copy(src, dst, *args, **kwargs):
+            if Path(dst).parent == requested / "Jonathan Ai Downloads":
+                raise PermissionError("selected folder became read-only")
+            return real_copy(src, dst, *args, **kwargs)
+
+        with patch("src.desktop.runtime.shutil.copy2", side_effect=guarded_copy):
+            artifact = runtime._publish_artifact(source)
+
+        self.assertEqual(runtime.artifacts_dir, fallback)
+        self.assertTrue(runtime.resolve_artifact(artifact["id"]).is_file())
+        self.assertEqual(runtime.resolve_artifact(artifact["id"]).read_bytes(), b"generated-image")
+
+    def test_conversation_agents_run_simultaneously_without_session_crossover(self) -> None:
+        runtime = self._runtime()
+        runtime.session.conversation.add_user_message("agent A seed")
+        agent_a = runtime.save_session()["session_id"]
+        agent_b = runtime.new_session()["session_id"]
+        barrier = threading.Barrier(2)
+
+        def fake_loop(*, conversation, **_kwargs):
+            user_text = next(
+                str(message.content)
+                for message in reversed(conversation.messages)
+                if message.role == "user"
+            )
+            barrier.wait(timeout=3)
+            conversation.add_assistant_message(f"answer for {user_text}")
+            return AgentLoopResult(
+                response_text=f"answer for {user_text}",
+                usage={"input_tokens": 1, "output_tokens": 1},
+                num_turns=1,
+            )
+
+        with patch("src.desktop.runtime.run_agent_loop", side_effect=fake_loop):
+            job_a = runtime.start_chat("request A", session_id=agent_a)
+            job_b = runtime.start_chat("request B", session_id=agent_b)
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job_a)[1], timeout=5))
+            self.assertTrue(_wait_until(lambda: runtime.drain_events(job_b)[1], timeout=5))
+
+        text_a = json.dumps(runtime.peek_session(agent_a)["messages"])
+        text_b = json.dumps(runtime.peek_session(agent_b)["messages"])
+        self.assertIn("answer for request A", text_a)
+        self.assertNotIn("request B", text_a)
+        self.assertIn("answer for request B", text_b)
+        self.assertNotIn("request A", text_b)
+        self.assertNotEqual(runtime._agent_for_session(agent_a).tool_context, runtime._agent_for_session(agent_b).tool_context)
+
+    def test_agent_can_cross_view_other_instance_when_needed(self) -> None:
+        runtime = self._runtime()
+        runtime.session.conversation.add_user_message("cross-view fact from A")
+        agent_a = runtime.save_session()["session_id"]
+        agent_b = runtime.new_session()["session_id"]
+        context = runtime._agent_for_session(agent_b).tool_context
+        result = runtime.tool_registry.dispatch(
+            ToolCall(name="AgentInstances", input={"action": "read", "session_id": agent_a}),
+            context,
+        )
+        self.assertFalse(result.is_error)
+        self.assertIn("cross-view fact from A", json.dumps(result.output))
+
+    def test_terminal_discovers_and_executes_installed_shell(self) -> None:
+        terminals = discover_terminals()
+        self.assertTrue(terminals)
+        shell = "cmd" if any(item["name"] == "cmd" for item in terminals) else "auto"
+        context = ToolContext(workspace_root=self.workspace)
+        result = TerminalTool().run({"command": "echo terminal-ok", "shell": shell}, context)
+        self.assertFalse(result.is_error, result.output)
+        self.assertIn("terminal-ok", result.output["stdout"])
 
     def test_restart_restores_persisted_chats(self) -> None:
         runtime = self._runtime()
@@ -465,6 +823,13 @@ class TestDesktopServer(DesktopTestCase):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             urllib.request.urlopen(req, timeout=2)
         self.assertEqual(ctx.exception.code, 401)
+        ready_req = urllib.request.Request(
+            f"{server.url}api/ready",
+            headers={"X-Clawd-Token": server.token},
+        )
+        ready = json.loads(urllib.request.urlopen(ready_req, timeout=2).read())
+        self.assertTrue(ready["ok"])
+        self.assertEqual(ready["version"], "0.4.9")
 
     def test_static_ui_is_served(self) -> None:
         server = DesktopServer(DesktopRuntime(workspace=self.workspace), host="127.0.0.1", port=0)
@@ -479,9 +844,68 @@ class TestDesktopServer(DesktopTestCase):
         self.assertIn("informational", html)
         self.assertIn("robot.png", html)
         self.assertIn("Conversations", html)
-        self.assertIn("0.2.8", html)
+        self.assertIn("0.4.9", html)
         self.assertIn("session-menu", html)
+        self.assertIn("working-robot", html)
+        self.assertIn("preview-pane", html)
+        self.assertIn("package-project", html)
+        self.assertIn("pick-projects", html)
+        self.assertIn("session-menu-remove", html)
         self.assertIn("app.js", html)
+
+    def test_preview_and_artifact_download_require_token_and_serve_files(self) -> None:
+        from PIL import Image
+
+        runtime = DesktopRuntime(workspace=self.workspace)
+        downloads = Path(self.tmp.name) / "downloads"
+        runtime.set_projects_dir(downloads)
+        (self.workspace / "index.html").write_text("<h1>Preview works</h1>", encoding="utf-8")
+        artifact = runtime.package_workspace()["artifact"]
+        server = DesktopServer(runtime, host="127.0.0.1", port=0)
+        server.start()
+        self.addCleanup(server.stop)
+
+        preview_req = urllib.request.Request(
+            f"{server.url}preview/index.html",
+            headers={"X-Clawd-Token": server.token},
+        )
+        self.assertIn(b"Preview works", urllib.request.urlopen(preview_req, timeout=2).read())
+        download_req = urllib.request.Request(
+            f"{server.url}{artifact['download_url']}",
+            headers={"X-Clawd-Token": server.token},
+        )
+        with urllib.request.urlopen(download_req, timeout=2) as response:
+            self.assertIn("attachment", response.headers.get("Content-Disposition", ""))
+            self.assertTrue(response.read().startswith(b"PK"))
+
+        image_path = self.workspace / "generated.png"
+        Image.new("RGB", (12, 8), "purple").save(image_path)
+        image_artifact = runtime._publish_session_artifact(
+            runtime.session.session_id,
+            image_path,
+            "generated.png",
+        )
+        runtime.session.save()
+        self.assertTrue(image_artifact["is_image"])
+        self.assertIn("/api/artifacts/view", image_artifact["view_url"])
+        rich = runtime.session.export_messages()
+        artifact_block = next(
+            block
+            for row in rich
+            for block in (row["content"] if isinstance(row["content"], list) else [])
+            if block.get("type") == "artifact"
+        )
+        self.assertEqual(artifact_block["name"], image_artifact["name"])
+        self.assertEqual(Session.load(runtime.session.session_id).media_items[0]["name"], image_artifact["name"])
+
+        view_req = urllib.request.Request(
+            f"{server.url}{image_artifact['view_url']}",
+            headers={"X-Clawd-Token": server.token},
+        )
+        with urllib.request.urlopen(view_req, timeout=2) as response:
+            self.assertIn("inline", response.headers.get("Content-Disposition", ""))
+            self.assertEqual(response.headers.get_content_type(), "image/png")
+            self.assertTrue(response.read().startswith(b"\x89PNG"))
 
     def test_new_chat_api_is_empty_and_messages_roundtrip(self) -> None:
         runtime = DesktopRuntime(workspace=self.workspace, permission_timeout_s=2.0)

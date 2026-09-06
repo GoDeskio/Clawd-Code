@@ -201,6 +201,7 @@ class InteractivePermissionHandler:
                     workspace_root=pc.workspace_root,
                     additional_working_directories=pc.additional_working_directories,
                     allow_docs=True,
+                    full_system_access=pc.full_system_access,
                 )
                 context.permission_context = new_pc
                 self._print(f"[green]✓ {setting_name} enabled for this session[/green]")

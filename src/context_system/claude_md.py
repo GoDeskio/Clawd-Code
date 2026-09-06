@@ -8,6 +8,28 @@ _PROJECT_CANDIDATES = ("CLAUDE.md", ".clawd/CLAUDE.md", ".claude/CLAUDE.md")
 _USER_CANDIDATES = (".clawd/CLAUDE.md", ".claude/CLAUDE.md")
 
 
+def load_design_md_context(
+    workspace_root: str | Path,
+    *,
+    max_chars: int = 8_000,
+) -> ClaudeMdContext:
+    """Load a project-owned DESIGN.md as bounded, UTF-8 visual context."""
+    root = Path(workspace_root).expanduser().resolve()
+    path = root / "DESIGN.md"
+    if not path.is_file():
+        return ClaudeMdContext(files=(), truncated=False)
+    try:
+        content = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return ClaudeMdContext(files=(), truncated=False)
+    if not content:
+        return ClaudeMdContext(files=(), truncated=False)
+    truncated = len(content) > max_chars
+    if truncated:
+        content = content[: max(0, max_chars - 32)].rstrip() + "\n...[truncated]"
+    return ClaudeMdContext(files=(ClaudeMdFile(path=path, content=content),), truncated=truncated)
+
+
 def load_claude_md_context(
     workspace_root: str | Path,
     *,

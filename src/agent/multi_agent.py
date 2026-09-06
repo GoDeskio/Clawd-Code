@@ -14,10 +14,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from src.agent.memory import build_memory_brief, remember_turn
+from src.agent.session import empty_token_usage, merge_token_usage
 from src.providers.base import BaseProvider, ChatResponse
 
 
 MAX_WORKERS = 3
+WORKER_MODES = {"fast": 2, "balanced": 3, "verified": 3}
 
 
 def plan_subtasks(goal: str, *, max_workers: int = MAX_WORKERS) -> list[str]:
@@ -85,8 +87,10 @@ def _run_one_worker(
             system=system,
         )
         answer = (response.content if isinstance(response, ChatResponse) else str(response)) or ""
+        usage = dict(response.usage or {}) if isinstance(response, ChatResponse) else {}
     except Exception as exc:
         answer = f"Worker failed: {exc}"
+        usage = {}
     title = prompt.splitlines()[0][:72] or f"Worker {index + 1}"
     try:
         remember_turn(
@@ -103,6 +107,7 @@ def _run_one_worker(
         "title": title,
         "prompt": prompt,
         "answer": answer,
+        "usage": usage,
     }
 
 
@@ -112,15 +117,20 @@ def run_internal_workers(
     goal: str,
     parent_session_id: str = "",
     max_workers: int = MAX_WORKERS,
+    mode: str = "balanced",
 ) -> dict[str, Any]:
     """Plan subtasks and run isolated workers in parallel. No external agents."""
     if provider is None:
         raise ValueError("Connect a provider before running workers.")
-    subtasks = _planner_subtasks(provider, goal, max_workers=max_workers)
+    selected_mode = str(mode or "balanced").strip().lower()
+    if selected_mode not in WORKER_MODES:
+        raise ValueError(f"unknown worker mode: {mode}")
+    worker_cap = min(max(1, int(max_workers)), WORKER_MODES[selected_mode], MAX_WORKERS)
+    subtasks = _planner_subtasks(provider, goal, max_workers=worker_cap)
     if not subtasks:
         raise ValueError("Goal is empty.")
     results: list[dict[str, Any]] = [None] * len(subtasks)  # type: ignore[list-item]
-    workers = min(len(subtasks), MAX_WORKERS)
+    workers = min(len(subtasks), worker_cap)
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         futures = {
             pool.submit(
@@ -141,10 +151,38 @@ def run_internal_workers(
         for item in results
         if item
     )
+    usage = empty_token_usage()
+    for item in results:
+        if item:
+            usage = merge_token_usage(usage, item.get("usage") or {})
+    review = ""
+    answer = answers[0] if len(answers) == 1 else combined
+    if selected_mode == "verified":
+        system = (
+            "You are Jonathan Ai's independent final verifier. You did not author the worker outputs. "
+            "Check them against the original goal, identify conflicts or missing evidence, and return a concise "
+            "corrected final answer. Never claim checks you did not perform."
+        )
+        try:
+            response = provider.chat(
+                [{"role": "user", "content": f"Goal:\n{goal}\n\nWorker outputs:\n{combined}"}],
+                tools=None,
+                system=system,
+            )
+            review = (response.content if isinstance(response, ChatResponse) else str(response)) or ""
+            if review:
+                answer = review
+            if isinstance(response, ChatResponse):
+                usage = merge_token_usage(usage, response.usage or {})
+        except Exception as exc:
+            review = f"Independent verification failed; returning worker evidence unchanged: {exc}"
     return {
         "ok": True,
         "goal": goal,
+        "mode": selected_mode,
         "workers": results,
         "combined": combined,
-        "answer": answers[0] if len(answers) == 1 else combined,
+        "review": review,
+        "answer": answer,
+        "usage": usage,
     }

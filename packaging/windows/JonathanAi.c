@@ -74,7 +74,9 @@ static BOOL run_and_wait(const wchar_t *exe, const wchar_t *args, const wchar_t 
     if (!CreateProcessW(exe, cmdline, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, cwd, &si, &pi)) {
         return FALSE;
     }
-    WaitForSingleObject(pi.hProcess, 180000);
+    /* First-run repair installs Jonathan's native image-engine packages and
+       prepares its private model/output directories. */
+    WaitForSingleObject(pi.hProcess, 7200000);
     GetExitCodeProcess(pi.hProcess, &code);
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
@@ -94,6 +96,19 @@ static void run_bootstrap(const wchar_t *root) {
     run_and_wait(L"py", cmdbuf, root);
 }
 
+static int runtime_ready(const wchar_t *root) {
+    wchar_t probe[MAX_PATH];
+    join(probe, MAX_PATH, root, L".venv\\Scripts\\python.exe");
+    if (!exists(probe)) return 0;
+    join(probe, MAX_PATH, root, L"desktop\\node_modules\\electron\\dist\\electron.exe");
+    if (!exists(probe)) return 0;
+    /* Version-specific marker: Setup/bootstrap creates this only after all
+       required dependencies are healthy. A future upgrade changes the marker
+       name and automatically performs one repair on its first launch. */
+    join(probe, MAX_PATH, root, L".jonathan-ai-runtime-0.4.6.ready");
+    return exists(probe);
+}
+
 static BOOL start_process(const wchar_t *exe, const wchar_t *args, const wchar_t *cwd) {
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
@@ -110,13 +125,38 @@ static BOOL start_process(const wchar_t *exe, const wchar_t *args, const wchar_t
     return TRUE;
 }
 
+static BOOL start_process_checked(const wchar_t *exe, const wchar_t *args, const wchar_t *cwd, DWORD settle_ms) {
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    wchar_t cmdline[2048];
+    DWORD code = STILL_ACTIVE;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    lstrcpynW(cmdline, args, 2048);
+    if (!CreateProcessW(exe, cmdline, NULL, NULL, FALSE, 0, NULL, cwd, &si, &pi)) {
+        return FALSE;
+    }
+    CloseHandle(pi.hThread);
+    if (WaitForSingleObject(pi.hProcess, settle_ms) == WAIT_OBJECT_0) {
+        GetExitCodeProcess(pi.hProcess, &code);
+    }
+    CloseHandle(pi.hProcess);
+    /* A second Electron process exits cleanly after handing focus to the
+       existing single-instance window. Treat exit code 0 as success so the
+       launcher does not also start the browser fallback. */
+    return code == STILL_ACTIVE || code == 0;
+}
+
 static int start_electron(const wchar_t *root) {
     wchar_t electron[MAX_PATH], desktop[MAX_PATH], cmdbuf[2048];
     join(electron, MAX_PATH, root, L"desktop\\node_modules\\electron\\dist\\electron.exe");
     if (!exists(electron)) return 0;
     join(desktop, MAX_PATH, root, L"desktop");
     wsprintfW(cmdbuf, L"\"%s\" \"%s\"", electron, desktop);
-    return start_process(electron, cmdbuf, desktop) ? 1 : 0;
+    /* A loader/crashpad failure can exit immediately after CreateProcess.
+       Only suppress the Python fallback once Electron remains alive. */
+    return start_process_checked(electron, cmdbuf, desktop, 1800) ? 1 : 0;
 }
 
 static int start_pythonw(const wchar_t *root) {
@@ -127,8 +167,13 @@ static int start_pythonw(const wchar_t *root) {
     }
     if (!exists(python)) return 0;
     /* Electron is optional. A working venv is enough to open the UI. */
+    SetEnvironmentVariableW(L"CLAWD_DESKTOP_MANAGED_BY_LAUNCHER", L"1");
     wsprintfW(cmdbuf, L"\"%s\" -m src.cli desktop --no-browser", python);
-    if (!start_process(python, cmdbuf, root)) return 0;
+    if (!start_process(python, cmdbuf, root)) {
+        SetEnvironmentVariableW(L"CLAWD_DESKTOP_MANAGED_BY_LAUNCHER", NULL);
+        return 0;
+    }
+    SetEnvironmentVariableW(L"CLAWD_DESKTOP_MANAGED_BY_LAUNCHER", NULL);
     Sleep(1200);
     ShellExecuteW(NULL, L"open", L"http://127.0.0.1:8765/", NULL, NULL, SW_SHOWNORMAL);
     return 1;
@@ -151,7 +196,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     }
 
     SetEnvironmentVariableW(L"CLAWD_SOURCE_DIR", root);
-    run_bootstrap(root);
+    if (!runtime_ready(root)) {
+        run_bootstrap(root);
+    }
 
     if (start_electron(root)) {
         return 0;

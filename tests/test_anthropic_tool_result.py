@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from src.agent.conversation import (
     Conversation,
     normalize_tool_result_content,
+    sanitize_legacy_binary_upload_text,
     sanitize_anthropic_messages,
 )
 from src.providers.anthropic_provider import AnthropicProvider
@@ -18,6 +19,17 @@ from tests.test_anthropic_tool_payload import _ok_response
 
 
 class TestNormalizeToolResultContent(unittest.TestCase):
+    def test_legacy_binary_upload_is_hidden_from_context_and_transcript(self) -> None:
+        raw = "Please inspect this.\n\n[clipboard attachment: photo.jpg]\n```\n��JFIF\x00" + ("�" * 20) + "\n```"
+        cleaned = sanitize_legacy_binary_upload_text(raw)
+        self.assertIn("photo.jpg", cleaned)
+        self.assertIn("Please inspect this.", cleaned)
+        self.assertIn("legacy binary-upload bug", cleaned)
+        self.assertNotIn("JFIF", cleaned)
+        conversation = Conversation()
+        conversation.add_user_message(raw)
+        self.assertEqual(conversation.get_messages()[0]["content"], cleaned)
+
     def test_dict_tool_result_becomes_string(self) -> None:
         payload = {"filePath": "/tmp/a.txt", "type": "text", "content": "hello"}
         normalized = normalize_tool_result_content(payload)

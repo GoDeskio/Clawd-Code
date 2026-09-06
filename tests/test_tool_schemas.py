@@ -8,6 +8,7 @@ from src.tool_system.defaults import build_default_registry
 from src.tool_system.schema_sanitize import (
     OPTIONAL_CONNECTOR_TOOLS,
     connectors_are_connected,
+    prepare_anthropic_tools,
     sanitize_input_schema,
     sanitize_tools_for_api,
     serialize_tools_for_provider,
@@ -63,6 +64,40 @@ class TestToolSchemaSanitizer(unittest.TestCase):
         ])
         self.assertEqual(len(payload), 1)
         self.assertEqual(payload[0]["input_schema"]["type"], "object")
+
+    def test_anthropic_payload_has_exact_conservative_shape(self) -> None:
+        payload = prepare_anthropic_tools([{
+            "name": "Example",
+            "description": "Exact request shape",
+            "input_schema": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": ["value"],
+                "additionalProperties": False,
+            },
+            "custom": {"ignored": True},
+        }])
+        self.assertEqual(payload, [{
+            "name": "Example",
+            "description": "Exact request shape",
+            "input_schema": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+            },
+        }])
+
+    def test_normalizes_union_types_without_crashing(self) -> None:
+        repaired = sanitize_input_schema({
+            "type": ["object", "null"],
+            "properties": {
+                "value": {"type": ["string", "null"]},
+                "empty": {"type": []},
+            },
+        })
+        self.assertIsNotNone(repaired)
+        self.assertEqual(repaired["type"], "object")
+        self.assertEqual(repaired["properties"]["value"]["type"], "string")
+        self.assertEqual(repaired["properties"]["empty"]["type"], "object")
 
     def test_skill_tool_spec_has_object_type(self) -> None:
         schema = dict(SkillTool().spec().input_schema)

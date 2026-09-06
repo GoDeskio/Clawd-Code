@@ -153,6 +153,31 @@ class TestToolRegistryDispatchPermissions(unittest.TestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(result.output.get("type"), "create")
 
+    def test_dispatch_records_preflight_before_result(self) -> None:
+        records = []
+        self.ctx.audit_logger = records.append
+        result = self.registry.dispatch(
+            ToolCall(name="Write", input={"file_path": str(self.root / "audited.txt"), "content": "hello"}),
+            self.ctx,
+        )
+        self.assertFalse(result.is_error)
+        self.assertEqual([row["status"] for row in records], ["started", "success"])
+        self.assertEqual(records[0]["permission"], "approved")
+
+    def test_dispatch_fails_closed_when_preflight_audit_fails(self) -> None:
+        target = self.root / "blocked.txt"
+
+        def broken_logger(_row):
+            raise OSError("audit unavailable")
+
+        self.ctx.audit_logger = broken_logger
+        with self.assertRaisesRegex(OSError, "audit unavailable"):
+            self.registry.dispatch(
+                ToolCall(name="Write", input={"file_path": str(target), "content": "must not run"}),
+                self.ctx,
+            )
+        self.assertFalse(target.exists())
+
     def test_dispatch_denies_md_file_without_handler(self) -> None:
         """MD files should be denied when no permission handler is set."""
         result = self.registry.dispatch(
@@ -239,6 +264,17 @@ class TestPermissionContext(unittest.TestCase):
         self.assertFalse(pc.allow_docs)
         pc.allow_docs = True
         self.assertTrue(pc.allow_docs)
+
+    def test_full_system_access_allows_paths_outside_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "workspace"
+            root.mkdir()
+            outside = Path(tmp) / "outside.txt"
+            restricted = ToolPermissionContext.from_iterables(workspace_root=root)
+            with self.assertRaises(Exception):
+                restricted.ensure_path_allowed(outside)
+            full = ToolPermissionContext.from_iterables(workspace_root=root, full_system_access=True)
+            self.assertEqual(full.ensure_path_allowed(outside), outside.resolve())
 
 
 if __name__ == "__main__":

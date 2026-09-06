@@ -36,23 +36,47 @@
 | 交互式 REPL | ✅ | 支持交互式输出、历史记录、Tab 补全、多行输入 |
 | Slash Commands | ✅ | 已支持 `/help`、`/clear`、`/save`、`/load`、`/multiline`、`/exit` |
 | 多 Provider 抽象 | ✅ | 已支持 Anthropic / OpenAI / GLM / Minimax / Hugging Face / Local LLM |
+| 本机 AI 自动发现 | ✅ | v0.4.7：扫描 Ollama / LM Studio / Jan / GPT4All / llama.cpp / KoboldCpp / Hugging Face 缓存与常用回环端口；显示模型存储、运行时 RAM、可用系统 RAM 与保守 fit 提示；无可用云配置时自动启动并连接已安装模型 |
+| Jonathan 本地图像引擎 | ✅ | v0.4.6：内置 Diffusers 文生图/图生图；自动安装依赖、首次下载模型、CUDA/CPU、输出下载与 Image Studio 本地回退；不依赖 Fooocus/Gradio |
+| Audio Studio | ✅ | v0.4.6：内置原创程序化 WAV 生成、裁剪、标准化、混音和会话下载；重型歌曲模型可通过显式外部/MCP 连接使用 |
+| Voice / Speech Studio | ✅ | v0.4.6：会话内用户主动麦克风录音、本地 Whisper 系列多语言转写/翻译、首次使用下载所选模型、本机语音合成与 WAV 下载；不后台监听、不要求付费 API |
 | Provider 配置管理 | ✅ | 支持默认 Provider、Base URL、默认模型配置 |
 | 会话持久化 | ✅ | 支持保存/加载本地会话；重启后侧栏仍在；New Chat 新建空线程；桌面左侧可重命名 |
-| 独立桌面 Agent | ✅ | v0.2.8：会话 JSON 以 UTF-8 读写（避免 Windows cp1252）；Anthropic tool_result 对象序列化为字符串；会话持久化；New Chat / `/new` 空线程；跨会话记忆；内部 Workers；schema 400 去掉 tools 重试；首次启动自动补依赖；Setup 原地升级且不合并 main |
+| 独立桌面 Agent | ✅ | v0.3.0：每个对话拥有隔离且可并行运行的 Agent；完整终端与 PATH CLI；图像生成/编辑/文字移除；Blender 高精度材质 3D 与 GLB/GLTF/OBJ/STL/FBX/BLEND/USD；任意文件下载；系统监控、资源评估、进程/服务/包管理；UTF-8 脱敏审计日志；GitHub/GitLab 仓库自动化；自建 SKILL.md；可搜索共享记忆；原子 UTF-8 会话；New Chat 空线程；实时预览；Setup 原地升级且不合并 main |
+| 可验证内部协作 | ✅ | v0.4.6：Fast/Balanced/Verified 三种显式模式；Verified 由未参与创作的独立 Agent 检查目标、冲突和缺失证据；所有 worker/reviewer token 计入所属会话且不构成配额 |
+| 长程目标控制 | ✅ | v0.4.7：跨会话持久目标、工作区 scope、依赖 todo、Agent claim/lease、人工/证据 gate、UTF-8 evidence receipt、handoff、turn budget 与 fail-closed continuation；无需第二 Agent runtime |
+| ECC 技能与 Agent 目录 | ✅ | v0.4.6：完整目录同步、MIT 来源/版本记录、导入前安全扫描、全部离线索引、按需启用避免上下文膨胀、可实例化 Agent 模板与 Memory Vault 互操作 |
+| 自动技能学习 | ✅ | v0.4.6：本地 Git 历史测量、项目隔离、敏感信息/提示注入清洗、置信度 instinct、UTF-8 SKILL.md 草稿、用户审核后才激活 |
+| 写作润色技能 | ✅ | v0.4.6：可选的表层与结构双重编辑、样本文风校准、含义/事实/引用保留，不承诺规避检测器或虚假作者身份 |
+| 界面艺术指导技能 | ✅ | v0.4.6：按产品语境设置布局变化、动效强度和信息密度，保留可访问性、响应式和实际渲染验证 |
+| React 性能审查技能 | ✅ | v0.4.6：以测量为先检查请求瀑布、客户端包、渲染边界、重复渲染和加载体验，并验证前后结果 |
+| 截图转可用界面技能 | ✅ | v0.4.6：读取会话中的截图/设计图，遵循项目现有技术栈生成可维护界面，使用项目预览进行桌面/窄屏渲染对比与验证；无需独立截图转代码服务 |
+| 本地市场预测 | ✅ | v0.4.6：Jonathan 内置 EWMA/Monte Carlo OHLCV 概率预测、Mini/Small/Base 路径规模、P10/P50/P90 CSV、无外部源码/模型、无自动下单 |
+| 私有个人财务库 | ✅ | v0.4.6：Jonathan 内置 SQLite 账户/交易/分类/周期项目/预算/目标/资产/多币种汇总、无容器、无外部应用、无付费要求 |
+| 本地代码图与代码记忆 | ✅ | v0.4.6：Jonathan 内置 Python/SQLite、增量扫描、文本/引用/解释/依赖路径、无 Claude hook、Node、外部仓库、云端或订阅 |
+| 可编辑图形与角色 | ✅ | v0.4.6：内置 Raster→SVG/PPTX/OCR/JSON、确定性动画 SVG 角色和 rig 配方，无外部模型或仓库 |
+| 追加式运行事实 | ✅ | v0.4.6：每会话 UTF-8 JSONL、秘密脱敏、SHA-256 哈希链、任务/工具/权限/完成/失败/usage 可恢复事实；上下文裁剪不删除历史证据 |
+| 赢得式自主权 | ✅ | v0.4.6：按会话/工具记录互不重复的人工批准与拒绝，使用 Wilson 置信下界和风险上限提出透明建议；建议本身绝不扩大权限，系统/终端/写入仍由用户批准控制 |
 | 工具 schema 清洗 | ✅ | 发给 Anthropic/OpenAI 的每个工具都带 `input_schema.type` |
 | 会话消息管理 | ✅ | 支持会话历史维护与序列化 |
 | 错误恢复 / 重新登录 | 🟡 | 已有基础认证错误处理与重新配置流程 |
 | Token / Cost 跟踪 | ✅ | 桌面每个聊天窗口显示 input/output/running total，随会话持久化；仅信息展示，不是配额墙 |
 | GitHub / GitLab | ✅ | 本机 token 或设备登录；clone/pull/push、建仓、PR/MR；默认不推 default branch |
 | MCP / 其他 Agent | ✅ | 设置中添加/列出/启用 MCP 与 OpenAI 兼容 agent URL；Cursor/Codex/local hook |
+| 公共 API 发现 | ✅ | v0.4.6：内置离线审核起始目录，按类别/认证/HTTPS/CORS 搜索，经批准转换为持久连接器；不依赖远程目录仓库 |
+| 公共内容 Reach | ✅ | v0.4.6：内置频道健康状态、RSS/Atom 阅读、YouTube 公开元数据与字幕；认证社交平台仍走显式连接器，不自动读取浏览器 Cookie |
 | 上下文构建 | ✅ | workspace / git / `CLAUDE.md`；跨会话记忆 `~/.clawd/memory`（facts + 其他对话标题/摘要，不含全文） |
+| DESIGN.md 设计上下文 | ✅ | v0.4.6：项目根目录 UTF-8 `DESIGN.md` 以独立、有界设计系统段自动提供给每个会话 Agent |
 | Claude Code Agent Loop | ✅ | 已实现 agent_loop.py，支持工具调用循环 |
 | `/resume` 会话恢复体验 | 🚫 | 暂无独立恢复流程与 UI |
 | `/compact` 对话压缩 | 🚫 | 暂无自动/手动压缩能力 |
 | `/doctor` 诊断系统 | 🚫 | 暂无环境、配置、权限、依赖诊断命令 |
 | Hook 系统 | 🟡 | 已有 Cursor/Codex/local agent hook 与 inbound POST；非通用 pre/post tool hook |
 | 权限系统 | ✅ | 路径沙箱 + 文档写入询问 + 桌面端对 Bash/Write/Edit/Web 的交互批准 |
-| 桌面应用 | ✅ | Electron/浏览器壳 + 本地 Python host；Windows 上为 JonathanAi.exe 与玻璃拟态仪表盘 |
+| 工具执行网关 | ✅ | v0.4.6：允许的工具动作在执行副作用前写入脱敏 preflight 审计记录，完成/拒绝/失败后再写结果；preflight 无法持久化时关闭执行 |
+| 自托管服务操作 | ✅ | v0.4.7：持久注册 Docker/Podman Compose、Windows service 与 systemd；固定参数、无 shell 拼接；状态/log、LAN health、可下载 backup、审批后 start/stop/restart/update；配套可见 operator skill |
+| 远程电脑与服务器 | ✅ | v0.4.8：对明确主机执行审批门控的 SSH/WinRM 命令、SCP 上传/下载和 TCP 可达性检查；仅使用现有密钥/系统凭据，严格验证主机，无密码模型输入，不能绕过远端 ACL/UAC/sudo/防火墙 |
+| 桌面应用 | ✅ | v0.4.9：修复固定输入区、新建/删除对话竞态、安装日志、单实例启动与安装版自动更新；Electron/浏览器壳 + 本地 Python host |
 | 安装向导 | ✅ | Windows Setup exe 可见向导（Next/Install/Finish）+ Desktop/开始菜单快捷方式；默认源码目录 `~/Jonathan/Jonathan-Ai` |
 | 自更新 | ✅ | 仅从 GoDeskio/Clawd-Code 检查并快进更新 |
 

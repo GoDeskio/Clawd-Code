@@ -10,8 +10,8 @@
 
 ***
 
-[![GitHub stars](https://img.shields.io/github/stars/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GPT-AGI/Clawd-Code/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GPT-AGI/Clawd-Code/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GoDeskio/Clawd-Code/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GoDeskio/Clawd-Code/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 
@@ -53,7 +53,7 @@
 - ✅ **Convivial** — Configuration simple, REPL interactif, documentation complète
 - ✅ **Continuellement amélioré** — Gestion des erreurs améliorée, tests, documentation
 
-**Version 0.2.8 — Jonathan Ai.** L'application de bureau est l'agent. Les conversations persistent sur disque ; New Chat ouvre un fil vide. La mémoire partagée (`~/.clawd/memory`) relie les faits entre les chats. MCP, Cursor et Codex sont optionnels. Les tool_result objets sont sérialisés en chaîne. Renommez les conversations dans la barre latérale. Les schémas d'outils sont envoyés au format classique Anthropic (`input_schema.type`). Un 400 schema relance la même requête sans tools.
+**Version 0.3.0 — Jonathan Ai.** L'application de bureau est l'agent, avec outils d'image, 3D Blender, administration système, audit, dépôts, compétences et mémoire partagée.
 
 **🚀 Essayez-le maintenant ! Forkez-le, modifiez-le, rendez-le vôtre ! Les pull requests sont les bienvenues !**
 
@@ -122,7 +122,7 @@ clawd config       # Voir les paramètres
 ### Installation
 
 ```bash
-git clone https://github.com/GPT-AGI/Clawd-Code.git
+git clone https://github.com/GoDeskio/Clawd-Code.git
 cd Clawd-Code
 
 # Créer un venv (uv recommandé)

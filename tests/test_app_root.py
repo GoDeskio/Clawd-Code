@@ -15,7 +15,7 @@ from src.install.app_root import (
     probe_app_roots,
 )
 from src.install.source import materialize_source
-from src.install.windows_shortcuts import install_app_shortcuts, remove_parent_leftover_exes
+from src.install.windows_shortcuts import install_app_shortcuts, remove_parent_leftover_exes, shortcut_script
 
 
 def _make_app(root: Path, *, venv: bool = True, electron: bool = False) -> Path:
@@ -129,7 +129,7 @@ class TestInPlaceUpgradeAndShortcuts(unittest.TestCase):
             leftover = parent / "JonathanAi.exe"
             leftover.write_bytes(b"old")
             bundled = Path(tmp) / "bundled.exe"
-            bundled.write_bytes(b"new")
+            bundled.write_bytes(b"MZnew")
             desktop = home / "Desktop"
             start = home / "Start"
             with patch.dict("os.environ", {
@@ -138,12 +138,14 @@ class TestInPlaceUpgradeAndShortcuts(unittest.TestCase):
             }):
                 result = install_app_shortcuts(app, bundled_exe=bundled)
             self.assertTrue((app / "JonathanAi.exe").exists())
-            self.assertEqual((app / "JonathanAi.exe").read_bytes(), b"new")
+            self.assertEqual((app / "JonathanAi.exe").read_bytes(), b"MZnew")
             self.assertFalse(leftover.exists())
             self.assertEqual(result["target"], str(app / "JonathanAi.exe"))
             self.assertEqual(result["workdir"], str(app))
-            self.assertNotIn(str(parent / "JonathanAi.exe"), Path(result["desktop"]).read_text(encoding="utf-8"))
-            self.assertIn("Jonathan-Ai", Path(result["desktop"]).read_text(encoding="utf-8"))
+            script = shortcut_script(app / "JonathanAi.exe", None, Path(result["desktop"]))
+            self.assertNotIn('TargetPath = "' + str(parent / "JonathanAi.exe") + '"', script)
+            self.assertIn('TargetPath = "' + str(app / "JonathanAi.exe") + '"', script)
+            self.assertEqual(result["removed_leftovers"], [str(leftover)])
             self.assertEqual(leftover_parent_exes(app)[0], parent / "JonathanAi.exe")
             remove_parent_leftover_exes(app)
 

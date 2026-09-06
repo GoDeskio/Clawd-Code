@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+/src/skills/library/
 *$py.class
 *.so
 .Python
@@ -85,14 +86,48 @@ node_modules/
 desktop/dist/
 desktop/out/
 packaging/windows/build/
+packaging/windows/bin/electron/
+packaging/windows/bin/*.pdb
 npm-debug.log*
+/JonathanAi.exe
+/JonathanAi-Setup.exe
+/.jonathan-ai-processes.json
+/.jonathan-ai-runtime-*.ready
+/codex-last-message.txt
+/codex-task-prompt.txt
 
 # Local desktop captures (user-initiated screenshots)
 .clawd/captures/
 
+# Local evaluation checkouts plus Jonathan's downloaded image models/outputs.
+# None of these directories are runtime source dependencies or installer payloads.
+/integrations/Fooocus/
+/integrations/.image-models/
+/integrations/.fooocus-venv/
+/integrations/python-runtimes/
+/integrations/.uv-cache/
+/integrations/.pip-cache/
+/integrations/.fooocus-cache/
+/integrations/Fooocus-outputs/
+/integrations/upstream/
+/Integrations/ECC/
+/Integrations/Kronos/
+/Integrations/Securo/
+/Integrations/ClaudeDB/
+/Integrations/BenjaminPlus/
+/Integrations/FullstackAgent/
+/Integrations/Procoder/
+/Integrations/DrawAI/
+/Integrations/Kindergrimm/
+/integrations/.kronos-venv/
+/integrations/.kronos-cache/
+
 # Durable agent memory and chat sessions stay on the machine, never in git
+/Skills/
 .clawd/memory/
 .clawd/sessions/
+.clawd/checkpoints/
+.clawd/agent_profiles.json
 
 # Claude Code personal settings
 CLAUDE.local.md

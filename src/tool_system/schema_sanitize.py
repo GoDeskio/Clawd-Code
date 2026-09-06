@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Mapping
 
 logger = logging.getLogger(__name__)
@@ -92,10 +93,15 @@ def classic_schema_node(schema: Any) -> dict[str, Any]:
     looks_object = any(
         key in node for key in ("properties", "required", "additionalProperties")
     )
-    if raw_type is None or raw_type in {"", "None"}:
+    if raw_type is None or (isinstance(raw_type, str) and raw_type in {"", "None"}):
         node["type"] = "array" if has_items and not looks_object else "object"
-    elif isinstance(raw_type, list):
-        node["type"] = "object" if "object" in raw_type else raw_type[0]
+    elif isinstance(raw_type, (list, tuple)):
+        if "object" in raw_type:
+            node["type"] = "object"
+        elif raw_type:
+            node["type"] = str(raw_type[0])
+        else:
+            node["type"] = "array" if has_items and not looks_object else "object"
     if node.get("type") == "object":
         props = node.get("properties")
         if not isinstance(props, dict):
@@ -167,8 +173,26 @@ def sanitize_tools_for_api(tools: Any) -> list[dict[str, Any]]:
 
 
 def prepare_anthropic_tools(tools: Any) -> list[dict[str, Any]]:
-    """Tools in the only shape Anthropic messages.create should receive."""
-    return sanitize_tools_for_api(tools)
+    """Return Anthropic tools with the exact conservative request shape.
+
+    Keep richer JSON Schema constraints in the shared sanitizer for local and
+    OpenAI-compatible providers, but send Anthropic only the keys required by
+    the Messages API.  This also makes the payload match the desktop recovery
+    contract documented in the README.
+    """
+    prepared: list[dict[str, Any]] = []
+    for tool in sanitize_tools_for_api(tools):
+        schema = tool.get("input_schema") or {}
+        properties = schema.get("properties")
+        prepared.append({
+            "name": tool["name"],
+            "description": tool.get("description") or "",
+            "input_schema": {
+                "type": "object",
+                "properties": properties if isinstance(properties, dict) else {},
+            },
+        })
+    return prepared
 
 
 def describe_tool_at_index(tools: Any, index: int = 17) -> str:
@@ -193,43 +217,37 @@ def exception_blob(exc: BaseException) -> str:
         for attr in ("text", "content", "reason", "status_code"):
             if hasattr(response, attr):
                 chunks.append(str(getattr(response, attr)))
-    if exc.__cause__ is not None:
-        chunks.append(exception_blob(exc.__cause__))
-    if exc.__context__ is not None and exc.__context__ is not exc.__cause__:
-        chunks.append(exception_blob(exc.__context__))
+    # Do not traverse ``__context__`` or ``__cause__`` here. A second request
+    # made while handling a schema 400 implicitly inherits that first error as
+    # its context; classifying the chain would mislabel every later exception
+    # as another schema failure.
     return "\n".join(chunks)
 
 
 def is_input_schema_type_error(exc: BaseException) -> bool:
     """True for Anthropic 400: tools.N.custom.input_schema.type: Field required."""
-    blob = exception_blob(exc)
-    lowered = blob.lower()
-    if "input_schema.type" in blob or "custom.input_schema" in lowered:
-        return True
-    if "tools." in lowered and "input_schema" in lowered:
-        return True
+    lowered = exception_blob(exc).lower()
     status = getattr(exc, "status_code", None)
-    if status is None and ("error code: 400" in lowered or "status_code=400" in lowered):
-        status = 400
-    if status == 400 and ("tools" in lowered) and (
-        "schema" in lowered or "field required" in lowered or "invalid_request" in lowered
-    ):
-        return True
-    body = getattr(exc, "body", None)
-    if isinstance(body, str):
-        if "input_schema" in body and ("type" in body or "field required" in body.lower()):
-            return True
-    if isinstance(body, Mapping):
-        error = body.get("error") if isinstance(body.get("error"), Mapping) else body
-        message = str(error.get("message") or "")
-        err_type = str(error.get("type") or "")
-        if "input_schema.type" in message or "input_schema" in message:
-            return True
-        if err_type == "invalid_request_error" and "tools" in message:
-            return True
-    if "invalid_request_error" in lowered and "input_schema" in lowered and "field required" in lowered:
-        return True
-    return False
+    response = getattr(exc, "response", None)
+    if status is None and response is not None:
+        status = getattr(response, "status_code", None)
+    try:
+        is_400 = int(status) == 400
+    except (TypeError, ValueError):
+        is_400 = bool(re.search(r"\b(?:error code|status(?:_code)?)\s*[:=]\s*400\b", lowered))
+    if not is_400:
+        return False
+    return (
+        "tools" in lowered
+        and "input_schema" in lowered
+        and "type" in lowered
+        and (
+            "field required" in lowered
+            or "required field" in lowered
+            or "missing" in lowered
+            or "input_schema.type" in lowered
+        )
+    )
 
 
 def log_rejected_tool_index(tools: Any, exc: BaseException, index: int = 17) -> None:
@@ -270,6 +288,7 @@ def serialize_tools_for_provider(
     *,
     include_optional_connectors: bool | None = None,
     tool_context: Any | None = None,
+    include_names: set[str] | frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Build the provider tool list from a registry.
 
@@ -280,9 +299,12 @@ def serialize_tools_for_provider(
     if include_optional_connectors is None:
         include_optional_connectors = connectors_are_connected(tool_context)
     out: list[dict[str, Any]] = []
+    selected = {str(name).lower() for name in include_names} if include_names is not None else None
     specs = registry.list_specs() if hasattr(registry, "list_specs") else []
     for spec in specs:
         name = getattr(spec, "name", "")
+        if selected is not None and str(name).lower() not in selected:
+            continue
         if _is_optional_connector_name(name) and not include_optional_connectors:
             continue
         payload = sanitize_tool_payload({

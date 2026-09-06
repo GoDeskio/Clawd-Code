@@ -7,8 +7,10 @@ another origin cannot drive the agent. Keys never leave ~/.clawd/config.json.
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 import secrets
+import sys
 import threading
 import time
 import webbrowser
@@ -19,6 +21,8 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .runtime import DesktopRuntime
+from src.tool_system.audit import record_action
+from src.version import get_version
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 DEFAULT_HOST = "127.0.0.1"
@@ -55,9 +59,14 @@ class DesktopServer:
     def handle_api(self, method: str, path: str, query: dict[str, list[str]], body: dict[str, Any] | None) -> tuple[int, Any]:
         runtime = self.runtime
         body = body or {}
+        if method != "GET" and path not in {"/api/chat", "/api/multi-agent", "/api/attachments", "/api/permissions"}:
+            record_action({"session_id": runtime.session.session_id, "tool": f"DesktopAPI {path}",
+                           "input": body, "permission": "direct user action", "status": "requested"})
 
         if path == "/api/health":
             return 200, {"ok": True, "url": self.url}
+        if path == "/api/ready":
+            return 200, {"ok": True, "version": get_version()}
 
         if path == "/api/status" and method == "GET":
             return 200, runtime.status()
@@ -87,11 +96,29 @@ class DesktopServer:
                 str(body.get("api_key") or body.get("token") or ""),
             )
         if path == "/api/connectors/local/scan" and method == "POST":
-            return 200, runtime.scan_local(body.get("base_url") or body.get("url"))
+            return 200, runtime.scan_local(
+                body.get("base_url") or body.get("url"), auto_start=bool(body.get("auto_start")),
+            )
         if path == "/api/connectors/local/models" and method == "POST":
             return 200, runtime.list_local(str(body.get("base_url") or ""), api_key=body.get("api_key"))
         if path == "/api/connectors" and method == "GET":
             return 200, runtime.connectors_public()
+        if path == "/api/fooocus/status" and method == "GET":
+            return 200, runtime.fooocus_status()
+        if path == "/api/fooocus/action" and method == "POST":
+            return 200, runtime.fooocus_action(body)
+        if path == "/api/connectors/external" and method == "POST":
+            return 200, runtime.save_external_connector(body)
+        if path == "/api/connectors/external/remove" and method == "POST":
+            return 200, runtime.remove_external_connector(str(body.get("id") or ""))
+        if path == "/api/connectors/external/test" and method == "POST":
+            return 200, runtime.test_external_connector(str(body.get("id") or ""))
+        if path == "/api/connectors/external/oauth/start" and method == "POST":
+            return 200, runtime.start_external_oauth(str(body.get("id") or ""))
+        if path == "/api/connectors/external/oauth/exchange" and method == "POST":
+            return 200, runtime.finish_external_oauth(
+                str(body.get("id") or ""), str(body.get("code") or ""), str(body.get("state") or ""),
+            )
         if path == "/api/connectors/github/login" and method == "POST":
             return 200, runtime.connect_github(str(body.get("token") or ""), owner=body.get("owner"))
         if path == "/api/connectors/gitlab/login" and method == "POST":
@@ -161,6 +188,14 @@ class DesktopServer:
             return 200, runtime.inbound_hook(str(body.get("text") or body.get("prompt") or ""))
         if path == "/api/workspace" and method == "POST":
             return 200, runtime.set_workspace(str(body.get("path") or ""))
+        if path == "/api/projects-dir" and method == "POST":
+            return 200, runtime.set_projects_dir(str(body.get("path") or ""))
+        if path == "/api/preview" and method == "GET":
+            return 200, runtime.preview_info()
+        if path == "/api/artifacts" and method == "GET":
+            return 200, {"artifacts": runtime.list_artifacts()}
+        if path == "/api/artifacts/package" and method == "POST":
+            return 200, runtime.package_workspace(str(body.get("session_id") or "") or None)
         if path == "/api/sessions" and method == "GET":
             return 200, {"sessions": runtime.list_sessions(), "current": runtime.session.to_summary()}
         if path == "/api/sessions" and method == "POST":
@@ -174,22 +209,140 @@ class DesktopServer:
                 str(body.get("session_id") or body.get("id") or ""),
                 str(body.get("title") or ""),
             )
+        if path == "/api/sessions/remove" and method == "POST":
+            return 200, runtime.remove_session(str(body.get("session_id") or body.get("id") or ""))
         if path == "/api/sessions/messages" and method == "GET":
             return 200, runtime.export_current_messages()
+        if path == "/api/sessions/events" and method == "GET":
+            session_id = (query.get("session_id") or [""])[0]
+            limit = int((query.get("limit") or ["500"])[0] or 500)
+            return 200, runtime.session_events(session_id or None, limit)
+        if path == "/api/search" and method == "GET":
+            term = (query.get("q") or [""])[0]
+            limit = int((query.get("limit") or ["30"])[0] or 30)
+            return 200, runtime.search_conversations(term, limit)
+        if path == "/api/checkpoints" and method == "GET":
+            return 200, runtime.checkpoints((query.get("session_id") or [""])[0] or None)
+        if path == "/api/checkpoints/restore" and method == "POST":
+            return 200, runtime.restore_session_checkpoint(str(body.get("checkpoint_id") or ""), str(body.get("session_id") or "") or None)
+        if path == "/api/sessions/undo" and method == "POST":
+            return 200, runtime.undo_session_turn(str(body.get("session_id") or "") or None)
+        if path == "/api/sessions/retry" and method == "POST":
+            return 200, runtime.retry_session_turn(str(body.get("session_id") or "") or None)
+        if path == "/api/doctor" and method == "GET":
+            return 200, runtime.doctor(repair=False)
+        if path == "/api/doctor/repair" and method == "POST":
+            return 200, runtime.doctor(repair=True)
+        if path == "/api/agent-profiles" and method == "GET":
+            return 200, {"agents": runtime.list_agent_profiles()}
+        if path == "/api/agent-profiles" and method == "POST":
+            return 200, runtime.save_agent_profile(body)
+        if path == "/api/agent-profiles/remove" and method == "POST":
+            return 200, runtime.remove_agent_profile(str(body.get("agent_id") or body.get("id") or ""))
+        if path == "/api/agent-profiles/open" and method == "POST":
+            return 200, runtime.open_agent_profile(str(body.get("agent_id") or body.get("id") or ""))
+        if path == "/api/agent-profiles/run" and method == "POST":
+            return 200, runtime.run_agent_profile(
+                str(body.get("agent_id") or body.get("id") or ""),
+                str(body.get("message") or body.get("text") or ""),
+                sender_session_id=str(body.get("sender_session_id") or runtime.session.session_id),
+            )
+        if path == "/api/agent-profiles/inbox" and method == "POST":
+            return 200, runtime.agent_inbox(str(body.get("agent_id") or body.get("id") or ""), mark_read=bool(body.get("mark_read")))
+        if path == "/api/instances" and method == "GET":
+            return 200, {"instances": runtime.instances_status(), "current_session_id": runtime.session.session_id}
+        if path == "/api/instances/peek" and method == "GET":
+            session_id = (query.get("session_id") or [""])[0]
+            return 200, runtime.peek_session(session_id)
+        if path == "/api/terminals" and method == "GET":
+            return 200, {"terminals": runtime.status().get("terminals") or []}
+        if path == "/api/device-access" and method == "GET":
+            return 200, runtime.device_access_status()
+        if path == "/api/autonomy" and method == "GET":
+            session_id = (query.get("session_id") or [""])[0]
+            return 200, runtime.earned_autonomy_status(session_id or None)
+        if path == "/api/device-access" and method == "POST":
+            return 200, runtime.configure_device_access(
+                enabled=bool(body.get("enabled")),
+                confirmation=str(body.get("confirmation") or ""),
+            )
+        if path == "/api/device/inventory" and method == "GET":
+            limit = int((query.get("limit") or ["2000"])[0] or 2000)
+            return 200, runtime.device_inventory(limit=limit)
+        if path == "/api/media/capabilities" and method == "GET":
+            return 200, runtime.status().get("media") or {}
+        if path == "/api/media/image-provider" and method == "POST":
+            return 200, runtime.configure_image_provider(
+                str(body.get("api_key") or ""),
+                base_url=str(body.get("base_url") or ""),
+                model=str(body.get("model") or ""),
+            )
+        if path == "/api/media/image" and method == "POST":
+            return 200, runtime.run_image_action(body, str(body.get("session_id") or "") or None)
+        if path == "/api/audit" and method == "GET":
+            limit = int((query.get("limit") or ["100"])[0] or 100)
+            return 200, runtime.audit_actions(limit)
+        if path == "/api/finance/alpaca" and method == "POST":
+            return 200, runtime.configure_alpaca(str(body.get("api_key") or ""), str(body.get("secret_key") or ""), paper=bool(body.get("paper", True)))
         if path == "/api/skills" and method == "GET":
             return 200, {"skills": runtime.list_skills()}
+        if path == "/api/skills/library" and method == "GET":
+            return 200, runtime.skill_library_status()
+        if path == "/api/skills/save" and method == "POST":
+            return 200, runtime.save_library_skill(body)
+        if path == "/api/skills/archive" and method == "POST":
+            return 200, runtime.archive_library_skill(str(body.get("name") or ""))
+        if path == "/api/skills/open" and method == "POST":
+            return 200, runtime.open_library_folder()
+        if path == "/api/integrations/ecc" and method == "GET":
+            return 200, runtime.ecc_integration({"action": "status"})
+        if path == "/api/integrations/ecc" and method == "POST":
+            return 200, runtime.ecc_integration(body)
+        if path == "/api/integrations/kronos" and method == "GET":
+            return 200, runtime.kronos_integration({"action": "status"})
+        if path == "/api/integrations/kronos" and method == "POST":
+            return 200, runtime.kronos_integration(body)
+        if path == "/api/integrations/personal-finance" and method == "GET":
+            return 200, runtime.personal_finance_integration({"action": "status"})
+        if path == "/api/integrations/personal-finance" and method == "POST":
+            return 200, runtime.personal_finance_integration(body)
+        if path == "/api/integrations/code-memory" and method == "GET":
+            return 200, runtime.code_memory_integration({"action": "status"})
+        if path == "/api/integrations/code-memory" and method == "POST":
+            return 200, runtime.code_memory_integration(body)
+        if path == "/api/integrations/procoder" and method == "GET":
+            return 200, runtime.procoder_integration({"action": "status"})
+        if path == "/api/integrations/procoder" and method == "POST":
+            return 200, runtime.procoder_integration(body)
+        if path == "/api/integrations/drawai" and method == "GET":
+            return 200, runtime.drawai_integration({"action": "status"})
+        if path == "/api/integrations/drawai" and method == "POST":
+            return 200, runtime.drawai_integration(body)
+        if path == "/api/media/character" and method == "POST":
+            return 200, runtime.character_studio(body)
         if path == "/api/commands" and method == "GET":
             return 200, {"commands": runtime.list_commands()}
         if path == "/api/tools" and method == "GET":
             return 200, {"tools": runtime.list_tools()}
         if path == "/api/attachments" and method == "POST":
-            return 200, {"attachments": runtime.attach_files(body.get("attachments") or body.get("files"))}
+            return 200, {"attachments": runtime.attach_files(
+                body.get("attachments") or body.get("files"),
+                str(body.get("session_id") or "") or None,
+            )}
         if path == "/api/chat" and method == "POST":
-            job_id = runtime.start_chat(str(body.get("text") or ""), attachments=body.get("attachments"))
-            return 200, {"job_id": job_id}
+            job_id = runtime.start_chat(
+                str(body.get("text") or ""),
+                attachments=body.get("attachments"),
+                session_id=str(body.get("session_id") or "") or None,
+            )
+            return 200, {"job_id": job_id, "session_id": runtime._require_job(job_id).session_id}
         if path == "/api/multi-agent" and method == "POST":
-            job_id = runtime.start_multi_agent(str(body.get("text") or body.get("goal") or ""))
-            return 200, {"job_id": job_id}
+            job_id = runtime.start_multi_agent(
+                str(body.get("text") or body.get("goal") or ""),
+                session_id=str(body.get("session_id") or "") or None,
+                mode=str(body.get("mode") or "balanced"),
+            )
+            return 200, {"job_id": job_id, "session_id": runtime._require_job(job_id).session_id}
         if path == "/api/jobs/events" and method == "GET":
             job_id = (query.get("job_id") or [""])[0]
             after = int((query.get("after") or ["0"])[0] or 0)
@@ -306,6 +459,47 @@ class DesktopServer:
                     self._sse(query)
                     return
 
+                if path.startswith("/preview/"):
+                    if not server._authorized(self.headers):
+                        self._send(HTTPStatus.UNAUTHORIZED, b"unauthorized", "text/plain")
+                        return
+                    try:
+                        target = server.runtime.resolve_preview_path(path[len("/preview/"):])
+                        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+                        self._send(200, target.read_bytes(), ctype)
+                    except ValueError as exc:
+                        self._send(HTTPStatus.NOT_FOUND, str(exc).encode("utf-8"), "text/plain; charset=utf-8")
+                    return
+
+                if path in {"/api/artifacts/download", "/api/artifacts/view"}:
+                    if not server._authorized(self.headers):
+                        self._send(HTTPStatus.UNAUTHORIZED, b"unauthorized", "text/plain")
+                        return
+                    try:
+                        target = server.runtime.resolve_artifact((query.get("name") or [""])[0])
+                        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+                        disposition = "inline" if path.endswith("/view") else "attachment"
+                        self._send(200, target.read_bytes(), ctype, [("Content-Disposition", f'{disposition}; filename="{target.name}"')])
+                    except ValueError as exc:
+                        self._send(HTTPStatus.NOT_FOUND, str(exc).encode("utf-8"), "text/plain; charset=utf-8")
+                    return
+
+                if path in {"/api/attachments/download", "/api/attachments/view"}:
+                    if not server._authorized(self.headers):
+                        self._send(HTTPStatus.UNAUTHORIZED, b"unauthorized", "text/plain")
+                        return
+                    try:
+                        target = server.runtime.resolve_attachment(
+                            (query.get("session_id") or [""])[0],
+                            (query.get("name") or [""])[0],
+                        )
+                        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+                        disposition = "inline" if path.endswith("/view") else "attachment"
+                        self._send(200, target.read_bytes(), ctype, [("Content-Disposition", f'{disposition}; filename="{target.name}"')])
+                    except ValueError as exc:
+                        self._send(HTTPStatus.NOT_FOUND, str(exc).encode("utf-8"), "text/plain; charset=utf-8")
+                    return
+
                 if path.startswith("/api/"):
                     if path != "/api/health" and not server._authorized(self.headers):
                         status, body, ctype = _json_bytes({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
@@ -404,7 +598,29 @@ def run_desktop(
     open_browser: bool = True,
     token: str | None = None,
 ) -> int:
+    from src.install.runtime_process import remove_process_record, write_process_record
+
     server = create_server(host=host, port=port, workspace=workspace, token=token)
+    source_dir = Path(os.environ.get("CLAWD_SOURCE_DIR") or Path(__file__).resolve().parents[2]).resolve()
+    managed_by_electron = os.environ.get("CLAWD_DESKTOP_MANAGED_BY_ELECTRON") == "1"
+    managed_by_launcher = os.environ.get("CLAWD_DESKTOP_MANAGED_BY_LAUNCHER") == "1"
+    record_owner_pid = os.getppid() if managed_by_launcher else os.getpid()
+    record_owner_executable = ""
+    if managed_by_launcher:
+        candidates = [
+            source_dir / ".venv" / "Scripts" / "pythonw.exe",
+            source_dir / ".venv" / "Scripts" / "python.exe",
+        ]
+        record_owner_executable = str(next((path for path in candidates if path.exists()), ""))
+    else:
+        record_owner_executable = sys.executable
+    if not managed_by_electron and record_owner_executable:
+        write_process_record(
+            source_dir,
+            owner_pid=record_owner_pid,
+            kind="python",
+            owner_executable=record_owner_executable,
+        )
     print(f"Jonathan Ai desktop host: {server.url}")
     print("Bound to localhost only. API keys stay in ~/.clawd/config.json.")
     if open_browser:
@@ -415,4 +631,6 @@ def run_desktop(
         print("\nStopping desktop host.")
     finally:
         server.stop()
+        if not managed_by_electron:
+            remove_process_record(source_dir, owner_pid=record_owner_pid)
     return 0

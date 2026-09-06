@@ -55,6 +55,8 @@ def run_cli(args: argparse.Namespace) -> int:
         )
     except Exception:
         pass
+    # The outer setup wizard owns the final launch. Automatically restarting
+    # here can race NSIS while it is still writing shortcuts/registry state.
     if args.launch:
         from .launch import launch_jonathan_ai
 
@@ -62,7 +64,7 @@ def run_cli(args: argparse.Namespace) -> int:
         return 0
     print("Start the desktop app with:")
     print(f"  {result.get('venv_python')} -m src.cli desktop")
-    print(f"  {result.get('launchers', {}).get('unix') or result.get('source_dir')}/start-desktop.sh")
+    print(f"  {result.get('launchers', {}).get('unix') or str(source / 'start-desktop.sh')}")
     return 0
 
 
