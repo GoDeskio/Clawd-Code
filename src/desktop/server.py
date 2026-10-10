@@ -231,6 +231,18 @@ class DesktopServer:
             return 200, runtime.update_status(refresh=True)
         if path == "/api/update/apply" and method == "POST":
             return 200, runtime.apply_update()
+        if path == "/api/voice" and method == "GET":
+            from src.voice.service import voice_status
+
+            return 200, voice_status()
+        if path == "/api/voice" and method == "POST":
+            from src.voice.service import apply_voice_settings
+
+            return 200, apply_voice_settings(body)
+        if path == "/api/voice/ptt" and method == "POST":
+            from src.voice.service import push_to_talk_action
+
+            return 200, push_to_talk_action(str(body.get("action") or ""))
         return 404, {"error": f"unknown route: {method} {path}"}
 
     def serve_forever(self) -> None:

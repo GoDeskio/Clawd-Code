@@ -34,6 +34,7 @@ Examples:
   clawd memory delete <id> Delete one local memory
   clawd cron list          List local scheduled jobs
   clawd cron run <id>      Run one scheduled job now
+  clawd voice settings     Show local speech settings
   clawd                    Start interactive REPL
 """
     )
@@ -105,6 +106,9 @@ Examples:
     cron_delete.add_argument('job_id')
     cron_logs = cron_sub.add_parser('logs', help='Show scheduler logs')
     cron_logs.add_argument('job_id', nargs='?')
+
+    voice_parser = subparsers.add_parser('voice', help='Local speech, push-to-talk, and devices')
+    voice_parser.add_argument('words', nargs='*', help='settings, devices, stt, tts, ptt, wake, say')
 
     args = parser.parse_args()
 
@@ -183,6 +187,8 @@ Examples:
         return handle_memory(args)
     elif args.command == 'cron':
         return handle_cron(args)
+    elif args.command == 'voice':
+        return handle_voice(args)
 
     # Default: start REPL
     return start_repl(stream=args.stream)
@@ -290,6 +296,15 @@ def handle_cron(args) -> int:
     print(text)
     if text.startswith("No job"):
         return 1
+    return 0
+
+
+def handle_voice(args) -> int:
+    """Show or change speech settings stored on this machine."""
+    from src.voice.service import format_voice_command
+
+    words = getattr(args, "words", None) or []
+    print(format_voice_command(" ".join(words)))
     return 0
 
 

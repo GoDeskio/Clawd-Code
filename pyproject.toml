@@ -43,6 +43,11 @@ dev = [
 browser = [
     "websocket-client>=1.7.0",
 ]
+voice = [
+    "faster-whisper>=1.0.0",
+    "sounddevice>=0.4.6",
+    "piper-tts>=1.2.0",
+]
 
 [project.scripts]
 clawd = "src.cli:main"

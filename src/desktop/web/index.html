@@ -84,6 +84,7 @@
             <button id="attach-files" class="ghost" title="Attach files">Attach</button>
             <button id="attach-clipboard" class="ghost" title="Attach current clipboard text">Clipboard</button>
             <button id="attach-screenshot" class="ghost hidden" title="Capture the current screen">Screenshot</button>
+            <button id="voice-ptt" class="ghost" type="button" title="Hold to talk through the selected microphone">Hold to talk</button>
             <input id="file-input" type="file" multiple hidden />
           </div>
           <button id="workers" class="ghost" title="Plan this into isolated internal workers">Workers</button>
@@ -165,6 +166,34 @@
         </div>
         <div id="settings-local-results" class="scan-list"></div>
       </div>
+      <h3>Voice</h3>
+      <p class="muted">Speech stays on this machine unless you choose OpenAI or xAI. Install the extra with <code>pip install "clawd-codex[voice]"</code>. Push-to-talk uses the selected microphone and speaker, including Bluetooth on Windows WASAPI and Linux PulseAudio or PipeWire.</p>
+      <label>Speech to text
+        <select id="voice-stt">
+          <option value="local">Local Whisper</option>
+          <option value="openai">OpenAI</option>
+          <option value="xai">xAI</option>
+        </select>
+      </label>
+      <label>Text to speech
+        <select id="voice-tts">
+          <option value="local">Local Piper</option>
+          <option value="openai">OpenAI</option>
+          <option value="xai">xAI</option>
+        </select>
+      </label>
+      <label>Microphone
+        <select id="voice-input"></select>
+      </label>
+      <label>Speaker
+        <select id="voice-output"></select>
+      </label>
+      <label class="check"><input id="voice-ptt-enabled" type="checkbox" checked /> Push to talk</label>
+      <label class="check"><input id="voice-wake" type="checkbox" /> Wake word (optional, stays on this machine)</label>
+      <label>Wake phrase
+        <input id="voice-wake-phrase" type="text" value="jonathan" />
+      </label>
+      <p id="voice-note" class="muted"></p>
       <p class="muted">Source and updates: <code>https://github.com/GoDeskio/Clawd-Code</code>. Default local tree: <code>~/Jonathan/Jonathan-Ai</code>.</p>
       <div class="row end">
         <button id="settings-close" class="ghost">Close</button>
