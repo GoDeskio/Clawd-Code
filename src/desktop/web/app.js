@@ -679,6 +679,7 @@ function applyRoute() {
   const showSetup = route === "setup" || (route === "chat" && Boolean(state.status?.needs_setup));
   $("setup-modal")?.classList.toggle("hidden", !showSetup);
   if (route === "library") refreshLibrary().catch(reportError);
+  if (route === "settings") loadVoiceSettings().catch(reportError);
 }
 
 async function refreshLibrary() {
@@ -775,7 +776,90 @@ function renderScheduleList(items) {
   }
 }
 
+function fillVoiceDevices(select, devices, kind, selected) {
+  select.innerHTML = "";
+  const fallback = document.createElement("option");
+  fallback.value = "";
+  fallback.textContent = kind === "input" ? "Default microphone" : "Default speaker";
+  select.appendChild(fallback);
+  for (const device of devices.filter((item) => item.kind === kind)) {
+    const option = document.createElement("option");
+    option.value = device.id;
+    const marks = [device.host_api];
+    if (device.bluetooth) marks.push("Bluetooth");
+    if (device.default) marks.push("default");
+    option.textContent = `${device.name} (${marks.join(", ")})`;
+    select.appendChild(option);
+  }
+  select.value = selected || "";
+}
+
+async function loadVoiceSettings() {
+  try {
+    const data = await api("/api/voice");
+    const settings = data.settings || {};
+    $("voice-stt").value = settings.stt_provider || "local";
+    $("voice-tts").value = settings.tts_provider || "local";
+    $("voice-ptt-enabled").checked = settings.push_to_talk !== false;
+    $("voice-wake").checked = Boolean(settings.wake_word_enabled);
+    $("voice-wake-phrase").value = settings.wake_word || "jonathan";
+    fillVoiceDevices($("voice-input"), data.devices || [], "input", settings.input_device);
+    fillVoiceDevices($("voice-output"), data.devices || [], "output", settings.output_device);
+    $("voice-note").textContent = settings.note || data.device_error || "";
+  } catch (err) {
+    $("voice-note").textContent = err.message;
+  }
+}
+
+async function saveVoiceSettings() {
+  const data = await api("/api/voice", {
+    method: "POST",
+    body: JSON.stringify({
+      stt_provider: $("voice-stt").value,
+      tts_provider: $("voice-tts").value,
+      input_device: $("voice-input").value,
+      output_device: $("voice-output").value,
+      push_to_talk: $("voice-ptt-enabled").checked,
+      wake_word_enabled: $("voice-wake").checked,
+      wake_word: $("voice-wake-phrase").value,
+    }),
+  });
+  $("voice-note").textContent = data.settings?.note || "";
+}
+
+function bindVoiceTalk() {
+  const button = $("voice-ptt");
+  if (!button) return;
+  const start = async (event) => {
+    event.preventDefault();
+    button.classList.add("holding");
+    try {
+      await api("/api/voice/ptt", { method: "POST", body: JSON.stringify({ action: "start" }) });
+    } catch (err) {
+      button.classList.remove("holding");
+      addBubble("system", err.message);
+    }
+  };
+  const stop = async () => {
+    if (!button.classList.contains("holding")) return;
+    button.classList.remove("holding");
+    try {
+      const data = await api("/api/voice/ptt", { method: "POST", body: JSON.stringify({ action: "stop" }) });
+      if (data.text) {
+        const box = $("prompt");
+        box.value = `${box.value ? `${box.value} ` : ""}${data.text}`;
+      }
+    } catch (err) {
+      addBubble("system", err.message);
+    }
+  };
+  button.addEventListener("pointerdown", start);
+  button.addEventListener("pointerup", stop);
+  button.addEventListener("pointerleave", stop);
+}
+
 function bindUi() {
+  bindVoiceTalk();
   $("send").addEventListener("click", () => sendMessage("/api/chat"));
   $("workers")?.addEventListener("click", () => sendMessage("/api/multi-agent"));
   $("nav-toggle")?.addEventListener("click", () => {
@@ -919,6 +1003,7 @@ function bindUi() {
         });
       }
       $("settings-key").value = "";
+      await saveVoiceSettings();
       go("chat");
       await refreshStatus();
     } catch (err) {

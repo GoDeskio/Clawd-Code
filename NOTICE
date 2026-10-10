@@ -67,3 +67,22 @@ The browser component is also published as
 https://github.com/TencentCloud/octop-browser
 Copyright (c) 2026 Octop
 Licensed under the MIT License.
+
+Jonathan Ai voice is adapted from Octop's voice manager: an active
+speech-to-text provider, an active text-to-speech provider, and a single
+place that dispatches a recording or a spoken reply. Jonathan Ai does not
+vendor Octop's browser, Edge, Tencent, or MiMo presets. The default
+speech-to-text engine is local faster-whisper and the default voice is
+local Piper. OpenAI and xAI are optional and run only after they are
+selected. Microphones and speakers, including Bluetooth headsets, are
+chosen from the Windows WASAPI devices or the Linux PulseAudio and
+PipeWire devices. Push-to-talk is the default. The wake word is off until
+the user turns it on, and that check stays on this machine. Model files
+are fetched from Hugging Face or the official Piper and Whisper sources
+and checked with SHA-256. The optional install extra is voice
+(pip install "clawd-codex[voice]").
+
+Octop voice
+https://github.com/TencentCloud/Octop
+Copyright (c) 2026 Octop
+Licensed under the MIT License.

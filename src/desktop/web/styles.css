@@ -224,6 +224,9 @@ button:disabled { opacity: 0.55; cursor: default; }
   padding: 8px 10px;
 }
 .composer-row { justify-content: space-between; margin-top: 6px; }
+#voice-ptt.holding { outline: 2px solid var(--accent); }
+label.check { display: flex; align-items: center; }
+.dialog input[type="checkbox"] { width: auto; min-height: 0; margin: 0 8px 0 0; }
 .end { justify-content: flex-end; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .chip {

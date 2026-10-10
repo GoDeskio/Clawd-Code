@@ -636,6 +636,22 @@ def cron_command_call(args: str, context: CommandContext) -> LocalCommandResult:
 
     return LocalCommandResult(type="text", value=format_cron_command(args))
 
+
+VOICE_COMMAND = LocalCommand(
+    name="voice",
+    description="Listen and speak on this machine, or choose a cloud voice",
+    argument_hint="settings | devices | stt local|openai|xai | tts local|openai|xai | ptt on|off | wake on|off | say <text>",
+    supports_non_interactive=True,
+)
+
+
+def voice_command_call(args: str, context: CommandContext) -> LocalCommandResult:
+    """Show or change local speech settings. Audio stays here unless a cloud provider is selected."""
+    del context
+    from ..voice.service import format_voice_command
+
+    return LocalCommandResult(type="text", value=format_voice_command(args))
+
 INIT_COMMAND = PromptCommand(
     name="init",
     description="Initialize new CLAUDE.md file(s) and optional skills/hooks with codebase documentation",
@@ -684,6 +700,8 @@ def execute_command_sync(cmd_name: str, args: str, context: CommandContext) -> t
             result = memory_command_call(args, context)
         elif cmd is CRON_COMMAND:
             result = cron_command_call(args, context)
+        elif cmd is VOICE_COMMAND:
+            result = voice_command_call(args, context)
         else:
             return False, None, f"Command not implemented for sync execution: {cmd_name}"
 
@@ -702,6 +720,7 @@ CONTEXT_COMMAND.set_call(context_command_call)
 COMPACT_COMMAND.set_call(compact_command_call)
 MEMORY_COMMAND.set_call(memory_command_call)
 CRON_COMMAND.set_call(cron_command_call)
+VOICE_COMMAND.set_call(voice_command_call)
 
 
 def get_builtin_commands() -> list[Command]:
@@ -716,6 +735,7 @@ def get_builtin_commands() -> list[Command]:
         COMPACT_COMMAND,
         MEMORY_COMMAND,
         CRON_COMMAND,
+        VOICE_COMMAND,
         INIT_COMMAND,
     ]
 
