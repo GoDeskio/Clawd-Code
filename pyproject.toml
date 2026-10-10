@@ -50,9 +50,9 @@ jonathan-ai-desktop = "src.desktop.__main__:main"
 jonathan-ai-install = "src.install.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/GPT-AGI/Clawd-Codex"
-Repository = "https://github.com/GPT-AGI/Clawd-Codex"
-Documentation = "https://github.com/GPT-AGI/Clawd-Codex#readme"
+Homepage = "https://github.com/GoDeskio/Clawd-Code"
+Repository = "https://github.com/GoDeskio/Clawd-Code"
+Documentation = "https://github.com/GoDeskio/Clawd-Code#readme"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -124,7 +124,14 @@ def run_ui(args: argparse.Namespace) -> int:
             path = urlparse(self.path).path
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length) if length else b"{}"
-            body = json.loads(raw.decode("utf-8") or "{}")
+            try:
+                body = json.loads(raw.decode("utf-8") or "{}")
+            except json.JSONDecodeError:
+                self._send(400, json.dumps({"error": "invalid json"}).encode(), "application/json")
+                return
+            if not isinstance(body, dict):
+                self._send(400, json.dumps({"error": "invalid json"}).encode(), "application/json")
+                return
             if path == "/api/start":
                 job_id = wizard.start(
                     source_dir=body.get("source_dir") or args.source_dir,

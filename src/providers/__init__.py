@@ -18,6 +18,7 @@ class ProviderInfo(TypedDict, total=False):
     kind: str
     token_label: str
     help: str
+    ui_visible: bool
 
 
 PROVIDER_INFO: dict[str, ProviderInfo] = {
@@ -84,6 +85,7 @@ PROVIDER_INFO: dict[str, ProviderInfo] = {
     },
     "glm": {
         "label": "Zhipu GLM (z.ai)",
+        "ui_visible": False,
         "default_base_url": "https://open.bigmodel.cn/api/paas/v4",
         "default_model": "zai/glm-5",
         "requires_key": True,
@@ -108,6 +110,7 @@ PROVIDER_INFO: dict[str, ProviderInfo] = {
     },
     "minimax": {
         "label": "Minimax AI",
+        "ui_visible": False,
         "default_base_url": "https://api.minimaxi.com/anthropic",
         "default_model": "MiniMax-M2.7",
         "requires_key": True,
@@ -148,6 +151,18 @@ PROVIDER_INFO: dict[str, ProviderInfo] = {
         "available_models": [],
     },
 }
+
+
+def provider_is_visible(provider_name: str) -> bool:
+    """False for providers that stay implemented but are hidden from pickers."""
+    info = PROVIDER_INFO.get(provider_name)
+    if info is None:
+        return False
+    return bool(info.get("ui_visible", True))
+
+
+def visible_provider_info() -> dict[str, ProviderInfo]:
+    return {name: info for name, info in PROVIDER_INFO.items() if provider_is_visible(name)}
 
 
 def get_provider_info(provider_name: str) -> ProviderInfo:
@@ -196,6 +211,8 @@ __all__ = [
     "ChatResponse",
     "get_provider_class",
     "get_provider_info",
+    "provider_is_visible",
+    "visible_provider_info",
     "PROVIDER_INFO",
     "AVAILABLE_PROVIDERS",
 ]

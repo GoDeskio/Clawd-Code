@@ -190,15 +190,15 @@ Examples:
 
 def _show_provider_defaults_table() -> None:
     """Print a table showing available providers and their defaults."""
-    from src.providers import PROVIDER_INFO
+    from src.providers import visible_provider_info
 
     console = Console()
-    table = Table(title="Available Providers & Defaults", show_header=True, header_style="bold")
+    table = Table(title="Available Providers & Defaults", show_header=True, header_style="bold", padding=(0, 1))
     table.add_column("Provider", style="cyan")
     table.add_column("Default Model", style="magenta")
     table.add_column("Base URL", style="green")
 
-    for name, info in PROVIDER_INFO.items():
+    for name, info in visible_provider_info().items():
         table.add_row(
             f"{name} ({info['label']})",
             info["default_model"],

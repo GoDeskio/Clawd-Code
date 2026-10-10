@@ -95,6 +95,12 @@ class TestDashboardHtml(unittest.TestCase):
         self.assertIn("glass", css)
         self.assertNotIn("Buy tokens", html)
         self.assertNotIn("out of tokens", html)
+        self.assertNotIn("GLM", html)
+        self.assertNotIn("Minimax", html)
+        self.assertNotIn("Zhipu", html)
+        self.assertIn("Memory", html)
+        self.assertIn(":focus-visible", css)
+        self.assertGreaterEqual(css.count("12px"), 1)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,7 +18,7 @@ from src.config import (
     set_default_provider,
 )
 from src.desktop.runtime import DesktopRuntime
-from src.providers import PROVIDER_INFO, get_provider_class
+from src.providers import PROVIDER_INFO, get_provider_class, provider_is_visible, visible_provider_info
 from src.providers.connect_flow import save_provider_connection
 from src.providers.huggingface_connect import (
     DEFAULT_HF_MODELS,
@@ -62,6 +63,19 @@ class TestLocalEndpoints(unittest.TestCase):
             assert_local_or_lan_url("https://api.openai.com/v1")
         with self.assertRaises(RemoteEndpointError):
             assert_local_or_lan_url("http://8.8.8.8:11434/v1")
+
+    def test_public_names_stay_blocked_when_dns_is_private(self) -> None:
+        """A sinkhole or DNS rebinding must not turn a public name into LAN."""
+
+        def fake_getaddrinfo(host, port, *args, **kwargs):
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.1.2.3", 0))]
+
+        with patch("src.providers.local_endpoints.socket.getaddrinfo", side_effect=fake_getaddrinfo):
+            with self.assertRaises(RemoteEndpointError):
+                assert_local_or_lan_url("https://huggingface.co")
+            with self.assertRaises(RemoteEndpointError):
+                assert_local_or_lan_url("https://api.openai.com/v1")
+            self.assertTrue(assert_local_or_lan_url("http://nas.local:11434").startswith("http://nas.local"))
 
     def test_accepts_loopback_and_lan(self) -> None:
         self.assertTrue(assert_local_or_lan_url("http://127.0.0.1:11434/v1").endswith("/v1"))
@@ -178,6 +192,13 @@ class TestReadinessAndSwitching(unittest.TestCase):
         catalog = runtime.provider_catalog()
         self.assertIn("huggingface", catalog)
         self.assertIn("local", catalog)
+        self.assertIn("anthropic", catalog)
+        self.assertNotIn("glm", catalog)
+        self.assertNotIn("minimax", catalog)
+        self.assertIn("glm", PROVIDER_INFO)
+        self.assertFalse(provider_is_visible("glm"))
+        self.assertFalse(provider_is_visible("minimax"))
+        self.assertNotIn("glm", visible_provider_info())
         dumped = json.dumps(status)
         self.assertNotIn("hf_", dumped)
 

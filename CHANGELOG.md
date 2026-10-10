@@ -229,4 +229,4 @@ The focus was on building a solid foundation with clean architecture, comprehens
 [0.2.2]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.2
 [0.2.1]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.1
 [0.2.0]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.2.0
-[0.1.0]: https://github.com/GPT-AGI/Clawd-Code/releases/tag/v0.1.0
+[0.1.0]: https://github.com/GoDeskio/Clawd-Code/releases/tag/v0.1.0

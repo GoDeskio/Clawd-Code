@@ -42,7 +42,7 @@ from src.providers.local_endpoints import (
 )
 from src.cost_tracker import CostTracker
 from src.history import HistoryLog
-from src.providers import PROVIDER_INFO, get_provider_class
+from src.providers import PROVIDER_INFO, get_provider_class, visible_provider_info
 from src.skills.loader import get_all_skills
 from src.tool_system.agent_loop import ToolEvent, run_agent_loop, summarize_tool_result, summarize_tool_use
 from src.tool_system.context import ToolContext
@@ -321,8 +321,42 @@ class DesktopRuntime:
                 "token_label": info.get("token_label") or "API key",
                 "help": info.get("help") or "",
             }
-            for name, info in PROVIDER_INFO.items()
+            for name, info in visible_provider_info().items()
         }
+
+    def list_memories(self) -> dict[str, Any]:
+        from src.agent.memory import list_memories
+
+        return {"memories": list_memories()}
+
+    def delete_memory(self, memory_id: str) -> dict[str, Any]:
+        from src.agent.memory import delete_memory
+
+        if not delete_memory(str(memory_id or "")):
+            raise ValueError("No memory with that id")
+        return {"ok": True}
+
+    def list_schedules(self) -> dict[str, Any]:
+        from src.scheduler.service import list_jobs
+
+        return {"jobs": list_jobs(self.tool_context)}
+
+    def update_schedule(self, job_id: str, action: str) -> dict[str, Any]:
+        from src.scheduler.service import delete_job, set_enabled
+
+        job = str(job_id or "").strip()
+        if not job:
+            raise ValueError("Schedule id is required")
+        verb = str(action or "").strip().lower()
+        if verb == "enable":
+            return {"ok": True, "job": set_enabled(self.tool_context, job, True)}
+        if verb == "disable":
+            return {"ok": True, "job": set_enabled(self.tool_context, job, False)}
+        if verb == "delete":
+            if not delete_job(self.tool_context, job):
+                raise ValueError("No schedule with that id")
+            return {"ok": True}
+        raise ValueError("Schedule action must be enable, disable, or delete")
 
     def login(
         self,

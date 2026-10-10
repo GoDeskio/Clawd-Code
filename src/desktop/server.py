@@ -63,6 +63,26 @@ class DesktopServer:
             return 200, runtime.status()
         if path == "/api/providers" and method == "GET":
             return 200, runtime.provider_catalog()
+        if path == "/api/ui-routes" and method == "GET":
+            return 200, {
+                "routes": [
+                    "/",
+                    "/index.html",
+                    "/#/chat",
+                    "/#/settings",
+                    "/#/connectors",
+                    "/#/setup",
+                    "/#/library",
+                ]
+            }
+        if path == "/api/memory" and method == "GET":
+            return 200, runtime.list_memories()
+        if path == "/api/memory/delete" and method == "POST":
+            return 200, runtime.delete_memory(str(body.get("id") or ""))
+        if path == "/api/schedules" and method == "GET":
+            return 200, runtime.list_schedules()
+        if path == "/api/schedules" and method == "POST":
+            return 200, runtime.update_schedule(str(body.get("id") or ""), str(body.get("action") or ""))
         if path == "/api/config" and method == "GET":
             return 200, runtime.status()["config"]
         if path == "/api/login" and method == "POST":
