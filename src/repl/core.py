@@ -135,6 +135,14 @@ class ClawdREPL:
         # Permission handler with status control for proper input handling
         self._current_status = None
         self.tool_context.permission_handler = self._handle_permission_request
+        self.tool_context.provider = self.provider
+        self.tool_context.tool_registry = self.tool_registry
+        try:
+            from src.scheduler.service import catch_up
+
+            catch_up(self.tool_context)
+        except Exception:
+            pass
 
         # Original built-in commands - define this FIRST!
         self._original_built_ins = [

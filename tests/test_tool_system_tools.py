@@ -58,7 +58,7 @@ class ToolSystemTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
-        self.ctx = ToolContext(workspace_root=self.root)
+        self.ctx = ToolContext(workspace_root=self.root, scheduler_dir=self.root / "scheduler")
 
     def tearDown(self) -> None:
         self.tmp.cleanup()

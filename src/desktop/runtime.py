@@ -163,6 +163,13 @@ class DesktopRuntime:
         except Exception:
             pass
         self._try_init_provider()
+        self.tool_context.tool_registry = self.tool_registry
+        try:
+            from src.scheduler.service import catch_up
+
+            catch_up(self.tool_context)
+        except Exception:
+            pass
         self._restore_session()
         if self.install_record:
             self._update_thread = threading.Thread(target=self._auto_update_on_launch, daemon=True, name="clawd-update")
@@ -176,6 +183,7 @@ class DesktopRuntime:
         ctx.mcp_clients = enabled_mcp_clients()
         ctx.session_id = getattr(self, "session", None).session_id if getattr(self, "session", None) else None
         ctx.provider = getattr(self, "provider", None)
+        ctx.tool_registry = getattr(self, "tool_registry", None)
         return ctx
 
     def _bind_session(self, session: Session) -> None:
@@ -1129,6 +1137,7 @@ _HELP_TEXT = """**Jonathan Ai**
 - `/tools` — list tools
 - `/skills` — list SKILL.md slash commands
 - `/memory` — list, recall, or delete local memories (`/memory delete <id>`)
+- `/cron` — list, run, enable, disable, or delete local schedules (`/cron run <id>`)
 
 Type a message to run the existing agent loop. Destructive and network tools
 prompt for approval before they run.

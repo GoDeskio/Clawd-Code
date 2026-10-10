@@ -40,6 +40,8 @@ class ToolContext:
     # "require_approval" is the default. "block" refuses outright. "warn" logs only.
     shell_guard_mode: str = "require_approval"
     approved_shell_commands: set[str] = field(default_factory=set)
+    # Local SQLite scheduler directory. Unset uses ~/.clawd/scheduler.
+    scheduler_dir: Path | None = None
 
     # Permission handler callback: called when a tool needs user consent.
     # Signature: (tool_name: str, message: str, suggestion: str | None)
