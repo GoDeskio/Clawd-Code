@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.config import set_api_key, set_default_provider
-from src.providers import PROVIDER_INFO
+from src.providers import PROVIDER_INFO, visible_provider_info
 from src.providers.huggingface_connect import verify_huggingface_token
 from src.providers.local_endpoints import list_local_models, scan_local_endpoints
 
@@ -43,7 +43,7 @@ def prompt_provider_connection(console: Any, *, default: str = "anthropic") -> i
     """Rich-prompted connect. Returns 0 on success."""
     from rich.prompt import Prompt
 
-    provider_names = list(PROVIDER_INFO.keys())
+    provider_names = list(visible_provider_info().keys())
     provider = Prompt.ask("Select LLM provider", choices=provider_names, default=default if default in provider_names else "anthropic")
     info = PROVIDER_INFO[provider]
 

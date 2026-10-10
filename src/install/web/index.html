@@ -5,25 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Install Jonathan Ai</title>
   <style>
-    :root { font-family: Palatino, "Iowan Old Style", serif; background: #10140f; color: #e8f0e4; }
-    body { max-width: 640px; margin: 40px auto; padding: 0 20px; }
-    h1 { font-weight: 600; }
-    .muted { color: #93a38c; }
-    input, button, select { font: inherit; }
-    input, select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #2c362a; background: #1d241c; color: inherit; }
-    input[type="checkbox"] { width: auto; }
-    button { border: 0; border-radius: 10px; padding: 10px 14px; background: #8fd17a; color: #12210f; font-weight: 600; cursor: pointer; }
-    button.ghost { background: transparent; color: inherit; border: 1px solid #2c362a; }
-    button:disabled { opacity: 0.5; }
-    #log { background: #171d16; border: 1px solid #2c362a; border-radius: 12px; padding: 12px; min-height: 180px; white-space: pre-wrap; }
-    label { display: block; margin: 14px 0; }
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      background: #0c0e12;
+      color: #e8edf5;
+      --line: rgba(255, 255, 255, 0.1);
+      --muted: #b4bcc8;
+      --accent: #9ebcff;
+      --radius: 8px;
+    }
+    body { max-width: 560px; margin: 16px auto; padding: 0 12px 24px; }
+    h1 { font-size: 18px; font-weight: 650; margin: 0 0 6px; }
+    h2 { font-size: 15px; margin: 16px 0 6px; }
+    h3 { font-size: 13px; margin: 12px 0 4px; }
+    a { color: var(--accent); }
+    .muted { color: var(--muted); font-size: 12px; }
+    input, button, select { font: inherit; color: inherit; }
+    input, select { width: 100%; padding: 6px 8px; min-height: 28px; border-radius: 6px; border: 1px solid var(--line); background: #12151b; }
+    input[type="checkbox"] { width: auto; min-height: 0; }
+    button { border: 0; border-radius: var(--radius); padding: 4px 8px; min-height: 28px; background: var(--accent); color: #10141c; font-weight: 650; cursor: pointer; }
+    button.ghost { background: transparent; color: inherit; border: 1px solid var(--line); }
+    button:disabled { opacity: 0.55; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    #log { background: #12151b; border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; min-height: 120px; white-space: pre-wrap; font-size: 12px; }
+    label { display: block; margin: 8px 0; font-size: 12px; color: var(--muted); }
     .hidden { display: none !important; }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .scan-item { display: block; width: 100%; text-align: left; margin: 6px 0; background: #1d241c; color: inherit; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    nav.row a { padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius); text-decoration: none; }
+    .scan-item { display: block; width: 100%; text-align: left; margin: 4px 0; background: #12151b; color: inherit; border: 1px solid var(--line); }
   </style>
 </head>
 <body>
   <h1>Install Jonathan Ai</h1>
+  <nav class="row" aria-label="Installer sections">
+    <a href="#/install">Install</a>
+    <a href="#/model">Model</a>
+    <a href="#/git">Git</a>
+    <a href="#/agents">Agents</a>
+  </nav>
   <p class="muted">This wizard copies the GoDeskio/Clawd-Code source onto this computer, installs Python and desktop dependencies, and verifies Jonathan Ai can start a session. Tokens never go into git or the installer artifact. They stay in <code>~/.clawd/config.json</code> only.</p>
   <label>Install folder
     <input id="source-dir" />
@@ -41,15 +63,13 @@
 
   <section id="connectors" class="hidden">
     <h2>Connect a model</h2>
-    <p class="muted">Optional. Hugging Face and Local LLM sit beside Anthropic / OpenAI / GLM. You can also do this later in Jonathan Ai settings — no reinstall.</p>
+    <p class="muted">Optional. Anthropic, OpenAI, Hugging Face, or a local LLM. You can also do this later in Jonathan Ai settings — no reinstall.</p>
     <label>Provider
       <select id="provider">
         <option value="huggingface">Hugging Face</option>
         <option value="local">Local LLM</option>
         <option value="anthropic">Anthropic Claude</option>
         <option value="openai">OpenAI GPT</option>
-        <option value="glm">Zhipu GLM</option>
-        <option value="minimax">Minimax AI</option>
       </select>
     </label>
     <p id="help" class="muted"></p>
@@ -155,16 +175,45 @@
       local: "Scan Ollama (127.0.0.1:11434), LM Studio, vLLM, llama.cpp, or TGI. Custom URLs must be loopback or LAN — never WAN.",
       anthropic: "Cloud key stays in ~/.clawd/config.json.",
       openai: "Cloud key stays in ~/.clawd/config.json.",
-      glm: "Cloud key stays in ~/.clawd/config.json.",
-      minimax: "Cloud key stays in ~/.clawd/config.json.",
     };
     const urls = {
       huggingface: "https://router.huggingface.co/v1",
       local: "http://127.0.0.1:11434/v1",
       anthropic: "https://api.anthropic.com",
       openai: "https://api.openai.com/v1",
-      glm: "https://open.bigmodel.cn/api/paas/v4",
-      minimax: "https://api.minimaxi.com/anthropic",
+    };
+    window.JONATHAN_UI_ROUTES = ["/", "/index.html", "/#/install", "/#/model", "/#/git", "/#/agents"];
+    let installed = false;
+    function applyRoute() {
+      const route = (location.hash || "#/install").replace(/^#\/?/, "").split(/[?#]/)[0] || "install";
+      const known = ["install", "model", "git", "agents"];
+      const name = known.includes(route) ? route : "install";
+      document.body.dataset.route = name;
+      const show = (id, on) => document.getElementById(id).classList.toggle("hidden", !on);
+      show("connectors", name === "model" || (installed && name === "install"));
+      show("forges", name === "git" || (installed && name === "install"));
+      show("other-agents", name === "agents" || (installed && name === "install"));
+    }
+    function note(err) {
+      const message = (err && err.message) || String(err || "Something went wrong");
+      const status = document.getElementById("connect-status") || document.getElementById("log");
+      if (status) status.textContent = message;
+    }
+    const listen = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (type, fn, options) {
+      if (type === "click" && typeof fn === "function") {
+        const wrapped = function (...args) {
+          try {
+            const result = fn.apply(this, args);
+            if (result && typeof result.then === "function") return result.catch(note);
+            return result;
+          } catch (err) {
+            note(err);
+          }
+        };
+        return listen.call(this, type, wrapped, options);
+      }
+      return listen.call(this, type, fn, options);
     };
     function applyProvider() {
       const name = document.getElementById("provider").value;
@@ -179,6 +228,7 @@
       document.getElementById("source-dir").value = defaults.source_dir;
       document.getElementById("os-line").textContent = `Detected ${defaults.os.platform} · Python ${defaults.os.python}`;
       applyProvider();
+      applyRoute();
     }
     document.getElementById("provider").addEventListener("change", applyProvider);
     document.getElementById("start").addEventListener("click", async () => {
@@ -202,16 +252,26 @@
           if (event.error) log.textContent += "ERROR: " + event.error + "\n";
           if (event.type === "done") {
             document.getElementById("done").textContent = "Installed. Launch with start-desktop.sh in " + event.source_dir;
-            document.getElementById("connectors").classList.remove("hidden");
-            document.getElementById("forges").classList.remove("hidden");
-            document.getElementById("other-agents").classList.remove("hidden");
+            installed = true;
+            applyRoute();
           }
         }
+        if (data.error && !(data.events || []).length) {
+          log.textContent += "ERROR: " + data.error + "\n";
+          button.disabled = false;
+          return;
+        }
         after += (data.events || []).length;
-        if (!data.done) setTimeout(poll, 400);
-        else button.disabled = false;
+        if (!data.done) setTimeout(() => { poll().catch(note); }, 400);
+        else {
+          button.disabled = false;
+          if ((data.events || []).some((event) => event.type === "done") || data.result) {
+            installed = true;
+            applyRoute();
+          }
+        }
       };
-      poll();
+      poll().catch(note);
     });
     document.getElementById("hf-test").addEventListener("click", async () => {
       const status = document.getElementById("connect-status");
@@ -356,7 +416,8 @@
       const data = await res.json();
       status.textContent = data.ok ? "Saved on this machine only. You can switch providers later without reinstalling." : (data.error || "failed");
     });
-    boot();
+    window.addEventListener("hashchange", applyRoute);
+    boot().catch(note);
   </script>
 </body>
 </html>

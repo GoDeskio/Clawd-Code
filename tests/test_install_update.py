@@ -308,6 +308,9 @@ class TestUpdater(unittest.TestCase):
         self.assertIn("GitLab", html)
         self.assertIn("MCP", html)
         self.assertIn("Clone GoDeskio/Clawd-Code", html)
+        self.assertNotIn("Zhipu", html)
+        self.assertNotIn("minimax", html.lower())
+        self.assertNotIn(">glm<", html)
 
 
 if __name__ == "__main__":

@@ -56,6 +56,18 @@ class RemoteEndpointError(ValueError):
     """Raised when a URL is not loopback/LAN."""
 
 
+# Multi-label public names are never treated as LAN, even if DNS returns a
+# private address (sinkhole, split horizon, or DNS rebinding).
+_LOCAL_NAME_SUFFIXES = (".local", ".lan", ".internal", ".home", ".localhost", ".localdomain")
+
+
+def _hostname_may_be_local(host: str) -> bool:
+    name = host.lower().rstrip(".")
+    if name == "localhost" or "." not in name:
+        return True
+    return any(name.endswith(suffix) for suffix in _LOCAL_NAME_SUFFIXES)
+
+
 def _host_is_loopback_or_lan(host: str) -> bool:
     raw = (host or "").strip().strip("[]")
     if not raw:
@@ -68,6 +80,8 @@ def _host_is_loopback_or_lan(host: str) -> bool:
         return bool(ip.is_loopback or ip.is_private or ip.is_link_local)
     except ValueError:
         pass
+    if not _hostname_may_be_local(raw):
+        return False
     try:
         infos = socket.getaddrinfo(raw, None)
     except OSError:

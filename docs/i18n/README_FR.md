@@ -1,6 +1,6 @@
 <div align="center">
 
-[English](../../README.md) | [中文](../../README.md#中文版) | **Français** | [Русский](README_RU.md) | [हिन्दी](README_HI.md) | [العربية](README_AR.md) | [Português](README_PT.md)
+[English](../../README.md) | **Français** | [Русский](README_RU.md) | [हिन्दी](README_HI.md) | [العربية](README_AR.md) | [Português](README_PT.md)
 
 # 🚀 Claude Code Python
 
@@ -10,8 +10,8 @@
 
 ***
 
-[![GitHub stars](https://img.shields.io/github/stars/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GPT-AGI/Clawd-Code/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/GPT-AGI/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GPT-AGI/Clawd-Code/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=yellow)](https://github.com/GoDeskio/Clawd-Code/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/GoDeskio/Clawd-Code?style=for-the-badge&logo=github&color=blue)](https://github.com/GoDeskio/Clawd-Code/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 
@@ -61,11 +61,11 @@
 
 ## ⭐ Star History
 
-<a href="https://www.star-history.com/?repos=GPT-AGI%2FClawd-Code&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=GoDeskio%2FClawd-Code&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=GPT-AGI%2FClawd-Code&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=GPT-AGI%2FClawd-Code&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=GPT-AGI%2FClawd-Code&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=GoDeskio%2FClawd-Code&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=GoDeskio%2FClawd-Code&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=GoDeskio%2FClawd-Code&type=date&legend=top-left" />
  </picture>
 </a>
 
@@ -74,7 +74,7 @@
 ### Support multi-fournisseurs
 
 ```python
-providers = ["Anthropic Claude", "OpenAI GPT", "Zhipu GLM"]  # + facile à étendre
+providers = ["Anthropic Claude", "OpenAI GPT", "Hugging Face"]  # + facile à étendre
 ```
 
 ### REPL interactif
@@ -122,7 +122,7 @@ clawd config       # Voir les paramètres
 ### Installation
 
 ```bash
-git clone https://github.com/GPT-AGI/Clawd-Code.git
+git clone https://github.com/GoDeskio/Clawd-Code.git
 cd Clawd-Code
 
 # Créer un venv (uv recommandé)

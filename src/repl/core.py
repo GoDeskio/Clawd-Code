@@ -608,19 +608,18 @@ class ClawdREPL:
         table.add_row("Provider", Text(provider_label, style="bold green"))
         table.add_row("Workspace", Text(self._truncate_middle(display_path, content_width - 12), style="bold blue"))
 
-        footer = Text("/help  •  /tools  •  /stream  •  /render-last  •  /exit", style="dim")
-        mascot_block = Text(mascot_ascii, style="bold orange3", no_wrap=True)
+        footer = Text("/help  •  /tools  •  /memory  •  /cron  •  /exit", style="dim")
+        mascot_block = Text(mascot_ascii, style="bold cyan", no_wrap=True)
         body = Group(
             Columns([mascot_block, table], align="center", expand=False),
-            Text(""),
             Align.center(footer),
         )
         header = Panel(
             body,
             border_style="bright_black",
-            title="[bold bright_cyan] CLAWD CODE [/bold bright_cyan]",
-            subtitle="[dim]interactive terminal[/dim]",
-            padding=(1, 2),
+            title="[bold bright_cyan] Jonathan Ai [/bold bright_cyan]",
+            subtitle="[dim]terminal[/dim]",
+            padding=(0, 1),
         )
         self.console.print(header)
         self.console.print()
