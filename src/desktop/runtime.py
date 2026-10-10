@@ -955,35 +955,44 @@ class DesktopRuntime:
                 if chunk:
                     self._emit(job, {"type": "token", "text": chunk})
 
-            try:
-                result = run_agent_loop(
-                    conversation=self.session.conversation,
-                    provider=self.provider,
-                    tool_registry=self.tool_registry,
-                    tool_context=self.tool_context,
-                    max_turns=20,
-                    stream=self.stream,
-                    verbose=False,
-                    on_event=on_event,
-                    on_text_chunk=on_text_chunk,
-                )
-            except Exception as loop_exc:
-                from src.tool_system.schema_sanitize import is_input_schema_type_error
+            previous_progress = getattr(self.tool_context, "progress_handler", None)
 
-                if not is_input_schema_type_error(loop_exc):
-                    raise
-                result = run_agent_loop(
-                    conversation=self.session.conversation,
-                    provider=self.provider,
-                    tool_registry=self.tool_registry,
-                    tool_context=self.tool_context,
-                    max_turns=20,
-                    stream=self.stream,
-                    verbose=False,
-                    on_event=on_event,
-                    on_text_chunk=on_text_chunk,
-                    omit_tools=True,
-                )
+            def on_acp_progress(line: str) -> None:
+                self._emit(job, {"type": "acp_progress", "text": line})
+
+            self.tool_context.progress_handler = on_acp_progress
+            try:
+                try:
+                    result = run_agent_loop(
+                        conversation=self.session.conversation,
+                        provider=self.provider,
+                        tool_registry=self.tool_registry,
+                        tool_context=self.tool_context,
+                        max_turns=20,
+                        stream=self.stream,
+                        verbose=False,
+                        on_event=on_event,
+                        on_text_chunk=on_text_chunk,
+                    )
+                except Exception as loop_exc:
+                    from src.tool_system.schema_sanitize import is_input_schema_type_error
+
+                    if not is_input_schema_type_error(loop_exc):
+                        raise
+                    result = run_agent_loop(
+                        conversation=self.session.conversation,
+                        provider=self.provider,
+                        tool_registry=self.tool_registry,
+                        tool_context=self.tool_context,
+                        max_turns=20,
+                        stream=self.stream,
+                        verbose=False,
+                        on_event=on_event,
+                        on_text_chunk=on_text_chunk,
+                        omit_tools=True,
+                    )
+            finally:
+                self.tool_context.progress_handler = previous_progress
             usage = self.session.record_usage(result.usage)
             if self.session.conversation.messages:
                 self.session.save()
@@ -1011,6 +1020,53 @@ class DesktopRuntime:
                 "error": f"{exc}{hint}",
                 "provider_limit": bool(hint),
             })
+
+    def _run_acp_slash(self, job: ChatJob, args: str) -> None:
+        import shlex
+
+        from src.acp.service import _USAGE, format_acp_command
+
+        try:
+            parts = shlex.split(args.strip())
+        except ValueError as exc:
+            self._finish(job, {"type": "error", "error": str(exc)})
+            return
+        if not parts or parts[0] == "list":
+            self._finish(job, {
+                "type": "done",
+                "text": format_acp_command("list"),
+                "kind": "command",
+            })
+            return
+        if parts[0] != "run" or len(parts) < 4:
+            self._finish(job, {"type": "done", "text": _USAGE, "kind": "command"})
+            return
+        previous_progress = getattr(self.tool_context, "progress_handler", None)
+
+        def on_acp_progress(line: str) -> None:
+            self._emit(job, {"type": "acp_progress", "text": line})
+
+        self.tool_context.progress_handler = on_acp_progress
+        try:
+            result = self.tool_registry.dispatch(
+                ToolCall(
+                    name="Acp",
+                    input={
+                        "runner": parts[1],
+                        "folder": parts[2],
+                        "task": " ".join(parts[3:]),
+                    },
+                ),
+                self.tool_context,
+            )
+        finally:
+            self.tool_context.progress_handler = previous_progress
+        output = result.output if isinstance(result.output, dict) else {"text": str(result.output or "")}
+        text = str(output.get("text") or output.get("error") or "")
+        if result.is_error:
+            self._finish(job, {"type": "error", "error": text or "ACP runner failed"})
+            return
+        self._finish(job, {"type": "done", "text": text, "kind": "command"})
 
     def _handle_slash(self, job: ChatJob, raw: str) -> bool:
         if raw == "/":
@@ -1074,6 +1130,9 @@ class DesktopRuntime:
             else:
                 text = "\n".join(f"/{s['name']} — {s['description']}" for s in skills)
             self._finish(job, {"type": "done", "text": text, "kind": "command"})
+            return True
+        if cmd == "acp":
+            self._run_acp_slash(job, args)
             return True
         if cmd == "tool":
             tool_parts = args.split(maxsplit=1)
@@ -1175,6 +1234,7 @@ _HELP_TEXT = """**Jonathan Ai**
 - Browser tool — local Chrome over CDP. Logins stay in the profile. Submits, purchases, and logins need approval.
 - `/voice` — local speech and speakers (`/voice settings`, `/voice say hello`)
 - `/kb` — add, list, remove, or search local documents (`/kb search <query>`)
+- `/acp` — list local coding agents, or `/acp run <runner> <folder> <task>`
 
 Type a message to run the existing agent loop. Destructive and network tools
 prompt for approval before they run.

@@ -211,6 +211,47 @@
       <div class="row">
         <button id="kb-save" class="ghost" type="button">Save knowledge settings</button>
       </div>
+      <h3>Coding agents</h3>
+      <p id="acp-status" class="muted">Local ACP runners stay off until you enable one and set its program path. The project folder and the command still ask for approval.</p>
+      <div class="acp-runner">
+        <label><input id="acp-opencode-enabled" type="checkbox" /> OpenCode</label>
+        <label>Command
+          <input id="acp-opencode-command" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>Args
+          <input id="acp-opencode-args" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+      </div>
+      <div class="acp-runner">
+        <label><input id="acp-claude_code-enabled" type="checkbox" /> Claude Code</label>
+        <label>Command
+          <input id="acp-claude_code-command" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>Args
+          <input id="acp-claude_code-args" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+      </div>
+      <div class="acp-runner">
+        <label><input id="acp-codex-enabled" type="checkbox" /> Codex</label>
+        <label>Command
+          <input id="acp-codex-command" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>Args
+          <input id="acp-codex-args" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+      </div>
+      <div class="acp-runner">
+        <label><input id="acp-zed-enabled" type="checkbox" /> Zed</label>
+        <label>Command
+          <input id="acp-zed-command" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>Args
+          <input id="acp-zed-args" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="acp-save" class="ghost" type="button">Save coding agents</button>
+      </div>
       <p class="muted">Source and updates: <code>https://github.com/GoDeskio/Clawd-Code</code>. Default local tree: <code>~/Jonathan/Jonathan-Ai</code>.</p>
       <div class="row end">
         <button id="settings-close" class="ghost">Close</button>

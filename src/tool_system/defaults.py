@@ -5,6 +5,7 @@ from pathlib import Path
 from .loader import load_tools_from_dir
 from .registry import ToolRegistry
 from .tools import (
+    AcpTool,
     AskUserQuestionTool,
     BashTool,
     BriefTool,
@@ -109,6 +110,7 @@ def build_default_registry(*, include_user_tools: bool = True) -> ToolRegistry:
             REPLTool(),
             TestingPermissionTool(),
             BrowserTool(),
+            AcpTool(),
         ]
     )
     registry.register(AgentTool(registry))

@@ -102,3 +102,19 @@ Octop knowledge base
 https://github.com/TencentCloud/Octop
 Copyright (c) 2026 Octop
 Licensed under the MIT License.
+
+Jonathan Ai can hand a coding task to a local ACP runner. The client follows
+Octop's outbound ACP runner: newline JSON-RPC on the runner's stdio, a
+session in a chosen project folder, streamed session updates, and a list of
+files that changed. Built-in runners are OpenCode, Claude Code, Codex, and
+Zed. Each stays disabled until the user enables it and sets a local program
+path. Jonathan Ai does not download a runner and does not use npx. The
+runner command and the project folder go through the approval gate, and the
+shell guard still holds a dangerous command. A permission request from the
+runner is cancelled until the user approves it here. The protocol itself
+stays on this machine.
+
+Octop ACP runner
+https://github.com/TencentCloud/Octop
+Copyright (c) 2026 Octop
+Licensed under the MIT License.

@@ -668,6 +668,22 @@ def kb_command_call(args: str, context: CommandContext) -> LocalCommandResult:
 
     return LocalCommandResult(type="text", value=format_kb_command(args))
 
+
+ACP_COMMAND = LocalCommand(
+    name="acp",
+    description="Delegate a coding task to a local ACP runner",
+    argument_hint="list | run <runner> <folder> <task>",
+    supports_non_interactive=True,
+)
+
+
+def acp_command_call(args: str, context: CommandContext) -> LocalCommandResult:
+    """Hand a coding task to OpenCode, Claude Code, Codex, or Zed."""
+    del context
+    from ..acp.service import format_acp_command
+
+    return LocalCommandResult(type="text", value=format_acp_command(args))
+
 INIT_COMMAND = PromptCommand(
     name="init",
     description="Initialize new CLAUDE.md file(s) and optional skills/hooks with codebase documentation",
@@ -720,6 +736,8 @@ def execute_command_sync(cmd_name: str, args: str, context: CommandContext) -> t
             result = voice_command_call(args, context)
         elif cmd is KB_COMMAND:
             result = kb_command_call(args, context)
+        elif cmd is ACP_COMMAND:
+            result = acp_command_call(args, context)
         else:
             return False, None, f"Command not implemented for sync execution: {cmd_name}"
 
@@ -740,6 +758,7 @@ MEMORY_COMMAND.set_call(memory_command_call)
 CRON_COMMAND.set_call(cron_command_call)
 VOICE_COMMAND.set_call(voice_command_call)
 KB_COMMAND.set_call(kb_command_call)
+ACP_COMMAND.set_call(acp_command_call)
 
 
 def get_builtin_commands() -> list[Command]:
@@ -756,6 +775,7 @@ def get_builtin_commands() -> list[Command]:
         CRON_COMMAND,
         VOICE_COMMAND,
         KB_COMMAND,
+        ACP_COMMAND,
         INIT_COMMAND,
     ]
 
