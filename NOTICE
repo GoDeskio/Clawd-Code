@@ -46,3 +46,24 @@ Octop scheduler
 https://github.com/TencentCloud/Octop
 Copyright (c) 2026 Octop
 Licensed under the MIT License.
+
+Jonathan Ai browser control is adapted from Octop's browser tool. It drives
+a real Chrome or Chromium process over the Chrome DevTools Protocol and
+keeps a user-data directory so logins persist across sessions. Jonathan Ai
+does not vendor the upstream session, recorder, or installer. Every browser
+action goes through the existing approval gate. A form submit, a purchase,
+and a login each need their own approval, and a session-wide grant does not
+skip them. Screenshot text is redacted in the page before capture, and
+secrets are masked in the tool output and logs. Browser archives are
+downloaded only from Chrome for Testing or the official Playwright CDN.
+npmmirror is refused. The optional install extra is browser
+(pip install "clawd-codex[browser]").
+
+Octop browser
+https://github.com/TencentCloud/Octop
+Copyright (c) 2026 Octop
+Licensed under the MIT License.
+The browser component is also published as
+https://github.com/TencentCloud/octop-browser
+Copyright (c) 2026 Octop
+Licensed under the MIT License.

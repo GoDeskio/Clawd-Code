@@ -40,6 +40,9 @@ dev = [
     "twine>=5.0.0",
     "pytest>=8.0.0",
 ]
+browser = [
+    "websocket-client>=1.7.0",
+]
 
 [project.scripts]
 clawd = "src.cli:main"

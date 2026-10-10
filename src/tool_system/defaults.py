@@ -8,6 +8,7 @@ from .tools import (
     AskUserQuestionTool,
     BashTool,
     BriefTool,
+    BrowserTool,
     ConfigTool,
     CronCreateTool,
     CronDeleteTool,
@@ -107,6 +108,7 @@ def build_default_registry(*, include_user_tools: bool = True) -> ToolRegistry:
             NotebookEditTool(),
             REPLTool(),
             TestingPermissionTool(),
+            BrowserTool(),
         ]
     )
     registry.register(AgentTool(registry))
