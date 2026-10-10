@@ -11,6 +11,7 @@ from .tools import (
     BriefTool,
     BrowserTool,
     ConfigTool,
+    DeviceTool,
     CronCreateTool,
     CronDeleteTool,
     CronDisableTool,
@@ -111,6 +112,7 @@ def build_default_registry(*, include_user_tools: bool = True) -> ToolRegistry:
             TestingPermissionTool(),
             BrowserTool(),
             AcpTool(),
+            DeviceTool(),
         ]
     )
     registry.register(AgentTool(registry))

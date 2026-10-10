@@ -118,3 +118,23 @@ Octop ACP runner
 https://github.com/TencentCloud/Octop
 Copyright (c) 2026 Octop
 Licensed under the MIT License.
+
+Jonathan Ai chat channels and LAN device control follow Octop's gateway:
+one inbound message is normalized, checked against an allow-list, and
+answered on the same channel. Jonathan Ai implements Telegram, Discord,
+and Slack only. Bot tokens are stored in the OS keyring when it is
+available, otherwise in an encrypted file on this machine, and they are
+not written into settings or logs. Device control is limited to MQTT,
+Home Assistant REST, generic HTTP, and SSH targets the user registers.
+Discovery reads the ARP table and can send one mDNS query and one SSDP
+search. Every device action asks for approval, and each device has its
+own allow-list of actions. Only loopback, private, and link-local
+addresses are accepted. Jonathan Ai does not include the upstream
+channels for other regions, does not import the octop-gateway package,
+and does not call a third-party host for the protocol itself.
+
+Octop gateway
+https://github.com/TencentCloud/Octop
+https://github.com/TencentCloud/octop-gateway
+Copyright (c) 2026 Octop
+Licensed under the MIT License.

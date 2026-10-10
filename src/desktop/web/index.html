@@ -252,6 +252,70 @@
       <div class="row">
         <button id="acp-save" class="ghost" type="button">Save coding agents</button>
       </div>
+      <h3>Chat channels</h3>
+      <p id="channels-status" class="muted">Telegram, Discord, and Slack. Bring your own bot token. It is stored in the OS keyring when that is available, otherwise encrypted on this machine, and it is not shown again. An empty allow-list drops everyone.</p>
+      <div class="channel-row">
+        <label><input id="channels-telegram-enabled" type="checkbox" /> Telegram</label>
+        <label>Allow user IDs
+          <input id="channels-telegram-allow" type="text" spellcheck="false" autocomplete="off" placeholder="12345, 67890" />
+        </label>
+        <label>Bot token
+          <input id="channels-telegram-token" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" />
+        </label>
+      </div>
+      <div class="channel-row">
+        <label><input id="channels-discord-enabled" type="checkbox" /> Discord</label>
+        <label>Allow user IDs
+          <input id="channels-discord-allow" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>Bot token
+          <input id="channels-discord-token" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" />
+        </label>
+      </div>
+      <div class="channel-row">
+        <label><input id="channels-slack-enabled" type="checkbox" /> Slack</label>
+        <label>Allow user IDs
+          <input id="channels-slack-allow" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>Bot token
+          <input id="channels-slack-token" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="channels-save" class="ghost" type="button">Save channels</button>
+      </div>
+      <h3>LAN devices</h3>
+      <p id="devices-status" class="muted">MQTT, Home Assistant, HTTP, and SSH on private or link-local addresses only. Each action must be allow-listed and asks for approval. There is no WAN control.</p>
+      <label>Device id
+        <input id="devices-id" type="text" spellcheck="false" autocomplete="off" />
+      </label>
+      <label>Kind
+        <select id="devices-kind">
+          <option value="mqtt">MQTT</option>
+          <option value="homeassistant">Home Assistant</option>
+          <option value="http">HTTP</option>
+          <option value="ssh">SSH</option>
+        </select>
+      </label>
+      <label>Host
+        <input id="devices-host" type="text" spellcheck="false" autocomplete="off" placeholder="192.168.1.20" />
+      </label>
+      <label>Port
+        <input id="devices-port" type="text" spellcheck="false" autocomplete="off" />
+      </label>
+      <label>User
+        <input id="devices-user" type="text" spellcheck="false" autocomplete="off" />
+      </label>
+      <label>Allowed actions
+        <input id="devices-actions" type="text" spellcheck="false" autocomplete="off" placeholder="light.turn_on, light.turn_off" />
+      </label>
+      <label>Secret
+        <input id="devices-secret" type="password" autocomplete="off" placeholder="Leave blank to keep the saved secret" />
+      </label>
+      <div id="devices-list"></div>
+      <div class="row">
+        <button id="devices-save" class="ghost" type="button">Save device</button>
+      </div>
       <p class="muted">Source and updates: <code>https://github.com/GoDeskio/Clawd-Code</code>. Default local tree: <code>~/Jonathan/Jonathan-Ai</code>.</p>
       <div class="row end">
         <button id="settings-close" class="ghost">Close</button>

@@ -1068,6 +1068,41 @@ class DesktopRuntime:
             return
         self._finish(job, {"type": "done", "text": text, "kind": "command"})
 
+    def channel_inbound(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Route one local inbound payload. The reply stays on this machine."""
+        from src.channels.parse import Inbound
+        from src.channels.service import route_inbound
+
+        channel = str(body.get("channel") or "").strip().lower()
+        user_id = str(body.get("user_id") or "").strip()
+        text = str(body.get("text") or "").strip()
+        reply_to = str(body.get("reply_to") or user_id).strip()
+        if channel not in {"telegram", "discord", "slack"}:
+            raise ValueError("unknown channel")
+        if not user_id or not text:
+            raise ValueError("user_id and text are required")
+
+        def reply(message: str) -> str:
+            return f"Jonathan Ai: {message}"
+
+        return route_inbound(Inbound(channel, user_id, text, reply_to), reply)
+
+    def _run_device_slash(self, job: ChatJob, args: str) -> None:
+        parts = args.split(maxsplit=2)
+        if len(parts) < 3 or parts[0] != "do":
+            self._finish(job, {"type": "error", "error": "Usage: /devices do <id> <action>"})
+            return
+        result = self.tool_registry.dispatch(
+            ToolCall(name="Device", input={"device": parts[1], "action": parts[2]}),
+            self.tool_context,
+        )
+        output = result.output if isinstance(result.output, dict) else {"text": str(result.output or "")}
+        text = str(output.get("text") or output.get("error") or "")
+        if result.is_error:
+            self._finish(job, {"type": "error", "error": text or "device action failed"})
+            return
+        self._finish(job, {"type": "done", "text": text, "kind": "command"})
+
     def _handle_slash(self, job: ChatJob, raw: str) -> bool:
         if raw == "/":
             self._finish(job, {
@@ -1133,6 +1168,9 @@ class DesktopRuntime:
             return True
         if cmd == "acp":
             self._run_acp_slash(job, args)
+            return True
+        if cmd == "devices" and args.split(maxsplit=1)[0:1] == ["do"]:
+            self._run_device_slash(job, args)
             return True
         if cmd == "tool":
             tool_parts = args.split(maxsplit=1)
@@ -1235,6 +1273,8 @@ _HELP_TEXT = """**Jonathan Ai**
 - `/voice` — local speech and speakers (`/voice settings`, `/voice say hello`)
 - `/kb` — add, list, remove, or search local documents (`/kb search <query>`)
 - `/acp` — list local coding agents, or `/acp run <runner> <folder> <task>`
+- `/channels` — list Telegram, Discord, and Slack (`/channels list`)
+- `/devices` — list or discover LAN devices, or `/devices do <id> <action>`
 
 Type a message to run the existing agent loop. Destructive and network tools
 prompt for approval before they run.

@@ -6,6 +6,7 @@ from .ask_user_question import AskUserQuestionTool
 from .bash import BashTool
 from .brief import BriefTool
 from .config import ConfigTool
+from .device import DeviceTool
 from .cron import (
     CronCreateTool,
     CronDeleteTool,
@@ -48,6 +49,7 @@ __all__ = [
     "BrowserTool",
     "BriefTool",
     "ConfigTool",
+    "DeviceTool",
     "CronCreateTool",
     "CronDeleteTool",
     "CronDisableTool",

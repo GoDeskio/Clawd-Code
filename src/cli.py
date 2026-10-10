@@ -39,6 +39,9 @@ Examples:
   clawd kb search <query>  Search local documents and cite the passage
   clawd acp list           List local ACP coding agents
   clawd acp run <runner> <folder> <task>
+  clawd channels list      List Telegram, Discord, and Slack
+  clawd devices list       List registered LAN devices
+  clawd devices discover   Read the local ARP table
   clawd                    Start interactive REPL
 """
     )
@@ -132,6 +135,19 @@ Examples:
     acp_run.add_argument('folder', help='Existing project folder')
     acp_run.add_argument('task', nargs='+', help='Coding task to delegate')
 
+    channels_parser = subparsers.add_parser('channels', help='List Telegram, Discord, and Slack settings')
+    channels_sub = channels_parser.add_subparsers(dest='channels_command')
+    channels_sub.add_parser('list', help='List chat channels for this user')
+
+    devices_parser = subparsers.add_parser('devices', help='List, discover, or control LAN devices')
+    devices_sub = devices_parser.add_subparsers(dest='devices_command')
+    devices_sub.add_parser('list', help='List registered devices')
+    devices_discover = devices_sub.add_parser('discover', help='Read the ARP table')
+    devices_discover.add_argument('--probe', action='store_true', help='Also send one mDNS query and one SSDP search')
+    devices_do = devices_sub.add_parser('do', help='Run one allow-listed action')
+    devices_do.add_argument('device_id')
+    devices_do.add_argument('action')
+
     args = parser.parse_args()
 
     # Handle --version
@@ -215,6 +231,10 @@ Examples:
         return handle_kb(args)
     elif args.command == 'acp':
         return handle_acp(args)
+    elif args.command == 'channels':
+        return handle_channels(args)
+    elif args.command == 'devices':
+        return handle_devices(args)
 
     # Default: start REPL
     return start_repl(stream=args.stream)
@@ -339,6 +359,49 @@ def handle_acp(args) -> int:
         text = str(result.output or "")
     print(text)
     return 1 if result.is_error else 0
+
+
+def handle_channels(args) -> int:
+    """List chat channels. Tokens are not printed."""
+    from src.channels.service import format_channels_command
+
+    action = getattr(args, "channels_command", None) or "list"
+    print(format_channels_command(action if action == "list" else "list"))
+    return 0
+
+
+def handle_devices(args) -> int:
+    """List or discover LAN devices, or run one allow-listed action."""
+    from src.devices.control import approval_key, perform_action
+    from src.devices.lan import WanTargetError
+    from src.devices.registry import get_device
+    from src.devices.service import format_devices_command
+    from src.security.shell_guard import enforce_shell_command
+    from src.tool_system.context import ToolContext
+    from src.tool_system.errors import ToolPermissionError
+
+    action = getattr(args, "devices_command", None) or "list"
+    if action == "discover":
+        print(format_devices_command("discover probe" if args.probe else "discover"))
+        return 0
+    if action != "do":
+        print(format_devices_command("list"))
+        return 0
+    try:
+        from src.agent.memory import current_user_id
+
+        device = get_device(args.device_id)
+        key = approval_key(device["id"], args.action)
+        context = ToolContext(workspace_root=Path.cwd())
+        enforce_shell_command("Device", key, context)
+        if args.action not in list(device.get("actions") or []):
+            print(f"action {args.action!r} is not on the allow-list")
+            return 1
+        print(perform_action(device, args.action, directory=None, user_id=current_user_id()))
+    except (ValueError, WanTargetError, ToolPermissionError, OSError, RuntimeError) as exc:
+        print(str(exc))
+        return 1
+    return 0
 
 
 def handle_cron(args) -> int:

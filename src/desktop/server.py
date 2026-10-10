@@ -259,6 +259,29 @@ class DesktopServer:
             from src.acp.runners import update_runners
 
             return 200, update_runners(body.get("runners", body))
+        if path == "/api/channels" and method == "GET":
+            from src.channels.service import public_channels
+
+            return 200, public_channels()
+        if path == "/api/channels" and method == "POST":
+            from src.channels.service import update_channels
+
+            return 200, update_channels(body.get("channels", body))
+        if path == "/api/channels/inbound" and method == "POST":
+            return 200, runtime.channel_inbound(body)
+        if path == "/api/devices" and method == "GET":
+            from src.devices.registry import public_devices
+
+            return 200, public_devices()
+        if path == "/api/devices" and method == "POST":
+            from src.devices.registry import update_devices
+
+            return 200, update_devices(body.get("devices", body))
+        if path == "/api/devices/discover" and method == "GET":
+            from src.devices.service import format_discovery
+
+            probe = (query.get("probe") or ["0"])[0] in {"1", "true"}
+            return 200, {"text": format_discovery(probe=probe)}
         return 404, {"error": f"unknown route: {method} {path}"}
 
     def serve_forever(self) -> None:

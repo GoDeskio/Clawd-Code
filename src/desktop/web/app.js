@@ -698,6 +698,8 @@ function applyRoute() {
     loadVoiceSettings().catch(reportError);
     loadKnowledgeSettings().catch(reportError);
     loadAcpSettings().catch(reportError);
+    loadChannelSettings().catch(reportError);
+    loadDeviceSettings().catch(reportError);
   }
 }
 
@@ -730,6 +732,84 @@ async function saveAcpSettings() {
     status.dataset.saved = "1";
     status.textContent = `Saved ${(data.runners || []).length} coding agents.`;
   }
+}
+
+const CHANNEL_IDS = ["telegram", "discord", "slack"];
+
+async function loadChannelSettings() {
+  const data = await api("/api/channels");
+  for (const row of data.channels || []) {
+    const enabled = $(`channels-${row.id}-enabled`);
+    const allow = $(`channels-${row.id}-allow`);
+    if (enabled) enabled.checked = Boolean(row.enabled);
+    if (allow && document.activeElement !== allow) allow.value = (row.allow_user_ids || []).join(", ");
+  }
+  const status = $("channels-status");
+  if (status && !status.dataset.saved) {
+    status.textContent = "Tokens stay in the keyring or an encrypted file. They are not shown here.";
+  }
+}
+
+async function saveChannelSettings() {
+  const channels = CHANNEL_IDS.map((id) => ({
+    id,
+    enabled: Boolean($(`channels-${id}-enabled`)?.checked),
+    allow_user_ids: $(`channels-${id}-allow`)?.value || "",
+    token: $(`channels-${id}-token`)?.value || "",
+  }));
+  const data = await api("/api/channels", { method: "POST", body: JSON.stringify({ channels }) });
+  for (const id of CHANNEL_IDS) {
+    const token = $(`channels-${id}-token`);
+    if (token) token.value = "";
+  }
+  const status = $("channels-status");
+  if (status) {
+    status.dataset.saved = "1";
+    const set = (data.channels || []).filter((row) => row.token_set).length;
+    status.textContent = `Saved ${(data.channels || []).length} channels. ${set} token(s) stored.`;
+  }
+}
+
+async function loadDeviceSettings() {
+  const data = await api("/api/devices");
+  const box = $("devices-list");
+  if (!box) return;
+  box.innerHTML = "";
+  const devices = data.devices || [];
+  if (!devices.length) return;
+  for (const device of devices) {
+    const row = document.createElement("p");
+    row.className = "muted";
+    const actions = (device.actions || []).join(", ") || "no actions";
+    row.textContent = `${device.id} · ${device.kind} · ${device.host}:${device.port} · ${actions}`;
+    box.appendChild(row);
+  }
+}
+
+async function saveDeviceSettings() {
+  const id = ($("devices-id")?.value || "").trim();
+  if (!id) {
+    const status = $("devices-status");
+    if (status) status.textContent = "Enter a device id to save one.";
+    return;
+  }
+  const payload = {
+    devices: [{
+      id,
+      kind: $("devices-kind")?.value || "http",
+      host: $("devices-host")?.value || "",
+      port: $("devices-port")?.value || "",
+      user: $("devices-user")?.value || "",
+      actions: $("devices-actions")?.value || "",
+      secret: $("devices-secret")?.value || "",
+    }],
+  };
+  await api("/api/devices", { method: "POST", body: JSON.stringify(payload) });
+  const secret = $("devices-secret");
+  if (secret) secret.value = "";
+  const status = $("devices-status");
+  if (status) status.textContent = `Saved ${id}. Actions still ask for approval.`;
+  await loadDeviceSettings();
 }
 
 async function refreshLibrary() {
@@ -1029,6 +1109,8 @@ function bindUi() {
     }
   });
   $("acp-save")?.addEventListener("click", guard(saveAcpSettings));
+  $("channels-save")?.addEventListener("click", guard(saveChannelSettings));
+  $("devices-save")?.addEventListener("click", guard(saveDeviceSettings));
   $("open-settings").addEventListener("click", () => go("settings"));
   $("settings-close").addEventListener("click", () => go("chat"));
   $("kb-save")?.addEventListener("click", guard(async () => {

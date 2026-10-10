@@ -316,7 +316,7 @@ label.check { display: flex; align-items: center; }
 .library-item { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .dialog label { display: block; margin: 8px 0; font-size: 12px; color: var(--muted); }
 .dialog input[type="checkbox"] { width: auto; min-height: 0; margin: 0 8px 0 0; }
-.acp-runner { margin: 8px 0; }
+.acp-runner, .channel-row { margin: 8px 0; }
 .dialog input, .dialog select {
   width: 100%;
   margin-top: 4px;

@@ -684,6 +684,39 @@ def acp_command_call(args: str, context: CommandContext) -> LocalCommandResult:
 
     return LocalCommandResult(type="text", value=format_acp_command(args))
 
+
+CHANNELS_COMMAND = LocalCommand(
+    name="channels",
+    description="List Telegram, Discord, and Slack channel settings",
+    argument_hint="list",
+    supports_non_interactive=True,
+)
+
+
+def channels_command_call(args: str, context: CommandContext) -> LocalCommandResult:
+    """Show which chat channels are enabled. Tokens are not printed."""
+    del context
+    from ..channels.service import format_channels_command
+
+    return LocalCommandResult(type="text", value=format_channels_command(args))
+
+
+DEVICES_COMMAND = LocalCommand(
+    name="devices",
+    description="List, discover, or control allow-listed LAN devices",
+    argument_hint="list | discover [probe] | do <id> <action>",
+    supports_non_interactive=True,
+)
+
+
+def devices_command_call(args: str, context: CommandContext) -> LocalCommandResult:
+    """Discover LAN devices or describe a registered one. Control asks for approval in chat."""
+    del context
+    from ..devices.service import format_devices_command
+
+    return LocalCommandResult(type="text", value=format_devices_command(args))
+
+
 INIT_COMMAND = PromptCommand(
     name="init",
     description="Initialize new CLAUDE.md file(s) and optional skills/hooks with codebase documentation",
@@ -738,6 +771,10 @@ def execute_command_sync(cmd_name: str, args: str, context: CommandContext) -> t
             result = kb_command_call(args, context)
         elif cmd is ACP_COMMAND:
             result = acp_command_call(args, context)
+        elif cmd is CHANNELS_COMMAND:
+            result = channels_command_call(args, context)
+        elif cmd is DEVICES_COMMAND:
+            result = devices_command_call(args, context)
         else:
             return False, None, f"Command not implemented for sync execution: {cmd_name}"
 
@@ -759,6 +796,8 @@ CRON_COMMAND.set_call(cron_command_call)
 VOICE_COMMAND.set_call(voice_command_call)
 KB_COMMAND.set_call(kb_command_call)
 ACP_COMMAND.set_call(acp_command_call)
+CHANNELS_COMMAND.set_call(channels_command_call)
+DEVICES_COMMAND.set_call(devices_command_call)
 
 
 def get_builtin_commands() -> list[Command]:
@@ -776,6 +815,8 @@ def get_builtin_commands() -> list[Command]:
         VOICE_COMMAND,
         KB_COMMAND,
         ACP_COMMAND,
+        CHANNELS_COMMAND,
+        DEVICES_COMMAND,
         INIT_COMMAND,
     ]
 
