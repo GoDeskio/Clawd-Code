@@ -605,6 +605,21 @@ COMPACT_COMMAND = LocalCommand(
     supports_non_interactive=True,
 )
 
+MEMORY_COMMAND = LocalCommand(
+    name="memory",
+    description="List, recall, or delete local memories for this user",
+    argument_hint="list | recall <text> | delete <id>",
+    supports_non_interactive=True,
+)
+
+
+def memory_command_call(args: str, context: CommandContext) -> LocalCommandResult:
+    """List, recall, or delete memories stored on this machine."""
+    del context
+    from ..agent.memory import format_memory_command
+
+    return LocalCommandResult(type="text", value=format_memory_command(args))
+
 INIT_COMMAND = PromptCommand(
     name="init",
     description="Initialize new CLAUDE.md file(s) and optional skills/hooks with codebase documentation",
@@ -649,6 +664,8 @@ def execute_command_sync(cmd_name: str, args: str, context: CommandContext) -> t
             result = context_command_call(args, context)
         elif cmd is COMPACT_COMMAND:
             result = compact_command_call(args, context)
+        elif cmd is MEMORY_COMMAND:
+            result = memory_command_call(args, context)
         else:
             return False, None, f"Command not implemented for sync execution: {cmd_name}"
 
@@ -665,6 +682,7 @@ SKILLS_COMMAND.set_call(skills_command_call)
 COST_COMMAND.set_call(cost_command_call)
 CONTEXT_COMMAND.set_call(context_command_call)
 COMPACT_COMMAND.set_call(compact_command_call)
+MEMORY_COMMAND.set_call(memory_command_call)
 
 
 def get_builtin_commands() -> list[Command]:
@@ -677,6 +695,7 @@ def get_builtin_commands() -> list[Command]:
         COST_COMMAND,
         CONTEXT_COMMAND,
         COMPACT_COMMAND,
+        MEMORY_COMMAND,
         INIT_COMMAND,
     ]
 

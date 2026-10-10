@@ -18,3 +18,16 @@ Jonathan Ai also masks API keys, tokens, passwords, and private keys in
 tool output and logs, following Octop's secret-masking approach. Personal
 identity number detection from the upstream detector is not included.
 No Jonathan Ai code in this port calls a third-party hosted endpoint.
+
+Jonathan Ai long-term memory is adapted from Octop's local SQLite memory
+store. Facts are extracted from chats and can be recalled later. The
+database file stays under the user's home directory and each row is scoped
+to that user. Jonathan Ai uses the Python stdlib sqlite3 module for this
+store. It does not vendor Octop's memory graph, vector index, or networked
+extractor, and it does not add a third-party package. Secrets are masked
+before they are written. Users can list and delete their own memories.
+
+Octop memory
+https://github.com/TencentCloud/Octop
+Copyright (c) 2026 Octop
+Licensed under the MIT License.
