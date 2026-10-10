@@ -45,16 +45,19 @@ class DesktopTestCase(unittest.TestCase):
         self.session_home = patch("src.agent.session.Path.home", return_value=self.home)
         self.hooks_home = patch("src.connectors.hooks.Path.home", return_value=self.home)
         self.memory_home = patch("src.agent.memory.Path.home", return_value=self.home)
+        self.scheduler_home = patch("src.scheduler.service.Path.home", return_value=self.home)
         self.home_patch.start()
         self.session_home.start()
         self.hooks_home.start()
         self.memory_home.start()
+        self.scheduler_home.start()
 
     def tearDown(self) -> None:
         self.home_patch.stop()
         self.session_home.stop()
         self.hooks_home.stop()
         self.memory_home.stop()
+        self.scheduler_home.stop()
         self.tmp.cleanup()
 
 

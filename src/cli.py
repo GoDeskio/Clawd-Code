@@ -32,6 +32,8 @@ Examples:
   clawd update             Check/apply GoDeskio/Clawd-Code updates
   clawd memory list        List local memories for this user
   clawd memory delete <id> Delete one local memory
+  clawd cron list          List local scheduled jobs
+  clawd cron run <id>      Run one scheduled job now
   clawd                    Start interactive REPL
 """
     )
@@ -89,6 +91,20 @@ Examples:
     recall_parser.add_argument('query', nargs='+')
     delete_parser = memory_sub.add_parser('delete', help='Delete one memory by id')
     delete_parser.add_argument('memory_id')
+
+    cron_parser = subparsers.add_parser('cron', help='List, run, enable, disable, or delete local schedules')
+    cron_sub = cron_parser.add_subparsers(dest='cron_command')
+    cron_sub.add_parser('list', help='List scheduled jobs for this user')
+    cron_run = cron_sub.add_parser('run', help='Run one job now')
+    cron_run.add_argument('job_id')
+    cron_enable = cron_sub.add_parser('enable', help='Enable a job')
+    cron_enable.add_argument('job_id')
+    cron_disable = cron_sub.add_parser('disable', help='Disable a job')
+    cron_disable.add_argument('job_id')
+    cron_delete = cron_sub.add_parser('delete', help='Delete a job')
+    cron_delete.add_argument('job_id')
+    cron_logs = cron_sub.add_parser('logs', help='Show scheduler logs')
+    cron_logs.add_argument('job_id', nargs='?')
 
     args = parser.parse_args()
 
@@ -165,6 +181,8 @@ Examples:
         return 0
     elif args.command == 'memory':
         return handle_memory(args)
+    elif args.command == 'cron':
+        return handle_cron(args)
 
     # Default: start REPL
     return start_repl(stream=args.stream)
@@ -253,6 +271,24 @@ def handle_memory(args) -> int:
         text = format_memory_command("list")
     print(text)
     if action == "delete" and text.startswith("No memory"):
+        return 1
+    return 0
+
+
+def handle_cron(args) -> int:
+    """List, run, enable, disable, or delete schedules stored on this machine."""
+    from src.scheduler.service import format_cron_command
+
+    action = getattr(args, "cron_command", None) or "list"
+    job_id = getattr(args, "job_id", None) or ""
+    if action == "logs" and not job_id:
+        text = format_cron_command("logs")
+    elif action == "list":
+        text = format_cron_command("list")
+    else:
+        text = format_cron_command(f"{action} {job_id}".strip())
+    print(text)
+    if text.startswith("No job"):
         return 1
     return 0
 

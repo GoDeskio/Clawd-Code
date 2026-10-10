@@ -31,3 +31,18 @@ Octop memory
 https://github.com/TencentCloud/Octop
 Copyright (c) 2026 Octop
 Licensed under the MIT License.
+
+Jonathan Ai scheduling is adapted from Octop's cron manager. Jobs are stored
+in a local SQLite file, one file per user, and the default timezone is
+America/Phoenix. A job is either a fixed text message or an agent task.
+Agent tasks use the same tool approvals and shell guard as an interactive
+chat. Missed runs inside a short grace window are caught up once; older
+missed runs are skipped and written to the job log. Users can run a job
+now, and enable, disable, or delete it. Jonathan Ai uses the Python stdlib
+for storage and time zones. It does not add APScheduler, and it does not
+call a third-party hosted endpoint.
+
+Octop scheduler
+https://github.com/TencentCloud/Octop
+Copyright (c) 2026 Octop
+Licensed under the MIT License.

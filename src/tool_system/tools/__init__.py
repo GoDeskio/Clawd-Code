@@ -5,7 +5,15 @@ from .ask_user_question import AskUserQuestionTool
 from .bash import BashTool
 from .brief import BriefTool
 from .config import ConfigTool
-from .cron import CronCreateTool, CronDeleteTool, CronListTool
+from .cron import (
+    CronCreateTool,
+    CronDeleteTool,
+    CronDisableTool,
+    CronEnableTool,
+    CronListTool,
+    CronLogsTool,
+    CronRunNowTool,
+)
 from .edit import FileEditTool
 from .glob import GlobTool
 from .grep import GrepTool
@@ -38,7 +46,11 @@ __all__ = [
     "ConfigTool",
     "CronCreateTool",
     "CronDeleteTool",
+    "CronDisableTool",
+    "CronEnableTool",
     "CronListTool",
+    "CronLogsTool",
+    "CronRunNowTool",
     "EnterPlanModeTool",
     "EnterWorktreeTool",
     "ExitPlanModeTool",

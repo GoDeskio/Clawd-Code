@@ -620,6 +620,22 @@ def memory_command_call(args: str, context: CommandContext) -> LocalCommandResul
 
     return LocalCommandResult(type="text", value=format_memory_command(args))
 
+
+CRON_COMMAND = LocalCommand(
+    name="cron",
+    description="List, run, enable, disable, or delete local scheduled jobs",
+    argument_hint="list | run <id> | enable <id> | disable <id> | delete <id> | logs [id]",
+    supports_non_interactive=True,
+)
+
+
+def cron_command_call(args: str, context: CommandContext) -> LocalCommandResult:
+    """Manage persistent schedules stored on this machine."""
+    del context
+    from ..scheduler.service import format_cron_command
+
+    return LocalCommandResult(type="text", value=format_cron_command(args))
+
 INIT_COMMAND = PromptCommand(
     name="init",
     description="Initialize new CLAUDE.md file(s) and optional skills/hooks with codebase documentation",
@@ -666,6 +682,8 @@ def execute_command_sync(cmd_name: str, args: str, context: CommandContext) -> t
             result = compact_command_call(args, context)
         elif cmd is MEMORY_COMMAND:
             result = memory_command_call(args, context)
+        elif cmd is CRON_COMMAND:
+            result = cron_command_call(args, context)
         else:
             return False, None, f"Command not implemented for sync execution: {cmd_name}"
 
@@ -683,6 +701,7 @@ COST_COMMAND.set_call(cost_command_call)
 CONTEXT_COMMAND.set_call(context_command_call)
 COMPACT_COMMAND.set_call(compact_command_call)
 MEMORY_COMMAND.set_call(memory_command_call)
+CRON_COMMAND.set_call(cron_command_call)
 
 
 def get_builtin_commands() -> list[Command]:
@@ -696,6 +715,7 @@ def get_builtin_commands() -> list[Command]:
         CONTEXT_COMMAND,
         COMPACT_COMMAND,
         MEMORY_COMMAND,
+        CRON_COMMAND,
         INIT_COMMAND,
     ]
 
