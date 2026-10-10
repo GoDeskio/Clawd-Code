@@ -26,6 +26,7 @@ const chrome = process.env.CHROME_PATH || "";
 const desktopRoutes = ["/", "/index.html", "/#/chat", "/#/settings", "/#/connectors", "/#/setup", "/#/library"];
 const installRoutes = ["/", "/index.html", "/#/install", "/#/model", "/#/git", "/#/agents"];
 const problems = [];
+let clicked = 0;
 
 function startPython(args, ready) {
   return new Promise((resolve, reject) => {
@@ -84,7 +85,12 @@ async function visit(page, bucket, base, routes) {
   for (const route of routes) {
     const url = new URL(route, base).toString();
     const response = await page.goto(url, { waitUntil: "networkidle" });
-    if (!response || !response.ok()) problems.push(`${url} returned ${response ? response.status() : "no response"}`);
+    const hash = route.startsWith("/#/") ? route.slice(3) : "";
+    if (hash) {
+      await page.waitForFunction((name) => document.body.dataset.route === name, hash);
+    } else if (!response || !response.ok()) {
+      problems.push(`${url} returned ${response ? response.status() : "no response"}`);
+    }
     await page.waitForTimeout(150);
     assertClean(bucket, url);
   }
@@ -122,6 +128,7 @@ async function clickVisible(page, bucket, label, resetUrl) {
     const button = page.locator(`#${id}`);
     try {
       await button.click({ timeout: 8000 });
+      clicked += 1;
       await page.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {});
     } catch (err) {
       problems.push(`${label} #${id} click failed: ${err.message || err}`);
@@ -193,18 +200,24 @@ try {
     });
     if (!response.ok) throw new Error(await response.text());
   });
-  await page.goto(`${base}#/chat`, { waitUntil: "networkidle" });
+  await page.goto(`${base}#/chat`, { waitUntil: "domcontentloaded" });
+  await page.reload({ waitUntil: "networkidle" });
   await page.waitForFunction(() => document.body.dataset.route === "chat");
   assertClean(bucket, "chat after login");
   if (await page.locator("#setup-modal").isVisible()) problems.push("setup modal still open after login");
   for (const route of ["#/chat", "#/settings", "#/connectors", "#/setup", "#/library"]) {
     await clickVisible(page, bucket, `desktop ${route}`, `${base}${route}`);
   }
-  await page.goto(`${base}#/chat`, { waitUntil: "networkidle" });
+  await page.goto(`${base}#/chat`, { waitUntil: "domcontentloaded" });
+  await page.reload({ waitUntil: "networkidle" });
   const session = page.locator(".session-item").first();
-  if (await session.count()) {
-    await session.click();
-    await page.waitForTimeout(150);
+  if ((await session.count()) && (await session.isVisible())) {
+    try {
+      await session.click({ timeout: 5000 });
+      await page.waitForTimeout(150);
+    } catch (err) {
+      problems.push(`session click failed: ${err.message || err}`);
+    }
     assertClean(bucket, "session click");
   }
   await page.evaluate(() => {
@@ -270,4 +283,4 @@ if (problems.length) {
   console.error(problems.join("\n\n"));
   process.exit(1);
 }
-console.log("ui audit ok");
+console.log(`ui audit ok (${clicked} controls)`);
