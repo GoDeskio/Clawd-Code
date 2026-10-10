@@ -1174,6 +1174,7 @@ _HELP_TEXT = """**Jonathan Ai**
 - `/cron` — list, run, enable, disable, or delete local schedules (`/cron run <id>`)
 - Browser tool — local Chrome over CDP. Logins stay in the profile. Submits, purchases, and logins need approval.
 - `/voice` — local speech and speakers (`/voice settings`, `/voice say hello`)
+- `/kb` — add, list, remove, or search local documents (`/kb search <query>`)
 
 Type a message to run the existing agent loop. Destructive and network tools
 prompt for approval before they run.

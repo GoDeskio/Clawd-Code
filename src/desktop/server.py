@@ -243,6 +243,14 @@ class DesktopServer:
             from src.voice.service import push_to_talk_action
 
             return 200, push_to_talk_action(str(body.get("action") or ""))
+        if path == "/api/kb" and method == "GET":
+            from src.knowledge.service import knowledge_status
+
+            return 200, knowledge_status()
+        if path == "/api/kb" and method == "POST":
+            from src.knowledge.service import update_knowledge_settings
+
+            return 200, update_knowledge_settings(body)
         return 404, {"error": f"unknown route: {method} {path}"}
 
     def serve_forever(self) -> None:

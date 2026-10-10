@@ -670,6 +670,16 @@ async function sendMessage(path = "/api/chat") {
   }
 }
 
+async function loadKnowledgeSettings() {
+  const info = await api("/api/kb");
+  if ($("kb-backend")) $("kb-backend").value = info.embedding_backend || "local";
+  if ($("kb-model")) $("kb-model").value = info.model_id || "";
+  const stay = info.documents_stay_local
+    ? "Documents stay on this machine."
+    : "Cloud embeddings are selected, so document text is sent when indexing.";
+  if ($("kb-status")) $("kb-status").textContent = `${stay} ${info.document_count || 0} documents.`;
+}
+
 function applyRoute() {
   const route = currentRoute();
   document.body.dataset.route = route;
@@ -679,7 +689,10 @@ function applyRoute() {
   const showSetup = route === "setup" || (route === "chat" && Boolean(state.status?.needs_setup));
   $("setup-modal")?.classList.toggle("hidden", !showSetup);
   if (route === "library") refreshLibrary().catch(reportError);
-  if (route === "settings") loadVoiceSettings().catch(reportError);
+  if (route === "settings") {
+    loadVoiceSettings().catch(reportError);
+    loadKnowledgeSettings().catch(reportError);
+  }
 }
 
 async function refreshLibrary() {
@@ -980,6 +993,21 @@ function bindUi() {
   });
   $("open-settings").addEventListener("click", () => go("settings"));
   $("settings-close").addEventListener("click", () => go("chat"));
+  $("kb-save")?.addEventListener("click", guard(async () => {
+    const saved = await api("/api/kb", {
+      method: "POST",
+      body: JSON.stringify({
+        embedding_backend: $("kb-backend").value,
+        model_id: $("kb-model").value,
+        openai_api_key: $("kb-key").value,
+      }),
+    });
+    $("kb-key").value = "";
+    const stay = saved.documents_stay_local
+      ? "Documents stay on this machine."
+      : "Cloud embeddings are selected, so document text is sent when indexing.";
+    $("kb-status").textContent = `${stay} ${saved.document_count || 0} documents.`;
+  }));
   $("settings-save").addEventListener("click", async () => {
     try {
       const provider = $("settings-provider").value;
