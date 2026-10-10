@@ -82,7 +82,9 @@ class TestAppRootProbe(unittest.TestCase):
 
 class TestInPlaceUpgradeAndShortcuts(unittest.TestCase):
     def test_second_materialize_upgrades_same_folder(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        # Git 2.55 can write objects/info/commit-graphs after the commands
+        # return. Python 3.10's temp cleanup then sees a non-empty directory.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             src = Path(tmp) / "checkout"
             dest = Path(tmp) / "Jonathan" / "Jonathan-Ai"
             (src / "src").mkdir(parents=True)
@@ -96,7 +98,7 @@ class TestInPlaceUpgradeAndShortcuts(unittest.TestCase):
             self.assertFalse((Path(tmp) / "Jonathan" / "Jonathan-Ai-2").exists())
 
     def test_upgrades_previous_clawd_code_and_forces_godesk_origin(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             dest = Path(tmp) / "Jonathan" / "Clawd-Code"
             dest.mkdir(parents=True)
             (dest / "src").mkdir()
