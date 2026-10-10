@@ -33,14 +33,15 @@
         <p id="git-line" class="muted"></p>
       </div>
       <div class="section-title">Conversations</div>
-      <p class="muted sidebar-hint">Double-click or right-click to rename. Titles stay with the session.</p>
+      <p class="muted sidebar-hint">Double-click a chat to rename it.</p>
       <nav id="session-list" class="session-list" aria-label="Conversation list"></nav>
       <div id="session-menu" class="context-menu hidden" role="menu">
         <button id="session-menu-rename" type="button" role="menuitem">Rename</button>
       </div>
       <div class="sidebar-foot">
-        <button id="open-connectors" class="ghost">Git &amp; agents</button>
-        <button id="open-settings" class="ghost">Provider &amp; model</button>
+        <button id="open-library" class="ghost" type="button">Memory &amp; schedules</button>
+        <button id="open-connectors" class="ghost" type="button">Git &amp; agents</button>
+        <button id="open-settings" class="ghost" type="button">Provider &amp; model</button>
       </div>
     </aside>
 
@@ -52,6 +53,7 @@
           <p id="usage-line" class="usage-chip" title="Token counts for this chat only. Informational — never a quota or paywall.">0 in · 0 out · 0 total (informational)</p>
         </div>
         <div class="top-actions">
+          <button id="nav-toggle" class="ghost nav-toggle" type="button" aria-controls="app" aria-expanded="false">Menu</button>
           <span id="update-status" class="muted">Checking updates…</span>
           <button id="apply-update" class="ghost hidden">Update now</button>
           <button id="save-session" class="ghost">Save</button>
@@ -133,7 +135,7 @@
   <div id="settings-modal" class="modal hidden">
     <div class="dialog wide">
       <h2>Provider &amp; model</h2>
-      <p class="muted">Hugging Face and Local LLM sit beside Anthropic, OpenAI, GLM, and Minimax. Switching providers does not require a reinstall.</p>
+      <p class="muted">Anthropic, OpenAI, Hugging Face, and Local LLM. Switching providers does not require a reinstall.</p>
       <label>Active provider
         <select id="settings-provider"></select>
       </label>
@@ -267,6 +269,24 @@
 
       <div class="row end">
         <button id="connectors-close" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="library-modal" class="modal hidden">
+    <div class="dialog wide">
+      <h2>Memory &amp; schedules</h2>
+      <p class="muted">Stored on this machine for the current user. Secrets are masked before they are written. Run a schedule from the chat composer so the shell guard can ask before a dangerous command.</p>
+      <h3>Memory</h3>
+      <div id="memory-list" class="scan-list"></div>
+      <p id="memory-status" class="muted"></p>
+      <h3>Schedules</h3>
+      <p class="muted">Default timezone is America/Phoenix. Enable, disable, or delete here.</p>
+      <div id="schedule-list" class="scan-list"></div>
+      <p id="schedule-status" class="muted"></p>
+      <div class="row end">
+        <button id="library-refresh" class="ghost" type="button">Refresh</button>
+        <button id="library-close" class="ghost" type="button">Close</button>
       </div>
     </div>
   </div>

@@ -82,6 +82,7 @@ sessions/
 
 # Desktop / Electron
 node_modules/
+tests/ui/node_modules/
 desktop/dist/
 desktop/out/
 packaging/windows/build/

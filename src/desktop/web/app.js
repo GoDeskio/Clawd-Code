@@ -13,6 +13,45 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+const UI_ROUTES = ["chat", "settings", "connectors", "setup", "library"];
+window.JONATHAN_UI_ROUTES = ["/", "/index.html", ...UI_ROUTES.map((name) => `/#/${name}`)];
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function reportError(err) {
+  const message = (err && err.message) || String(err || "Something went wrong");
+  if ($("transcript")) addBubble("system", message);
+}
+
+function guard(fn) {
+  return (...args) => {
+    try {
+      const result = fn(...args);
+      if (result && typeof result.then === "function") return result.catch(reportError);
+      return result;
+    } catch (err) {
+      reportError(err);
+    }
+  };
+}
+
+function currentRoute() {
+  const name = (location.hash || "#/chat").replace(/^#\/?/, "").split(/[?#]/)[0] || "chat";
+  return UI_ROUTES.includes(name) ? name : "chat";
+}
+
+function go(route) {
+  const next = `#/${route}`;
+  if (location.hash !== next) location.hash = next;
+  else applyRoute();
+}
+
 async function api(path, options = {}) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   const res = await fetch(path, { ...options, headers, credentials: "same-origin" });
@@ -63,7 +102,7 @@ function addToolCard(event) {
   const node = document.createElement("article");
   node.className = "bubble tool-card";
   const summary = event.summary || event.error || "";
-  node.innerHTML = `<strong>${event.tool_name || event.type}</strong><div class="summary">${summary}</div>`;
+  node.innerHTML = `<strong>${escapeHtml(event.tool_name || event.type)}</strong><div class="summary">${escapeHtml(summary)}</div>`;
   $("transcript").appendChild(node);
   node.scrollIntoView({ block: "end" });
   return node;
@@ -115,12 +154,8 @@ async function refreshStatus() {
       : "Not a git repo";
   }
   renderConnectorStatus(state.status.connectors || {});
-  if (state.status.needs_setup) {
-    $("setup-modal").classList.remove("hidden");
-  } else {
-    $("setup-modal").classList.add("hidden");
-  }
   renderUpdate(state.status.update || {});
+  applyRoute();
 }
 
 function formatActivity(iso) {
@@ -222,7 +257,7 @@ async function refreshSessions() {
       const input = btn.querySelector("input");
       input.value = title;
       input.addEventListener("click", (event) => event.stopPropagation());
-      input.addEventListener("keydown", async (event) => {
+      input.addEventListener("keydown", guard(async (event) => {
         if (event.key === "Enter") {
           event.preventDefault();
           await commitRename(session.session_id, input.value);
@@ -231,10 +266,10 @@ async function refreshSessions() {
           state.renamingId = null;
           await refreshSessions();
         }
-      });
+      }));
       input.addEventListener("blur", () => {
         if (state.renamingId === session.session_id) {
-          commitRename(session.session_id, input.value);
+          commitRename(session.session_id, input.value).catch(reportError);
         }
       });
       queueMicrotask(() => {
@@ -251,14 +286,14 @@ async function refreshSessions() {
       btn.appendChild(heading);
       btn.appendChild(meta);
     }
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", guard(async () => {
       if (state.renamingId === session.session_id) return;
       const loaded = await api("/api/sessions/load", { method: "POST", body: JSON.stringify({ session_id: session.session_id }) });
       renderTranscript(loaded.messages || []);
       await refreshStatus();
       await refreshSessions();
       $("prompt").focus();
-    });
+    }));
     btn.addEventListener("dblclick", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -460,7 +495,7 @@ function renderScanResults(box, endpoints, onPick) {
     btn.type = "button";
     btn.className = `scan-item${item.reachable ? "" : " muted"}`;
     const models = (item.models || []).slice(0, 6).join(", ") || (item.reachable ? "reachable" : (item.error || "offline"));
-    btn.innerHTML = `<strong>${item.label}</strong><div class="muted">${item.base_url}<br>${models}</div>`;
+    btn.innerHTML = `<strong>${escapeHtml(item.label)}</strong><div class="muted">${escapeHtml(item.base_url)}<br>${escapeHtml(models)}</div>`;
     btn.disabled = !item.reachable;
     btn.addEventListener("click", () => onPick(item));
     box.appendChild(btn);
@@ -513,7 +548,7 @@ function renderPalette(query) {
   }
   for (const item of matches) {
     const btn = document.createElement("button");
-    btn.innerHTML = `<strong>${item.name}</strong> <span class="muted">${item.description || ""}</span>`;
+    btn.innerHTML = `<strong>${escapeHtml(item.name)}</strong> <span class="muted">${escapeHtml(item.description || "")}</span>`;
     btn.addEventListener("click", () => {
       $("prompt").value = item.name + " ";
       palette.classList.add("hidden");
@@ -529,12 +564,18 @@ function watchJob(jobId) {
   let assistant = null;
   const source = new EventSource(`/api/events?job_id=${encodeURIComponent(jobId)}`);
   source.onmessage = (msg) => {
-    const event = JSON.parse(msg.data);
+    let event;
+    try {
+      event = JSON.parse(msg.data);
+    } catch (err) {
+      reportError(err);
+      return;
+    }
     if (event.type === "stream_end") {
       source.close();
       setBusy(false);
-      refreshSessions();
-      refreshStatus();
+      refreshSessions().catch(reportError);
+      refreshStatus().catch(reportError);
       return;
     }
     if (event.type === "user") {
@@ -576,8 +617,8 @@ function watchJob(jobId) {
       }
       if (event.session) {
         renderUsage(event.session);
-        refreshStatus();
-        refreshSessions();
+        refreshStatus().catch(reportError);
+        refreshSessions().catch(reportError);
       } else if (event.usage) {
         renderUsage({ token_usage: event.usage });
       }
@@ -629,9 +670,119 @@ async function sendMessage(path = "/api/chat") {
   }
 }
 
+function applyRoute() {
+  const route = currentRoute();
+  document.body.dataset.route = route;
+  $("settings-modal")?.classList.toggle("hidden", route !== "settings");
+  $("connectors-modal")?.classList.toggle("hidden", route !== "connectors");
+  $("library-modal")?.classList.toggle("hidden", route !== "library");
+  const showSetup = route === "setup" || (route === "chat" && Boolean(state.status?.needs_setup));
+  $("setup-modal")?.classList.toggle("hidden", !showSetup);
+  if (route === "library") refreshLibrary().catch(reportError);
+}
+
+async function refreshLibrary() {
+  const memories = await api("/api/memory");
+  const schedules = await api("/api/schedules");
+  renderMemoryList(memories.memories || []);
+  renderScheduleList(schedules.jobs || []);
+}
+
+function renderMemoryList(items) {
+  const box = $("memory-list");
+  const status = $("memory-status");
+  if (!box) return;
+  box.innerHTML = "";
+  if (!items.length) {
+    if (status) status.textContent = "No memories yet.";
+    return;
+  }
+  if (status) status.textContent = `${items.length} saved`;
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "library-item";
+    const text = document.createElement("div");
+    text.textContent = item.text || item.id;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "ghost";
+    remove.textContent = "Delete";
+    remove.addEventListener("click", guard(async () => {
+      await api("/api/memory/delete", { method: "POST", body: JSON.stringify({ id: item.id }) });
+      await refreshLibrary();
+    }));
+    row.append(text, remove);
+    box.appendChild(row);
+  }
+}
+
+function renderScheduleList(items) {
+  const box = $("schedule-list");
+  const status = $("schedule-status");
+  if (!box) return;
+  box.innerHTML = "";
+  if (!items.length) {
+    if (status) status.textContent = "No schedules yet. Add one with /cron in chat.";
+    return;
+  }
+  if (status) status.textContent = `${items.length} on this machine`;
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "library-item";
+    const text = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = item.name || item.id;
+    const meta = document.createElement("div");
+    meta.className = "muted";
+    meta.textContent = `${item.cron || ""} · ${item.enabled ? "on" : "off"} · ${item.task_type || ""}`;
+    text.append(title, meta);
+    const actions = document.createElement("div");
+    actions.className = "row";
+    const run = document.createElement("button");
+    run.type = "button";
+    run.className = "ghost";
+    run.textContent = "Run in chat";
+    run.addEventListener("click", () => {
+      $("prompt").value = `/cron run ${item.id}`;
+      go("chat");
+      $("prompt").focus();
+    });
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "ghost";
+    toggle.textContent = item.enabled ? "Disable" : "Enable";
+    toggle.addEventListener("click", guard(async () => {
+      await api("/api/schedules", {
+        method: "POST",
+        body: JSON.stringify({ id: item.id, action: item.enabled ? "disable" : "enable" }),
+      });
+      await refreshLibrary();
+    }));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "ghost";
+    remove.textContent = "Delete";
+    remove.addEventListener("click", guard(async () => {
+      await api("/api/schedules", {
+        method: "POST",
+        body: JSON.stringify({ id: item.id, action: "delete" }),
+      });
+      await refreshLibrary();
+    }));
+    actions.append(run, toggle, remove);
+    row.append(text, actions);
+    box.appendChild(row);
+  }
+}
+
 function bindUi() {
   $("send").addEventListener("click", () => sendMessage("/api/chat"));
   $("workers")?.addEventListener("click", () => sendMessage("/api/multi-agent"));
+  $("nav-toggle")?.addEventListener("click", () => {
+    const sidebar = document.querySelector(".sidebar");
+    const open = sidebar.classList.toggle("open");
+    $("nav-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+  });
   $("prompt").addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -643,7 +794,7 @@ function bindUi() {
     if (value.startsWith("/")) renderPalette(value.slice(1));
     else $("slash-palette").classList.add("hidden");
   });
-  $("new-chat").addEventListener("click", async () => {
+  $("new-chat").addEventListener("click", guard(async () => {
     const created = await api("/api/sessions", { method: "POST" });
     renderTranscript(created.messages || []);
     await refreshStatus();
@@ -651,7 +802,8 @@ function bindUi() {
     $("chat-title").textContent = created.title || "New chat";
     $("prompt").value = "";
     $("prompt").focus();
-  });
+    document.querySelector(".sidebar")?.classList.remove("open");
+  }));
   $("session-menu-rename").addEventListener("click", () => {
     const session = state.sessions.find((item) => item.session_id === state.menuSessionId);
     hideSessionMenu();
@@ -660,12 +812,12 @@ function bindUi() {
   document.addEventListener("click", (event) => {
     if (!$("session-menu")?.contains(event.target)) hideSessionMenu();
   });
-  $("save-session").addEventListener("click", async () => {
+  $("save-session").addEventListener("click", guard(async () => {
     const summary = await api("/api/sessions/save", { method: "POST" });
     addBubble("system", `Saved ${summary.session_id}`);
     await refreshSessions();
-  });
-  $("pick-workspace").addEventListener("click", async () => {
+  }));
+  $("pick-workspace").addEventListener("click", guard(async () => {
     let path = "";
     if (native?.pickFolder) {
       path = await native.pickFolder();
@@ -675,16 +827,16 @@ function bindUi() {
     if (!path) return;
     await api("/api/workspace", { method: "POST", body: JSON.stringify({ path }) });
     await refreshStatus();
-  });
-  $("attach-files").addEventListener("click", async () => {
+  }));
+  $("attach-files").addEventListener("click", guard(async () => {
     if (native?.pickFiles) {
       const paths = await native.pickFiles();
       if (paths?.length) await addAttachmentPayload(paths.map((path) => ({ kind: "file", path })));
       return;
     }
     $("file-input").click();
-  });
-  $("file-input").addEventListener("change", async (event) => {
+  }));
+  $("file-input").addEventListener("change", guard(async (event) => {
     const files = [...event.target.files];
     const payload = [];
     for (const file of files) {
@@ -693,26 +845,26 @@ function bindUi() {
     }
     if (payload.length) await addAttachmentPayload(payload);
     event.target.value = "";
-  });
-  $("attach-clipboard").addEventListener("click", async () => {
+  }));
+  $("attach-clipboard").addEventListener("click", guard(async () => {
     let text = "";
     if (native?.readClipboardText) text = await native.readClipboardText();
     else if (navigator.clipboard?.readText) text = await navigator.clipboard.readText();
     if (!text) return;
     await addAttachmentPayload([{ kind: "clipboard", text }]);
-  });
+  }));
   if (native?.captureScreenshot) {
     $("attach-screenshot").classList.remove("hidden");
-    $("attach-screenshot").addEventListener("click", async () => {
+    $("attach-screenshot").addEventListener("click", guard(async () => {
       const path = await native.captureScreenshot();
       if (path) await addAttachmentPayload([{ kind: "screenshot", path }]);
-    });
+    }));
   }
   ["perm-allow", "perm-deny", "perm-always"].forEach((id) => {
-    $(id).addEventListener("click", () => {
+    $(id).addEventListener("click", guard(() => {
       const decision = id === "perm-allow" ? "allow" : id === "perm-deny" ? "deny" : "always";
-      decidePermission(decision);
-    });
+      return decidePermission(decision);
+    }));
   });
   $("setup-save").addEventListener("click", async () => {
     try {
@@ -726,6 +878,7 @@ function bindUi() {
         }),
       });
       $("setup-key").value = "";
+      go("chat");
       await refreshStatus();
     } catch (err) {
       addBubble("system", err.message);
@@ -741,8 +894,8 @@ function bindUi() {
       $("update-status").textContent = err.message;
     }
   });
-  $("open-settings").addEventListener("click", () => $("settings-modal").classList.remove("hidden"));
-  $("settings-close").addEventListener("click", () => $("settings-modal").classList.add("hidden"));
+  $("open-settings").addEventListener("click", () => go("settings"));
+  $("settings-close").addEventListener("click", () => go("chat"));
   $("settings-save").addEventListener("click", async () => {
     try {
       const provider = $("settings-provider").value;
@@ -766,7 +919,7 @@ function bindUi() {
         });
       }
       $("settings-key").value = "";
-      $("settings-modal").classList.add("hidden");
+      go("chat");
       await refreshStatus();
     } catch (err) {
       addBubble("system", err.message);
@@ -858,11 +1011,14 @@ function bindUi() {
   wireLocal("setup");
   wireLocal("settings");
 
-  $("open-connectors").addEventListener("click", async () => {
-    $("connectors-modal").classList.remove("hidden");
+  $("open-library").addEventListener("click", () => go("library"));
+  $("library-close").addEventListener("click", () => go("chat"));
+  $("library-refresh").addEventListener("click", guard(() => refreshLibrary()));
+  $("open-connectors").addEventListener("click", guard(async () => {
+    go("connectors");
     await refreshStatus();
-  });
-  $("connectors-close").addEventListener("click", () => $("connectors-modal").classList.add("hidden"));
+  }));
+  $("connectors-close").addEventListener("click", () => go("chat"));
   $("open-repo").addEventListener("click", async () => {
     try {
       await api("/api/git/open", { method: "POST", body: "{}" });
@@ -1052,7 +1208,7 @@ function bindUi() {
     $("drop-hint").classList.remove("hidden");
   });
   composer.addEventListener("dragleave", () => $("drop-hint").classList.add("hidden"));
-  composer.addEventListener("drop", async (event) => {
+  composer.addEventListener("drop", guard(async (event) => {
     event.preventDefault();
     $("drop-hint").classList.add("hidden");
     const files = [...event.dataTransfer.files];
@@ -1062,7 +1218,8 @@ function bindUi() {
       else payload.push({ kind: "text", name: file.name, text: await file.text() });
     }
     if (payload.length) await addAttachmentPayload(payload);
-  });
+  }));
+  window.addEventListener("hashchange", () => applyRoute());
 }
 
 async function boot() {
@@ -1077,7 +1234,8 @@ async function boot() {
   } catch (_err) {
     $("transcript").innerHTML = "";
   }
-  addBubble("system", "Jonathan Ai is the agent. Chats persist on this machine. New chat starts empty. Shared memory is local only.");
+  addBubble("system", "Jonathan Ai is the agent. Chats persist on this machine. New chat starts empty. Memory and schedules stay local.");
+  applyRoute();
   try {
     const update = await api("/api/update/check", { method: "POST", body: "{}" });
     renderUpdate(update);
