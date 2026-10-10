@@ -36,6 +36,10 @@ class ToolContext:
     gate_destructive_tools: bool = False
     # Tool names the user approved for the rest of this session (lowercase).
     session_grants: set[str] = field(default_factory=set)
+    # Dangerous shell commands stay blocked until this exact command is approved.
+    # "require_approval" is the default. "block" refuses outright. "warn" logs only.
+    shell_guard_mode: str = "require_approval"
+    approved_shell_commands: set[str] = field(default_factory=set)
 
     # Permission handler callback: called when a tool needs user consent.
     # Signature: (tool_name: str, message: str, suggestion: str | None)
@@ -80,3 +84,10 @@ class ToolContext:
     def ensure_tool_allowed(self, tool_name: str) -> None:
         if self.permission_context.blocks_tool(tool_name):
             raise ToolPermissionError(f"tool is blocked by permission context: {tool_name}")
+
+    def note_shell_approval(self, tool_name: str, command: str | None) -> None:
+        """Remember one approved shell command. A session tool grant is not enough."""
+        if tool_name.lower() not in {"bash", "powershell", "execute"}:
+            return
+        if isinstance(command, str) and command:
+            self.approved_shell_commands.add(command)

@@ -1,29 +1,17 @@
 from __future__ import annotations
 
-import re
 import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
 
+from ...security.shell_guard import enforce_shell_command, shell_command_permission
 from ..context import ToolContext
-from ..errors import ToolInputError, ToolPermissionError
+from ..errors import ToolInputError
 from ..permission_handler import PermissionResult
 from ..permissions import maybe_ask_for_gated_tool
 from ..protocol import ToolResult
 from ..registry import ToolSpec
-
-
-_DANGEROUS_PATTERNS = [
-    re.compile(r"\bsudo\b", re.IGNORECASE),
-    re.compile(r"\bshutdown\b", re.IGNORECASE),
-    re.compile(r"\breboot\b", re.IGNORECASE),
-    re.compile(r"\bmkfs\b", re.IGNORECASE),
-    re.compile(r"\bdd\b\s+if=", re.IGNORECASE),
-    re.compile(r"\brm\b.*\s+-rf\s+/\s*$", re.IGNORECASE),
-    re.compile(r"\brm\b.*\s+-rf\s+/\s+"),
-    re.compile(r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:", re.IGNORECASE),
-]
 
 
 def _truncate(s: str, limit: int = 20000) -> str:
@@ -49,7 +37,11 @@ class BashTool:
     def spec(self) -> ToolSpec:
         return ToolSpec(
             name="Bash",
-            description="Execute a shell command.",
+            description=(
+                "Execute a shell command. Dangerous commands such as disk wipes, "
+                "fork bombs, remote scripts piped into a shell, and credential "
+                "exfiltration are blocked until the user approves them."
+            ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
@@ -68,7 +60,12 @@ class BashTool:
         self, tool_input: dict[str, Any], context: ToolContext
     ) -> PermissionResult:
         command = tool_input.get("command", "")
-        preview = command.strip().replace("\n", " ") if isinstance(command, str) else ""
+        if not isinstance(command, str):
+            command = ""
+        guarded = shell_command_permission("Bash", command, context)
+        if guarded is not None:
+            return guarded
+        preview = command.strip().replace("\n", " ")
         if len(preview) > 120:
             preview = preview[:117] + "..."
         return maybe_ask_for_gated_tool(
@@ -85,9 +82,7 @@ class BashTool:
         if "\x00" in command:
             raise ToolInputError("command contains NUL byte")
 
-        for pat in _DANGEROUS_PATTERNS:
-            if pat.search(command):
-                raise ToolPermissionError("refusing to run potentially dangerous command")
+        enforce_shell_command("Bash", command, context)
 
         explicit_cwd = tool_input.get("cwd")
         if explicit_cwd is not None:

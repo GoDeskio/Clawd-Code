@@ -1,5 +1,9 @@
 """Clawd Codex - Claude Code Python Implementation."""
 
+from .secret_mask import install_log_masking
+
+install_log_masking()
+
 from .version import get_version
 
 __version__ = get_version()

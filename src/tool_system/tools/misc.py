@@ -3,6 +3,7 @@ from __future__ import annotations
 import platform
 from typing import Any
 
+from ...security.shell_guard import enforce_shell_command, shell_command_permission
 from ..context import ToolContext
 from ..errors import ToolInputError, ToolPermissionError
 from ..permission_handler import PermissionResult
@@ -70,7 +71,10 @@ class PowerShellTool:
     def spec(self) -> ToolSpec:
         return ToolSpec(
             name="PowerShell",
-            description="Run a PowerShell command (Windows only).",
+            description=(
+                "Run a PowerShell command (Windows only). Dangerous commands are "
+                "blocked until the user approves them."
+            ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
@@ -86,7 +90,12 @@ class PowerShellTool:
         self, tool_input: dict[str, Any], context: ToolContext
     ) -> PermissionResult:
         command = tool_input.get("command", "")
-        preview = command if isinstance(command, str) else ""
+        if not isinstance(command, str):
+            command = ""
+        guarded = shell_command_permission("PowerShell", command, context)
+        if guarded is not None:
+            return guarded
+        preview = command
         return maybe_ask_for_gated_tool(
             context,
             "PowerShell",
@@ -95,6 +104,9 @@ class PowerShellTool:
         )
 
     def run(self, tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
+        command = tool_input.get("command", "")
+        if isinstance(command, str) and command.strip():
+            enforce_shell_command("PowerShell", command, context)
         if platform.system().lower() != "windows":
             return ToolResult(name="PowerShell", output={"error": "PowerShell is only supported on Windows"}, is_error=True)
         raise ToolPermissionError("PowerShell execution is not enabled in this build")

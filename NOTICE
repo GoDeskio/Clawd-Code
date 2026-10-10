@@ -1,0 +1,20 @@
+Jonathan Ai includes a dangerous-shell-command rule set and a tool-output
+secret mask adapted from Octop.
+
+Octop
+https://github.com/TencentCloud/Octop
+Copyright (c) 2026 Octop
+Licensed under the MIT License. See the copyright notice and permission
+text at the top of src/security/shell_guard_rules.py, which contains the
+adapted rule set.
+
+The upstream project ships the same rules in its tool guard
+(dangerous_shell_commands.yaml). Jonathan Ai uses that rule set to hold
+destructive commands, disk wipes, fork bombs, curl-or-wget piped into a
+shell, credential exfiltration, and the other bundled patterns until the
+user approves them. Approvals are on by default.
+
+Jonathan Ai also masks API keys, tokens, passwords, and private keys in
+tool output and logs, following Octop's secret-masking approach. Personal
+identity number detection from the upstream detector is not included.
+No Jonathan Ai code in this port calls a third-party hosted endpoint.
