@@ -35,6 +35,8 @@ Examples:
   clawd cron list          List local scheduled jobs
   clawd cron run <id>      Run one scheduled job now
   clawd voice settings     Show local speech settings
+  clawd kb add <path>      Index a local PDF, DOCX, MD, TXT, or HTML file
+  clawd kb search <query>  Search local documents and cite the passage
   clawd                    Start interactive REPL
 """
     )
@@ -109,6 +111,16 @@ Examples:
 
     voice_parser = subparsers.add_parser('voice', help='Local speech, push-to-talk, and devices')
     voice_parser.add_argument('words', nargs='*', help='settings, devices, stt, tts, ptt, wake, say')
+
+    kb_parser = subparsers.add_parser('kb', help='Add, list, remove, or search the local document index')
+    kb_sub = kb_parser.add_subparsers(dest='kb_command')
+    kb_add = kb_sub.add_parser('add', help='Index a local document')
+    kb_add.add_argument('path')
+    kb_sub.add_parser('list', help='List indexed documents')
+    kb_remove = kb_sub.add_parser('remove', help='Remove one document by id')
+    kb_remove.add_argument('doc_id')
+    kb_search = kb_sub.add_parser('search', help='Search indexed documents')
+    kb_search.add_argument('query', nargs='+')
 
     args = parser.parse_args()
 
@@ -189,6 +201,8 @@ Examples:
         return handle_cron(args)
     elif args.command == 'voice':
         return handle_voice(args)
+    elif args.command == 'kb':
+        return handle_kb(args)
 
     # Default: start REPL
     return start_repl(stream=args.stream)
@@ -305,6 +319,27 @@ def handle_voice(args) -> int:
 
     words = getattr(args, "words", None) or []
     print(format_voice_command(" ".join(words)))
+    return 0
+
+
+def handle_kb(args) -> int:
+    """Add, list, remove, or search documents stored on this machine."""
+    from src.knowledge.service import format_kb_command
+
+    action = getattr(args, "kb_command", None) or "list"
+    if action == "add":
+        text = format_kb_command("add " + args.path)
+    elif action == "remove":
+        text = format_kb_command("remove " + args.doc_id)
+    elif action == "search":
+        text = format_kb_command("search " + " ".join(args.query))
+    elif action == "list":
+        text = format_kb_command("list")
+    else:
+        text = format_kb_command("")
+    print(text)
+    if text.startswith("No document") or text.startswith("document not found"):
+        return 1
     return 0
 
 

@@ -48,6 +48,10 @@ voice = [
     "sounddevice>=0.4.6",
     "piper-tts>=1.2.0",
 ]
+kb = [
+    "fastembed>=0.4.2",
+    "pypdf>=4.2.0",
+]
 
 [project.scripts]
 clawd = "src.cli:main"

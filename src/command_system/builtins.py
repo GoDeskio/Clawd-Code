@@ -652,6 +652,22 @@ def voice_command_call(args: str, context: CommandContext) -> LocalCommandResult
 
     return LocalCommandResult(type="text", value=format_voice_command(args))
 
+
+KB_COMMAND = LocalCommand(
+    name="kb",
+    description="Add, list, remove, or search local documents",
+    argument_hint="add <path> | list | remove <id> | search <query>",
+    supports_non_interactive=True,
+)
+
+
+def kb_command_call(args: str, context: CommandContext) -> LocalCommandResult:
+    """Search documents indexed on this machine."""
+    del context
+    from ..knowledge.service import format_kb_command
+
+    return LocalCommandResult(type="text", value=format_kb_command(args))
+
 INIT_COMMAND = PromptCommand(
     name="init",
     description="Initialize new CLAUDE.md file(s) and optional skills/hooks with codebase documentation",
@@ -702,6 +718,8 @@ def execute_command_sync(cmd_name: str, args: str, context: CommandContext) -> t
             result = cron_command_call(args, context)
         elif cmd is VOICE_COMMAND:
             result = voice_command_call(args, context)
+        elif cmd is KB_COMMAND:
+            result = kb_command_call(args, context)
         else:
             return False, None, f"Command not implemented for sync execution: {cmd_name}"
 
@@ -721,6 +739,7 @@ COMPACT_COMMAND.set_call(compact_command_call)
 MEMORY_COMMAND.set_call(memory_command_call)
 CRON_COMMAND.set_call(cron_command_call)
 VOICE_COMMAND.set_call(voice_command_call)
+KB_COMMAND.set_call(kb_command_call)
 
 
 def get_builtin_commands() -> list[Command]:
@@ -736,6 +755,7 @@ def get_builtin_commands() -> list[Command]:
         MEMORY_COMMAND,
         CRON_COMMAND,
         VOICE_COMMAND,
+        KB_COMMAND,
         INIT_COMMAND,
     ]
 

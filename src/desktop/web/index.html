@@ -194,6 +194,23 @@
         <input id="voice-wake-phrase" type="text" value="jonathan" />
       </label>
       <p id="voice-note" class="muted"></p>
+      <h3>Knowledge base</h3>
+      <p id="kb-status" class="muted">Documents stay on this machine unless a cloud embedding provider is explicitly chosen.</p>
+      <label>Embedding
+        <select id="kb-backend">
+          <option value="local">Local ONNX (default)</option>
+          <option value="openai">OpenAI embeddings</option>
+        </select>
+      </label>
+      <label>Local model
+        <input id="kb-model" type="text" readonly />
+      </label>
+      <label>Cloud embedding key
+        <input id="kb-key" type="password" autocomplete="off" placeholder="Used only when OpenAI embeddings are selected" />
+      </label>
+      <div class="row">
+        <button id="kb-save" class="ghost" type="button">Save knowledge settings</button>
+      </div>
       <p class="muted">Source and updates: <code>https://github.com/GoDeskio/Clawd-Code</code>. Default local tree: <code>~/Jonathan/Jonathan-Ai</code>.</p>
       <div class="row end">
         <button id="settings-close" class="ghost">Close</button>

@@ -86,3 +86,19 @@ Octop voice
 https://github.com/TencentCloud/Octop
 Copyright (c) 2026 Octop
 Licensed under the MIT License.
+
+Jonathan Ai document search is adapted from Octop's knowledge base. PDF,
+DOCX, Markdown, plain text, and HTML are split into passages and stored in
+a per-user SQLite file under the user's home directory. Answers cite the
+file name and the passage. Local embeddings use fastembed with the ONNX
+build of BAAI/bge-small-en-v1.5 from Hugging Face, and each file is checked
+against a pinned checksum before it is used. Hosts other than huggingface.co
+are refused. When that model is not on the machine, search uses BM25 and
+still cites the file and passage. Document text stays on this machine unless
+the user selects the OpenAI embedding provider. Jonathan Ai does not vendor
+Octop's OCR, spreadsheet parsers, or its download race against other hosts.
+
+Octop knowledge base
+https://github.com/TencentCloud/Octop
+Copyright (c) 2026 Octop
+Licensed under the MIT License.
