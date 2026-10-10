@@ -14,6 +14,7 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 const UI_ROUTES = ["chat", "settings", "connectors", "setup", "library"];
+const ACP_RUNNERS = ["opencode", "claude_code", "codex", "zed"];
 window.JONATHAN_UI_ROUTES = ["/", "/index.html", ...UI_ROUTES.map((name) => `/#/${name}`)];
 
 function escapeHtml(value) {
@@ -603,6 +604,10 @@ function watchJob(jobId) {
       });
       return;
     }
+    if (event.type === "acp_progress") {
+      addBubble("system", event.text || "");
+      return;
+    }
     if (event.type === "permission_request") {
       showPermission(event);
       if (native?.notify) native.notify("Jonathan Ai needs permission", event.message || event.tool_name);
@@ -692,6 +697,38 @@ function applyRoute() {
   if (route === "settings") {
     loadVoiceSettings().catch(reportError);
     loadKnowledgeSettings().catch(reportError);
+    loadAcpSettings().catch(reportError);
+  }
+}
+
+async function loadAcpSettings() {
+  const data = await api("/api/acp");
+  for (const runner of data.runners || []) {
+    const enabled = $(`acp-${runner.id}-enabled`);
+    const command = $(`acp-${runner.id}-command`);
+    const args = $(`acp-${runner.id}-args`);
+    if (enabled) enabled.checked = Boolean(runner.enabled);
+    if (command && document.activeElement !== command) command.value = runner.command || "";
+    if (args && document.activeElement !== args) args.value = (runner.args || []).join(" ");
+  }
+  const status = $("acp-status");
+  if (status && !status.dataset.saved) {
+    status.textContent = "Local runners. Paths stay on this machine.";
+  }
+}
+
+async function saveAcpSettings() {
+  const runners = ACP_RUNNERS.map((id) => ({
+    id,
+    enabled: Boolean($(`acp-${id}-enabled`)?.checked),
+    command: $(`acp-${id}-command`)?.value || "",
+    args: $(`acp-${id}-args`)?.value || "",
+  }));
+  const data = await api("/api/acp", { method: "POST", body: JSON.stringify({ runners }) });
+  const status = $("acp-status");
+  if (status) {
+    status.dataset.saved = "1";
+    status.textContent = `Saved ${(data.runners || []).length} coding agents.`;
   }
 }
 
@@ -991,6 +1028,7 @@ function bindUi() {
       $("update-status").textContent = err.message;
     }
   });
+  $("acp-save")?.addEventListener("click", guard(saveAcpSettings));
   $("open-settings").addEventListener("click", () => go("settings"));
   $("settings-close").addEventListener("click", () => go("chat"));
   $("kb-save")?.addEventListener("click", guard(async () => {

@@ -45,7 +45,7 @@ def _rule(
 ) -> dict[str, Any]:
     return {
         "id": rule_id,
-        "tools": ["bash", "execute", "powershell"],
+        "tools": ["bash", "execute", "powershell", "acp"],
         "params": ["command"],
         "category": category,
         "severity": severity,

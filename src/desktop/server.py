@@ -251,6 +251,14 @@ class DesktopServer:
             from src.knowledge.service import update_knowledge_settings
 
             return 200, update_knowledge_settings(body)
+        if path == "/api/acp" and method == "GET":
+            from src.acp.runners import public_runners
+
+            return 200, public_runners()
+        if path == "/api/acp" and method == "POST":
+            from src.acp.runners import update_runners
+
+            return 200, update_runners(body.get("runners", body))
         return 404, {"error": f"unknown route: {method} {path}"}
 
     def serve_forever(self) -> None:

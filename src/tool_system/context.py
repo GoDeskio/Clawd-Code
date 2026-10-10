@@ -42,6 +42,10 @@ class ToolContext:
     approved_shell_commands: set[str] = field(default_factory=set)
     # Local SQLite scheduler directory. Unset uses ~/.clawd/scheduler.
     scheduler_dir: Path | None = None
+    # Per-user ACP runner settings. Unset uses ~/.clawd/acp.
+    acp_dir: Path | None = None
+    # Called with one progress line while a local ACP runner is working.
+    progress_handler: Callable[[str], None] | None = None
 
     # Permission handler callback: called when a tool needs user consent.
     # Signature: (tool_name: str, message: str, suggestion: str | None)
@@ -89,7 +93,7 @@ class ToolContext:
 
     def note_shell_approval(self, tool_name: str, command: str | None) -> None:
         """Remember one approved shell command. A session tool grant is not enough."""
-        if tool_name.lower() not in {"bash", "powershell", "execute"}:
+        if tool_name.lower() not in {"bash", "powershell", "execute", "acp"}:
             return
         if isinstance(command, str) and command:
             self.approved_shell_commands.add(command)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .acp import AcpTool
 from .agent import AgentTool
 from .ask_user_question import AskUserQuestionTool
 from .bash import BashTool
@@ -40,6 +41,7 @@ from .write import FileWriteTool
 from .browser import BrowserTool
 
 __all__ = [
+    "AcpTool",
     "AgentTool",
     "AskUserQuestionTool",
     "BashTool",

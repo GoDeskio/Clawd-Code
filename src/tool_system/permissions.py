@@ -86,6 +86,7 @@ GATED_TOOL_NAMES = frozenset({
     "externalagent",
     "remotetrigger",
     "browser",
+    "acp",
 })
 
 

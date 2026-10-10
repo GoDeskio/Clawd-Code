@@ -37,6 +37,8 @@ Examples:
   clawd voice settings     Show local speech settings
   clawd kb add <path>      Index a local PDF, DOCX, MD, TXT, or HTML file
   clawd kb search <query>  Search local documents and cite the passage
+  clawd acp list           List local ACP coding agents
+  clawd acp run <runner> <folder> <task>
   clawd                    Start interactive REPL
 """
     )
@@ -122,6 +124,14 @@ Examples:
     kb_search = kb_sub.add_parser('search', help='Search indexed documents')
     kb_search.add_argument('query', nargs='+')
 
+    acp_parser = subparsers.add_parser('acp', help='List or run a local ACP coding agent')
+    acp_sub = acp_parser.add_subparsers(dest='acp_command')
+    acp_sub.add_parser('list', help='List OpenCode, Claude Code, Codex, and Zed')
+    acp_run = acp_sub.add_parser('run', help='Delegate a coding task in a project folder')
+    acp_run.add_argument('runner', help='opencode, claude_code, codex, or zed')
+    acp_run.add_argument('folder', help='Existing project folder')
+    acp_run.add_argument('task', nargs='+', help='Coding task to delegate')
+
     args = parser.parse_args()
 
     # Handle --version
@@ -203,6 +213,8 @@ Examples:
         return handle_voice(args)
     elif args.command == 'kb':
         return handle_kb(args)
+    elif args.command == 'acp':
+        return handle_acp(args)
 
     # Default: start REPL
     return start_repl(stream=args.stream)
@@ -293,6 +305,40 @@ def handle_memory(args) -> int:
     if action == "delete" and text.startswith("No memory"):
         return 1
     return 0
+
+
+def handle_acp(args) -> int:
+    """List local ACP runners, or delegate one coding task."""
+    from src.acp.service import format_acp_command
+    from src.tool_system.context import ToolContext
+    from src.tool_system.permission_handler import PermissionBehavior
+    from src.tool_system.tools.acp import AcpTool
+
+    action = getattr(args, "acp_command", None) or "list"
+    if action != "run":
+        print(format_acp_command("list"))
+        return 0
+    task = " ".join(getattr(args, "task", None) or [])
+    tool_input = {"runner": args.runner, "folder": args.folder, "task": task}
+    context = ToolContext(workspace_root=Path(args.folder).expanduser())
+    context.gate_destructive_tools = False
+
+    def _print_progress(line: str) -> None:
+        print(line, flush=True)
+
+    context.progress_handler = _print_progress
+    decision = AcpTool().check_permissions(tool_input, context)
+    if decision.behavior != PermissionBehavior.ALLOW:
+        print(decision.message or "ACP runner was not approved")
+        return 1
+    result = AcpTool().run(decision.updated_input or tool_input, context)
+    text = ""
+    if isinstance(result.output, dict):
+        text = str(result.output.get("text") or result.output.get("error") or "")
+    else:
+        text = str(result.output or "")
+    print(text)
+    return 1 if result.is_error else 0
 
 
 def handle_cron(args) -> int:
