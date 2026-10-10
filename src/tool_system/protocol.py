@@ -19,3 +19,8 @@ class ToolResult:
     tool_use_id: Optional[str] = None
     content_type: Literal["text", "json"] = "json"
 
+    def __post_init__(self) -> None:
+        from ..secret_mask import mask_tool_output
+
+        object.__setattr__(self, "output", mask_tool_output(self.output))
+

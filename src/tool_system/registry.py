@@ -113,7 +113,13 @@ class ToolRegistry:
                     is_error=True,
                     tool_use_id=call.tool_use_id,
                 )
-            # User allowed - proceed with potentially updated input
+            # User allowed - proceed with potentially updated input.
+            # A shell-guard approval is for this command only, not the whole tool.
+            effective_input = permission_result.updated_input or call.input
+            note_approval = getattr(context, "note_shell_approval", None)
+            if callable(note_approval) and isinstance(effective_input, dict):
+                command = effective_input.get("command")
+                note_approval(spec.name, command if isinstance(command, str) else None)
             if permission_result.updated_input:
                 call = ToolCall(
                     name=call.name,
