@@ -87,6 +87,7 @@ GATED_TOOL_NAMES = frozenset({
     "remotetrigger",
     "browser",
     "acp",
+    "device",
 })
 
 
