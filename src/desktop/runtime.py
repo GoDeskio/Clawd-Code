@@ -1128,6 +1128,7 @@ _HELP_TEXT = """**Jonathan Ai**
 - `/load <id>` — restore a saved session
 - `/tools` — list tools
 - `/skills` — list SKILL.md slash commands
+- `/memory` — list, recall, or delete local memories (`/memory delete <id>`)
 
 Type a message to run the existing agent loop. Destructive and network tools
 prompt for approval before they run.

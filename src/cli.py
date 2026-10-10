@@ -30,6 +30,8 @@ Examples:
   clawd desktop            Start the desktop host (browser UI)
   clawd install            First-run wizard (source + deps)
   clawd update             Check/apply GoDeskio/Clawd-Code updates
+  clawd memory list        List local memories for this user
+  clawd memory delete <id> Delete one local memory
   clawd                    Start interactive REPL
 """
     )
@@ -79,6 +81,14 @@ Examples:
     update_parser = subparsers.add_parser('update', help='Check or apply updates from GoDeskio/Clawd-Code')
     update_parser.add_argument('--apply', action='store_true', help='Fetch and apply if an update is available')
     update_parser.add_argument('--source-dir', default=None)
+
+    memory_parser = subparsers.add_parser('memory', help='List, recall, or delete local memories')
+    memory_sub = memory_parser.add_subparsers(dest='memory_command')
+    memory_sub.add_parser('list', help='List memories stored for this user')
+    recall_parser = memory_sub.add_parser('recall', help='Find memories that match text')
+    recall_parser.add_argument('query', nargs='+')
+    delete_parser = memory_sub.add_parser('delete', help='Delete one memory by id')
+    delete_parser.add_argument('memory_id')
 
     args = parser.parse_args()
 
@@ -153,6 +163,8 @@ Examples:
         print(f"local  {status.get('local_sha')}")
         print(f"remote {status.get('remote_sha')}")
         return 0
+    elif args.command == 'memory':
+        return handle_memory(args)
 
     # Default: start REPL
     return start_repl(stream=args.stream)
@@ -225,6 +237,23 @@ def show_config():
         console.print(f"\n[red]Error loading configuration: {e}[/red]\n")
         return 1
 
+    return 0
+
+
+def handle_memory(args) -> int:
+    """List, recall, or delete memories stored on this machine."""
+    from src.agent.memory import format_memory_command
+
+    action = getattr(args, "memory_command", None) or "list"
+    if action == "recall":
+        text = format_memory_command("recall " + " ".join(args.query))
+    elif action == "delete":
+        text = format_memory_command("delete " + args.memory_id)
+    else:
+        text = format_memory_command("list")
+    print(text)
+    if action == "delete" and text.startswith("No memory"):
+        return 1
     return 0
 
 

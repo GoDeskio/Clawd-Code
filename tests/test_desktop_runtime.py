@@ -186,6 +186,28 @@ class TestDesktopRuntime(DesktopTestCase):
         self.assertIn("done", types)
         self.assertIn("write", runtime.tool_context.session_grants)
 
+    def test_slash_memory_lists_and_deletes(self) -> None:
+        from src.agent.memory import add_fact, list_memories
+
+        item = add_fact("desktop memory about kites")
+        runtime = self._runtime()
+        self.assertTrue(any(cmd["name"] == "/memory" for cmd in runtime.list_commands()))
+        job_id = runtime.start_chat("/memory list")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job_id)[1]))
+        events, _ = runtime.drain_events(job_id)
+        done = [ev for ev in events if ev.get("type") == "done"][0]
+        self.assertIn("kites", done["text"])
+        self.assertIn(item["id"], done["text"])
+        runtime.provider.chat.assert_not_called()
+
+        job_id = runtime.start_chat(f"/memory delete {item['id']}")
+        self.assertTrue(_wait_until(lambda: runtime.drain_events(job_id)[1]))
+        events, _ = runtime.drain_events(job_id)
+        done = [ev for ev in events if ev.get("type") == "done"][0]
+        self.assertIn("Deleted", done["text"])
+        self.assertEqual(list_memories(), [])
+        runtime.provider.chat.assert_not_called()
+
     def test_slash_help_is_local(self) -> None:
         runtime = self._runtime()
         job_id = runtime.start_chat("/help")
