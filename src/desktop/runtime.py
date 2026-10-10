@@ -1172,6 +1172,7 @@ _HELP_TEXT = """**Jonathan Ai**
 - `/skills` — list SKILL.md slash commands
 - `/memory` — list, recall, or delete local memories (`/memory delete <id>`)
 - `/cron` — list, run, enable, disable, or delete local schedules (`/cron run <id>`)
+- Browser tool — local Chrome over CDP. Logins stay in the profile. Submits, purchases, and logins need approval.
 
 Type a message to run the existing agent loop. Destructive and network tools
 prompt for approval before they run.

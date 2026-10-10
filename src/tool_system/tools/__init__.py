@@ -37,11 +37,13 @@ from .web_fetch import WebFetchTool
 from .web_search import WebSearchTool
 from .worktree import EnterWorktreeTool, ExitWorktreeTool
 from .write import FileWriteTool
+from .browser import BrowserTool
 
 __all__ = [
     "AgentTool",
     "AskUserQuestionTool",
     "BashTool",
+    "BrowserTool",
     "BriefTool",
     "ConfigTool",
     "CronCreateTool",
